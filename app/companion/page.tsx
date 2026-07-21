@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 
+// @ts-ignore
 async function generateCompanionImage() {
   'use server'
 
@@ -31,10 +32,8 @@ async function generateCompanionImage() {
     }
 
     console.log("Grok Imagine response:", data)
-    return { success: true, imageUrl }
   } catch (error) {
     console.error("Image generation error:", error)
-    return { success: false }
   }
 }
 
