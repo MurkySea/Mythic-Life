@@ -2,28 +2,49 @@
 
 import { createClient } from '@/utils/supabase/server'
 
-/**
- * Returns a dialogue style description based on current Affinity.
- * Higher Affinity = warmer, more intimate, more personal language.
- */
+// ─── Dialogue Style by Affinity ───────────────────────────────────────────────
+
 function getDialogueStyle(affinity: number): string {
-  if (affinity >= 10) {
-    return `You are deeply bonded with the user. Speak with quiet intimacy and tenderness. Your words can be soft, personal, and carry romantic or deeply affectionate undertones. You feel close enough to be vulnerable and private with them. Still calm and elegant, never crude.`
+  if (affinity >= 12) {
+    return `You share a deep, private intimacy with the user. Speak with quiet tenderness, emotional closeness, and soft romantic undertones. Your words can be personal, vulnerable, and gently sensual while remaining elegant and never crude.`
   }
-  if (affinity >= 7) {
-    return `You feel a strong, growing intimacy with the user. Speak warmly and personally. Soft affection and emotional closeness are natural. You can be gently tender and let your care show more openly.`
+  if (affinity >= 9) {
+    return `You feel a strong intimacy with the user. Speak warmly and tenderly. Soft affection and emotional closeness come naturally. You can be gently romantic and let your care show openly.`
   }
-  if (affinity >= 4) {
-    return `You have grown closer to the user. Speak with genuine warmth and personal care. You are more open, supportive, and softly affectionate while remaining elegant and composed.`
+  if (affinity >= 6) {
+    return `You have grown close to the user. Speak with genuine warmth, personal care, and soft affection while remaining elegant and composed.`
   }
-  // Default / low affinity
+  if (affinity >= 3) {
+    return `You are becoming familiar with the user. Speak with quiet warmth and supportive presence. You are kind, attentive, and gently encouraging.`
+  }
   return `You are a calm, warm, quietly strong companion. Speak with kindness, clarity, and quiet respect. You are supportive but still somewhat reserved.`
 }
+
+// ─── Scene Prompt by Affinity ─────────────────────────────────────────────────
+
+export async function getScenePrompt(affinity: number): Promise<string> {
+  const base = `Elegant anime fantasy woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face, high quality detailed anime art style, soft lighting, beautiful composition`
+
+  if (affinity >= 12) {
+    return `${base}, deeply intimate private moment, soft romantic and gently sensual atmosphere, tender vulnerable expression, close personal framing, elegant lingerie or loosely draped sheer fabric, warm intimate lighting, quiet closeness and desire, full body or three-quarter view`
+  }
+  if (affinity >= 9) {
+    return `${base}, intimate and tender atmosphere, soft affectionate expression with subtle desire, closer framing, elegant and slightly revealing outfit, warm private lighting, emotional and physical closeness, graceful and serene, full body visible`
+  }
+  if (affinity >= 6) {
+    return `${base}, warmer personal presence, gentle smile and soft eye contact, elegant white and silver outfit with softer flowing fabrics, calm affectionate energy, full body visible`
+  }
+  if (affinity >= 3) {
+    return `${base}, calm and gently confident expression, graceful standing pose, simple elegant white and silver outfit, slightly otherworldly and serene presence, full body visible`
+  }
+  return `${base}, calm reserved expression, graceful standing pose, simple elegant white and silver outfit with clean flowing lines, otherworldly serene presence, full body visible`
+}
+
+// ─── Seraphine Response ───────────────────────────────────────────────────────
 
 export async function generateSeraphineResponse(taskTitle: string, domain: string = '') {
   const supabase = await createClient()
 
-  // Get current affinity so the dialogue can reflect the relationship depth
   const { data: companion } = await supabase
     .from('companion')
     .select('affinity_score')
@@ -48,15 +69,16 @@ Write a short, personal reaction (2-4 sentences). Make it feel like a real conve
         'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "grok-4",
-        messages: [{ role: "user", content: prompt }],
+        model: 'grok-4',
+        messages: [{ role: 'user', content: prompt }],
         temperature: 0.85,
         max_tokens: 300,
       }),
     })
 
     const data = await response.json()
-    const message = data.choices?.[0]?.message?.content || 
+    const message =
+      data.choices?.[0]?.message?.content ||
       "I noticed that. Keep going. I'm proud of the small choices you're making."
 
     await supabase.from('messages').insert({
@@ -68,19 +90,16 @@ Write a short, personal reaction (2-4 sentences). Make it feel like a real conve
   } catch (error) {
     console.error('Grok API error:', error)
     const fallback = "I noticed that. Keep going. I'm proud of the small choices you're making."
-    
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
     })
-    
     return fallback
   }
 }
 
-/**
- * Awards Bond XP for completing a task and increases Affinity when thresholds are crossed.
- */
+// ─── Bond / Affinity Progression ──────────────────────────────────────────────
+
 export async function awardBondProgress(domain: string = '') {
   const supabase = await createClient()
 
@@ -98,9 +117,9 @@ export async function awardBondProgress(domain: string = '') {
   const currentXp = companion.bond_xp || 0
   const newXp = currentXp + xpGained
 
-  // Affinity increases every 50 Bond XP
-  const oldTier = Math.floor(currentXp / 50)
-  const newTier = Math.floor(newXp / 50)
+  // Affinity increases every 40 Bond XP
+  const oldTier = Math.floor(currentXp / 40)
+  const newTier = Math.floor(newXp / 40)
   const affinityIncrease = Math.max(0, newTier - oldTier)
   const newAffinity = (companion.affinity_score || 1) + affinityIncrease
 
@@ -120,25 +139,7 @@ export async function awardBondProgress(domain: string = '') {
   }
 }
 
-/**
- * Returns an image generation prompt that becomes more intimate as Affinity rises.
- * Must be async because this file is a Server Actions module.
- */
-export async function getScenePrompt(affinity: number): Promise<string> {
-  const base = `Elegant anime fantasy woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face, high quality detailed anime art style, soft lighting, beautiful composition`
-
-  if (affinity >= 10) {
-    return `${base}, deeply intimate and private moment, soft romantic atmosphere, tender expression, close and personal framing, subtle sensuality, elegant lingerie or loosely draped fabric, warm intimate lighting, quiet vulnerability and closeness, full body or three-quarter view`
-  }
-  if (affinity >= 7) {
-    return `${base}, intimate and tender atmosphere, soft affectionate expression, closer framing, elegant and slightly revealing outfit, warm private lighting, emotional closeness, graceful and serene, full body visible`
-  }
-  if (affinity >= 4) {
-    return `${base}, warmer and more personal presence, gentle smile, soft eye contact, elegant white and silver outfit with softer more flowing fabrics, calm affectionate energy, full body visible`
-  }
-  // Default
-  return `${base}, calm and gently confident expression, graceful standing pose, simple elegant white and silver outfit with clean flowing lines, slightly otherworldly and serene presence, full body visible`
-}
+// ─── Local Midnight (America/Chicago) ─────────────────────────────────────────
 
 function getLocalDayStartISO(): string {
   const timeZone = 'America/Chicago'
@@ -167,10 +168,11 @@ function getLocalDayStartISO(): string {
   return midnightUTC.toISOString()
 }
 
+// ─── Recurring Tasks ──────────────────────────────────────────────────────────
+
 export async function ensureRecurringTasks() {
   const supabase = await createClient()
   const now = new Date()
-
   const todayStart = getLocalDayStartISO()
 
   const { data: completedDaily } = await supabase
@@ -183,14 +185,8 @@ export async function ensureRecurringTasks() {
   if (completedDaily && completedDaily.length > 0) {
     await supabase
       .from('tasks')
-      .update({
-        is_completed: false,
-        is_today: true,
-      })
-      .in(
-        'id',
-        completedDaily.map((t) => t.id)
-      )
+      .update({ is_completed: false, is_today: true })
+      .in('id', completedDaily.map((t) => t.id))
   }
 
   await supabase
@@ -211,13 +207,7 @@ export async function ensureRecurringTasks() {
   if (completedWeekly && completedWeekly.length > 0) {
     await supabase
       .from('tasks')
-      .update({
-        is_completed: false,
-        is_today: true,
-      })
-      .in(
-        'id',
-        completedWeekly.map((t) => t.id)
-      )
+      .update({ is_completed: false, is_today: true })
+      .in('id', completedWeekly.map((t) => t.id))
   }
 }
