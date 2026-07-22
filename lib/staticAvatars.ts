@@ -1,10 +1,11 @@
 /**
- * Pre-made portraits live in /public/avatars/
- *   {slug}.jpg        — base headshot (profile / unlock default)
- *   {slug}-chibi.jpg  — message-list icon
- *
- * Add files by committing them to the repo. The app never generates these on the fly.
+ * Pre-made portraits — embedded locked headshots (no image upload required).
  */
+import { SERAPHINE_HEADSHOT_JPEG_BASE64 } from './avatarData/seraphine'
+
+const EMBEDDED_HEADSHOTS: Record<string, string> = {
+  seraphine: `data:image/jpeg;base64,${SERAPHINE_HEADSHOT_JPEG_BASE64}`,
+}
 
 export function staticHeadshotPath(slug: string): string {
   return `/avatars/${slug}.jpg`
@@ -14,29 +15,24 @@ export function staticChibiPath(slug: string): string {
   return `/avatars/${slug}-chibi.jpg`
 }
 
-/** Known slugs that have committed base art */
-export const STATIC_HEADSHOTS = new Set<string>([
-  'seraphine', // locked 2026-07-22 — semi-real anime blend, realistic nose, warm smile
-])
-
-export const STATIC_CHIBIS = new Set<string>([
-  // next: seraphine-chibi
-])
+export const STATIC_HEADSHOTS = new Set<string>(Object.keys(EMBEDDED_HEADSHOTS))
+export const STATIC_CHIBIS = new Set<string>([])
 
 export function hasStaticHeadshot(slug: string): boolean {
-  return STATIC_HEADSHOTS.has(slug)
+  return slug in EMBEDDED_HEADSHOTS
 }
 
 export function hasStaticChibi(slug: string): boolean {
   return STATIC_CHIBIS.has(slug)
 }
 
-/** Prefer static file → DB image_url → null (caller shows emoji). */
 export function resolveHeadshot(
   slug: string,
   dbImageUrl?: string | null
 ): string | null {
-  if (hasStaticHeadshot(slug)) return staticHeadshotPath(slug)
+  if (EMBEDDED_HEADSHOTS[slug] && !EMBEDDED_HEADSHOTS[slug].endsWith('PENDING')) {
+    return EMBEDDED_HEADSHOTS[slug]
+  }
   if (dbImageUrl) return dbImageUrl
   return null
 }
@@ -45,9 +41,9 @@ export function resolveChibi(
   slug: string,
   dbImageUrl?: string | null
 ): string | null {
-  if (hasStaticChibi(slug)) return staticChibiPath(slug)
-  // until chibi exists, use headshot in the circle
-  if (hasStaticHeadshot(slug)) return staticHeadshotPath(slug)
+  if (STATIC_CHIBIS.has(slug)) return staticChibiPath(slug)
+  const head = resolveHeadshot(slug, dbImageUrl)
+  if (head) return head
   if (dbImageUrl) return dbImageUrl
   return null
 }
