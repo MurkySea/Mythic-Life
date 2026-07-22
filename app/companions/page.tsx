@@ -2,16 +2,15 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import { COMPANION_DEFS, meetsUnlock } from '@/lib/companions'
 import { SKILL_LABELS, skillLevelFromXp } from '@/lib/skills'
-import { checkAndUnlockCompanions } from '../actions'
 
 export const dynamic = 'force-dynamic'
 
 export default async function CompanionsPage() {
-  await checkAndUnlockCompanions()
-
   const supabase = await createClient()
-  const { data: rows } = await supabase.from('companion').select('*')
-  const { data: skills } = await supabase.from('player_skills').select('*')
+  const [{ data: rows }, { data: skills }] = await Promise.all([
+    supabase.from('companion').select('*'),
+    supabase.from('player_skills').select('*'),
+  ])
 
   const levelMap: Record<string, number> = {}
   for (const s of skills || []) {
@@ -136,7 +135,7 @@ export default async function CompanionsPage() {
                   </p>
                   <p className="text-[11px] text-zinc-500 mt-1">
                     {ready
-                      ? 'Requirements met — open the app again to bond'
+                      ? 'Requirements met — complete a task or open Today to bond'
                       : `Needs ${Object.entries(c.unlock)
                           .map(([k, v]) => `${SKILL_LABELS[k as keyof typeof SKILL_LABELS]} ${v}`)
                           .join(', ')}`}
