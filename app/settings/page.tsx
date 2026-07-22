@@ -25,6 +25,49 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-4">
+        {/* Developer tools — top of page for visibility */}
+        <div className="bg-amber-950/40 border-2 border-amber-600/50 rounded-2xl p-5 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-amber-400 font-semibold">
+              Developer mode
+            </p>
+            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+              Testing tools. Unlock opens the full roster. Boost raises affinity for scene tiers. Hard
+              reset keeps tasks but wipes progression.
+            </p>
+          </div>
+
+          <form action={devUnlockAllCompanions}>
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-amber-600 text-black text-sm font-semibold hover:bg-amber-500 active:scale-[0.99] transition"
+            >
+              Unlock all companions
+            </button>
+          </form>
+
+          <form action={devBoostAllAffinity}>
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-zinc-900 border border-amber-700/60 text-amber-100 text-sm font-medium hover:border-amber-500 active:scale-[0.99] transition"
+            >
+              Boost all affinity → 20
+            </button>
+          </form>
+
+          <form action={hardResetGame}>
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-red-950/80 border border-red-700/60 text-red-200 text-sm font-medium hover:bg-red-900/60 active:scale-[0.99] transition"
+            >
+              Hard reset game
+            </button>
+          </form>
+          <p className="text-[10px] text-zinc-600 leading-relaxed">
+            Hard reset: Seraphine only, affinity 1, empty inbox & gallery, skills cleared. Tasks stay.
+          </p>
+        </div>
+
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-4">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">Player</p>
           <div className="flex justify-between items-center">
@@ -74,47 +117,6 @@ export default function SettingsPage() {
             <span className="text-zinc-400 text-sm">Push notifications</span>
             <span className="text-zinc-500 text-sm">Coming soon</span>
           </div>
-        </div>
-
-        <div className="bg-amber-950/30 border border-amber-800/40 rounded-2xl p-5 space-y-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-amber-500/90">Developer</p>
-            <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
-              Testing tools. Unlock does not max bonds — use boost for scene tiers. Hard reset keeps
-              your task list but wipes skills, companions, messages, and gallery.
-            </p>
-          </div>
-
-          <form action={devUnlockAllCompanions}>
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-amber-900/50 border border-amber-700/50 text-amber-100 text-sm font-medium hover:bg-amber-800/50 active:scale-[0.99] transition"
-            >
-              Unlock all companions
-            </button>
-          </form>
-
-          <form action={devBoostAllAffinity}>
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm font-medium hover:border-violet-600/50 active:scale-[0.99] transition"
-            >
-              Boost all affinity → 20 (scene test)
-            </button>
-          </form>
-
-          <form action={hardResetGame}>
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-red-950/60 border border-red-800/50 text-red-200 text-sm font-medium hover:bg-red-900/50 active:scale-[0.99] transition"
-            >
-              Hard reset game
-            </button>
-          </form>
-          <p className="text-[10px] text-zinc-600 leading-relaxed">
-            Hard reset: Seraphine only, affinity 1, empty inbox, empty gallery, skills cleared. Tasks
-            stay.
-          </p>
         </div>
 
         <p className="text-xs text-zinc-600 leading-relaxed px-1 pt-2">
