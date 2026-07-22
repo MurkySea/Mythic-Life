@@ -16,11 +16,10 @@ export default function ChatThread({
   companionName: string
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Jump to latest on open / new messages
-    bottomRef.current?.scrollIntoView({ behavior: 'instant', block: 'end' })
+    // Jump to latest on open / new messages (no smooth so it feels like iMessage open)
+    bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
   }, [messages.length, messages[messages.length - 1]?.id])
 
   if (messages.length === 0) {
@@ -35,10 +34,7 @@ export default function ChatThread({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-y-auto overscroll-contain px-4 space-y-5 pt-2 pb-4"
-    >
+    <div className="flex-1 overflow-y-auto overscroll-contain px-4 space-y-5 pt-2 pb-4 min-h-0">
       {messages.map((msg) => (
         <div
           key={msg.id}
