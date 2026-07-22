@@ -3,7 +3,6 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
-import { checkAndUnlockCompanions } from '../actions'
 import ChatThread from '@/components/ChatThread'
 import ChatComposer from '@/components/ChatComposer'
 
@@ -49,31 +48,24 @@ export default async function MessagesPage({
 }: {
   searchParams: Promise<{ c?: string }>
 }) {
-  await checkAndUnlockCompanions()
-
+  // Unlock runs on Today only — keeps chat snappy
   const params = await searchParams
   const activeSlug = params.c || ''
 
   const supabase = await createClient()
 
-  const { data: companions } = await supabase
-    .from('companion')
-    .select('*')
-    .or('is_unlocked.eq.true,is_unlocked.is.null')
-
-  const party = (companions || []).map((c) => ({
-    ...c,
-    slug:
-      c.slug ||
-      (c.name === 'Seraphine' ? 'seraphine' : c.name?.toLowerCase().replace(/\s+/g, '_')),
-  }))
-
   if (!activeSlug) {
-    const { data: allMessages } = await supabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(200)
+    const [{ data: companions }, { data: allMessages }] = await Promise.all([
+      supabase.from('companion').select('*').or('is_unlocked.eq.true,is_unlocked.is.null'),
+      supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(200),
+    ])
+
+    const party = (companions || []).map((c) => ({
+      ...c,
+      slug:
+        c.slug ||
+        (c.name === 'Seraphine' ? 'seraphine' : c.name?.toLowerCase().replace(/\s+/g, '_')),
+    }))
 
     const lastBySlug: Record<string, { content: string; created_at: string }> = {}
     for (const m of allMessages || []) {
@@ -130,17 +122,24 @@ export default async function MessagesPage({
     )
   }
 
+  const [{ data: companions }, { data: messages }] = await Promise.all([
+    supabase.from('companion').select('*').or('is_unlocked.eq.true,is_unlocked.is.null'),
+    supabase.from('messages').select('*').order('created_at', { ascending: true }),
+  ])
+
+  const party = (companions || []).map((c) => ({
+    ...c,
+    slug:
+      c.slug ||
+      (c.name === 'Seraphine' ? 'seraphine' : c.name?.toLowerCase().replace(/\s+/g, '_')),
+  }))
+
   const companion =
     party.find((c) => c.slug === activeSlug) ||
     party.find((c) => c.name === 'Seraphine') ||
     null
   const def = getCompanionDef(activeSlug)
   const displayName = companion?.name || def?.name || 'Companion'
-
-  const { data: messages } = await supabase
-    .from('messages')
-    .select('*')
-    .order('created_at', { ascending: true })
 
   const thread = (messages || []).filter((m) => {
     if (activeSlug === 'seraphine') {
