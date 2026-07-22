@@ -33,7 +33,6 @@ async function generateCompanionImage(formData: FormData) {
   const characterName = companion.name || def?.name || 'Seraphine'
   const earned = scenesEarned(affinity)
 
-  // Count scenes already generated for this character
   const { count } = await supabase
     .from('gallery_images')
     .select('*', { count: 'exact', head: true })
@@ -41,12 +40,11 @@ async function generateCompanionImage(formData: FormData) {
 
   const used = count || 0
   if (used >= earned) {
-    // No free scene slot — do nothing (UI should hide the button)
     revalidatePath('/companion-profile')
     return
   }
 
-  const sceneIndex = used // 0-based which milestone we're claiming
+  const sceneIndex = used
   const prompt = buildScenePrompt(affinity, def, sceneIndex)
 
   try {
@@ -73,7 +71,6 @@ async function generateCompanionImage(formData: FormData) {
         image_url: imageUrl,
         affinity_at_generation: affinity,
         prompt_used: prompt,
-        scene_index: sceneIndex,
       })
     }
   } catch (error) {
@@ -245,7 +242,6 @@ export default async function CompanionProfilePage({
                 </p>
               )}
 
-              {/* Scene economy */}
               <div className="mt-5 w-full rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 text-center">
                 <p className="text-[11px] uppercase tracking-wider text-zinc-500">Scenes</p>
                 <p className="text-lg text-white mt-1">
