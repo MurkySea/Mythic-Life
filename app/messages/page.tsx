@@ -4,6 +4,8 @@ import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { checkAndUnlockCompanions } from '../actions'
 
+export const dynamic = 'force-dynamic'
+
 async function sendMessage(formData: FormData) {
   'use server'
 
@@ -53,7 +55,6 @@ export default async function MessagesPage({
     slug: c.slug || (c.name === 'Seraphine' ? 'seraphine' : c.name?.toLowerCase().replace(/\s+/g, '_')),
   }))
 
-  // Inbox view when no companion selected
   if (!activeSlug) {
     const { data: allMessages } = await supabase
       .from('messages')
@@ -116,7 +117,6 @@ export default async function MessagesPage({
     )
   }
 
-  // Thread view
   const companion =
     party.find((c) => c.slug === activeSlug) ||
     party.find((c) => c.name === 'Seraphine') ||
@@ -126,10 +126,8 @@ export default async function MessagesPage({
   const { data: messages } = await supabase
     .from('messages')
     .select('*')
-    .or(`companion_slug.eq.${activeSlug},and(companion_slug.is.null,role.neq.none)`)
     .order('created_at', { ascending: true })
 
-  // Filter: for seraphine include null slug legacy messages; for others only matching slug
   const thread = (messages || []).filter((m) => {
     if (activeSlug === 'seraphine') {
       return !m.companion_slug || m.companion_slug === 'seraphine'
@@ -159,7 +157,7 @@ export default async function MessagesPage({
 
       <div className="space-y-5">
         {thread.length > 0 ? (
-          thread.map((msg: any) => (
+          thread.map((msg: { id: string; role: string; content: string }) => (
             <div
               key={msg.id}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
