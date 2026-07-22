@@ -9,7 +9,7 @@ export function scenesEarned(affinity: number): number {
     if (affinity >= m) n++
     else break
   }
-  return Math.max(1, n) // always at least the first portrait slot at affinity 1
+  return Math.max(1, n)
 }
 
 export function nextSceneMilestone(affinity: number): number | null {
@@ -30,31 +30,52 @@ export function getIntimacyLabel(affinity: number): string {
   return 'Quiet Companion'
 }
 
-/** Visual identity baked into every prompt so companions don't all look like Seraphine */
+/** Prefer canon appearance string; fall back by race so Grok + Bible casts both work */
 function appearanceFor(def?: CompanionDef | null): string {
+  if (def?.appearance?.trim()) return def.appearance.trim()
   if (!def) {
     return 'elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes'
   }
-  switch (def.slug) {
-    case 'seraphine':
-      return 'elegant silver foxkin woman, long silver-white hair, soft white fox ears, ice-blue eyes, refined features'
-    case 'kira_foxveil':
-      return 'warm red fox foxkin woman, auburn-red hair, matching fox ears, amber eyes, gentle devoted expression'
-    case 'ember_crimsonfall':
-      return 'fierce fire dragonkin woman, crimson-black hair, small horns, gold-red eyes, athletic powerful presence'
-    case 'nyx_voidbane':
-      return 'ethereal shadow fairy woman, dark violet hair, translucent wings hints, starlit eyes, otherworldly calm'
-    case 'mira_quillweave':
-      return 'precise high elf woman, pale blonde hair, pointed ears, sharp intelligent eyes, scholarly grace'
-    case 'lyra_dawnforge':
-      return 'guardian angel woman, golden hair, soft luminous wings, steadfast blue eyes, protective presence'
-    case 'kael_ashrunner':
-      return 'reserved grey wolfkin, ash-grey hair, wolf ears, steady gold eyes, outdoors-hardened calm'
-    case 'selene_tideglass':
-      return 'deep-sea mermaid woman, teal-dark hair, subtle scales, ocean-blue eyes, restorative gentleness'
-    default:
-      return `${def.race} ${def.className}, distinctive features matching ${def.name}`
+  return `${def.race} ${def.className} named ${def.name}, distinctive features matching their canon`
+}
+
+/** Personality tint so Sable scenes don't read like Nettle scenes */
+function moodFor(def?: CompanionDef | null, tier = 0): string {
+  if (!def) return ''
+  const slug = def.slug
+  if (slug === 'sable_vex') {
+    return tier >= 4
+      ? 'predatory intimate gaze, dangerous allure, possessive heat'
+      : 'knowing half-smile, predatory calm, expensive menace'
   }
+  if (slug === 'nettle_softbriar') {
+    return tier >= 4
+      ? 'small fierce tenderness, garden-wild intimacy, thorn-sweet'
+      : 'sweet steel, tiny but unignorable presence'
+  }
+  if (slug === 'bok_unfinished') {
+    return 'earnest carved face, gentle giant stillness, gold repair seams catching light'
+  }
+  if (slug === 'mirelle_glasslung') {
+    return tier >= 4
+      ? 'salt-wet melancholy, intimate quiet after drowning, soft hunger for air'
+      : 'calm after the wave, tide in the chest, understated beauty'
+  }
+  if (slug === 'ysolde_nightbargain') {
+    return tier >= 4
+      ? 'contract-devil softness, unfair beauty, eyes that calculate and yield'
+      : 'lawyer-precise smile, ribbon-wrapped horns, dangerous courtesy'
+  }
+  if (slug === 'magpie_rue') {
+    return 'corvid cleverness, bright dark eyes, pockets full of secrets'
+  }
+  if (slug === 'ember_crimsonfall') {
+    return tier >= 4 ? 'competitive heat, physical confidence, battle-scarred sensuality' : 'fierce grin, training-ground energy'
+  }
+  if (slug === 'seris_nightthorn') {
+    return tier >= 4 ? 'controlled intimacy, violet-eyed assessment, rare unguarded moment' : 'economical expression, lethal stillness'
+  }
+  return ''
 }
 
 /**
@@ -71,7 +92,6 @@ export function buildScenePrompt(
   const quality =
     'masterpiece anime illustration, detailed, coherent anatomy, beautiful lighting, high quality'
 
-  // Tier by affinity (and slightly by which scene slot you're claiming)
   const tier =
     affinity >= 24
       ? 7
@@ -89,26 +109,23 @@ export function buildScenePrompt(
                   ? 1
                   : 0
 
+  const mood = moodFor(def, tier)
+  const moodBit = mood ? `, ${mood}` : ''
+
   const variants: string[] = [
-    // 0 — Affinity 1: reserved introduction
-    `${quality}. Full-body portrait of ${look}, reserved calm expression, simple elegant day clothes, modest, standing in soft daylight, composed and distant-friendly, introduction portrait of ${name}`,
-    // 1 — Affinity 3: familiar warmth
-    `${quality}. Three-quarter portrait of ${look}, gentle genuine smile, nicer tailored outfit, relaxed posture, warm ambient light, growing familiarity with the viewer, ${name}`,
-    // 2 — Affinity 6: softening bond
-    `${quality}. Close portrait of ${look}, soft affectionate eyes, light flowing dress or blouse, slight lean toward viewer, golden-hour warmth, emotional closeness without romance yet, ${name}`,
-    // 3 — Affinity 9: tender
-    `${quality}. Intimate upper-body portrait of ${look}, tender expression, evening indoor light, open-collar or soft off-shoulder garment, subtle blush, private quiet moment, romantic tension beginning, ${name}`,
-    // 4 — Affinity 12: deeply intimate
-    `${quality}. Intimate anime portrait of ${look}, soft parted lips, warm bedroom or private chamber lighting, elegant lingerie or loosely draped silk, close framing, clear romantic intimacy, tasteful, ${name}`,
-    // 5 — Affinity 16: heated
-    `${quality}. Sensual anime illustration of ${look}, flushed cheeks, half-lidded eyes, revealing elegant lingerie, sitting on edge of bed or window seat, warm low light, heated but graceful atmosphere, ${name}`,
-    // 6 — Affinity 20: borderline ecchi
-    `${quality}. Borderline ecchi anime illustration of ${look}, strong blush, slightly parted lips, sheer or very revealing elegant lingerie, intimate private chamber, soft shadows, explicit sensual tension while remaining beautiful and composed, ${name}`,
-    // 7 — Affinity 24+: peak private
-    `${quality}. Highly intimate borderline ecchi anime scene of ${look}, intense private gaze, minimal elegant sheer fabric, intimate pose on bed or against wall, candlelit or moonlight, peak sensual bond, tasteful adult romance art, never vulgar, ${name}`,
+    `${quality}. Full-body portrait of ${look}${moodBit}, reserved calm expression, simple elegant day clothes, modest, standing in soft daylight, composed and distant-friendly, introduction portrait of ${name}`,
+    `${quality}. Three-quarter portrait of ${look}${moodBit}, gentle genuine smile, nicer tailored outfit, relaxed posture, warm ambient light, growing familiarity with the viewer, ${name}`,
+    `${quality}. Close portrait of ${look}${moodBit}, soft affectionate eyes, light flowing dress or blouse, slight lean toward viewer, golden-hour warmth, emotional closeness without romance yet, ${name}`,
+    `${quality}. Intimate upper-body portrait of ${look}${moodBit}, tender expression, evening indoor light, open-collar or soft off-shoulder garment, subtle blush, private quiet moment, romantic tension beginning, ${name}`,
+    `${quality}. Intimate anime portrait of ${look}${moodBit}, soft parted lips, warm bedroom or private chamber lighting, elegant lingerie or loosely draped silk, close framing, clear romantic intimacy, tasteful, ${name}`,
+    `${quality}. Sensual anime illustration of ${look}${moodBit}, flushed cheeks, half-lidded eyes, revealing elegant lingerie, sitting on edge of bed or window seat, warm low light, heated but graceful atmosphere, ${name}`,
+    `${quality}. Borderline ecchi anime illustration of ${look}${moodBit}, strong blush, slightly parted lips, sheer or very revealing elegant lingerie, intimate private chamber, soft shadows, explicit sensual tension while remaining beautiful and composed, ${name}`,
+    `${quality}. Highly intimate borderline ecchi anime scene of ${look}${moodBit}, intense private gaze, minimal elegant sheer fabric, intimate pose on bed or against wall, candlelit or moonlight, peak sensual bond, tasteful adult romance art, never vulgar, ${name}`,
   ]
 
-  // Prefer affinity tier; nudge with sceneIndex so successive claims at same tier still vary slightly
-  const idx = Math.min(variants.length - 1, Math.max(tier, Math.min(sceneIndex, variants.length - 1)))
+  const idx = Math.min(
+    variants.length - 1,
+    Math.max(tier, Math.min(sceneIndex, variants.length - 1))
+  )
   return variants[idx]
 }
