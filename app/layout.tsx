@@ -33,7 +33,7 @@ export default function RootLayout({
           </div>
 
           {/* Bottom navigation */}
-          <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 px-2 py-2 safe-area-bottom">
+          <nav className="fixed bottom-0 left-0 right-0 bg-zinc-900 border-t border-zinc-800 px-1 py-2 safe-area-bottom">
             <div className="max-w-md mx-auto flex justify-around items-center">
               <Link href="/" className="flex flex-col items-center gap-0.5 text-xs text-zinc-400 hover:text-violet-400 transition">
                 <span className="text-lg">⚔</span>
@@ -42,6 +42,10 @@ export default function RootLayout({
               <Link href="/mother-list" className="flex flex-col items-center gap-0.5 text-xs text-zinc-400 hover:text-violet-400 transition">
                 <span className="text-lg">📜</span>
                 <span>Mother List</span>
+              </Link>
+              <Link href="/gallery" className="flex flex-col items-center gap-0.5 text-xs text-zinc-400 hover:text-violet-400 transition">
+                <span className="text-lg">🖼</span>
+                <span>Gallery</span>
               </Link>
               <Link href="/messages" className="flex flex-col items-center gap-0.5 text-xs text-zinc-400 hover:text-violet-400 transition">
                 <span className="text-lg">💬</span>
