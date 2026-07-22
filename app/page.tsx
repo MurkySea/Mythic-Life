@@ -1,7 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
-import { ensureRecurringTasks } from './actions'
+import { ensureRecurringTasks, awardBondProgress, generateSeraphineResponse } from './actions'
 
 async function completeTask(formData: FormData) {
   'use server'
@@ -21,13 +21,16 @@ async function completeTask(formData: FormData) {
     })
     .eq('id', id)
 
+  // Award Bond XP + possible Affinity increase
+  await awardBondProgress(domain)
+
   // Generate intelligent response from Seraphine using Grok
-  const { generateSeraphineResponse } = await import('./actions')
   await generateSeraphineResponse(title, domain)
 
   revalidatePath('/')
   revalidatePath('/messages')
   revalidatePath('/companion')
+  revalidatePath('/companion-profile')
 }
 
 export default async function TodayPage() {
@@ -121,7 +124,6 @@ export default async function TodayPage() {
                           {task.domain}
                         </span>
                       )}
-                      {/* NEW: Recurrence badge */}
                       {task.recurrence && task.recurrence !== 'none' && (
                         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
                           {task.recurrence}
