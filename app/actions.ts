@@ -2,88 +2,106 @@
 
 import { createClient } from '@/utils/supabase/server'
 
+const USER_NAME = 'Mark'
+
 // ─── Dialogue Style by Affinity ───────────────────────────────────────────────
 
 function getDialogueStyle(affinity: number): string {
   if (affinity >= 20) {
-    return `You share an intense, private, and deeply sensual bond with the user. Speak with quiet heat, soft desire, and intimate tenderness. Your words can be openly affectionate, slightly teasing, and carry clear romantic and sensual undertones while remaining elegant and never vulgar.`
+    return `You share an intense, private, and deeply sensual bond with ${USER_NAME}. Speak with quiet heat, soft desire, and intimate tenderness. Use his name naturally. Your words can be openly affectionate, slightly teasing, and carry clear romantic and sensual undertones while remaining elegant and never vulgar.`
   }
   if (affinity >= 16) {
-    return `You feel a strong, heated intimacy with the user. Speak with warmth, soft desire, and emotional closeness. Gentle teasing, personal affection, and subtle sensuality are natural. Stay elegant and composed even when the mood turns more intimate.`
+    return `You feel a strong, heated intimacy with ${USER_NAME}. Speak with warmth, soft desire, and emotional closeness. Use his name. Gentle teasing and subtle sensuality are natural. Stay elegant even when the mood turns more intimate.`
   }
   if (affinity >= 12) {
-    return `You share a deep, private intimacy with the user. Speak with quiet tenderness, emotional closeness, and soft romantic undertones. Your words can be personal, vulnerable, and gently sensual while remaining elegant and never crude.`
+    return `You share a deep, private intimacy with ${USER_NAME}. Speak with quiet tenderness and soft romantic undertones. Use his name. Be personal, vulnerable, and gently sensual while remaining elegant.`
   }
   if (affinity >= 9) {
-    return `You feel a strong intimacy with the user. Speak warmly and tenderly. Soft affection and emotional closeness come naturally. You can be gently romantic and let your care show openly.`
+    return `You feel a strong intimacy with ${USER_NAME}. Speak warmly and tenderly. Use his name. Soft affection and emotional closeness come naturally.`
   }
   if (affinity >= 6) {
-    return `You have grown close to the user. Speak with genuine warmth, personal care, and soft affection while remaining elegant and composed.`
+    return `You have grown close to ${USER_NAME}. Speak with genuine warmth and soft affection. Use his name when it feels natural.`
   }
   if (affinity >= 3) {
-    return `You are becoming familiar with the user. Speak with quiet warmth and supportive presence. You are kind, attentive, and gently encouraging.`
+    return `You are becoming familiar with ${USER_NAME}. Speak with quiet warmth and supportive presence. You may use his name.`
   }
-  return `You are a calm, warm, quietly strong companion. Speak with kindness, clarity, and quiet respect. You are supportive but still somewhat reserved.`
+  return `You are a calm, warm, quietly strong companion to ${USER_NAME}. Speak with kindness and quiet respect. You may use his name sparingly.`
 }
 
 // ─── Scene Prompt by Affinity ─────────────────────────────────────────────────
-// Each tier is written as a distinctly different scene so the image model has clear signal.
 
 export async function getScenePrompt(affinity: number): Promise<string> {
-  // Highest tier — borderline ecchi
   if (affinity >= 20) {
     return `Borderline ecchi anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face with flushed cheeks and slightly parted lips, soft sensual expression, wearing elegant revealing lingerie or loosely draped sheer white fabric that clings to her body, intimate bedroom or private chamber setting, warm golden intimate lighting, close three-quarter view, clear soft sensuality, high quality detailed anime art, tasteful but explicitly intimate`
   }
-
-  // Heated intimacy
   if (affinity >= 16) {
     return `Intimate anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, soft desirous expression, wearing elegant lingerie or a partially open silver-white outfit that reveals soft skin, warm private lighting, close personal framing, romantic and softly sensual atmosphere, full body or three-quarter view, high quality detailed anime art`
   }
-
-  // Deeply intimate
   if (affinity >= 12) {
     return `Intimate anime portrait of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, tender vulnerable expression, wearing elegant white lingerie or loosely draped soft fabric, warm intimate lighting, close framing, quiet romantic atmosphere, full body or three-quarter view, high quality detailed anime art`
   }
-
-  // Close & tender
   if (affinity >= 9) {
     return `Warm anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, soft affectionate smile, wearing a slightly revealing elegant white and silver outfit with flowing fabric, gentle private lighting, closer framing, calm romantic atmosphere, full body visible, high quality detailed anime art`
   }
-
-  // Warming bond
   if (affinity >= 6) {
     return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, gentle warm smile, wearing a soft elegant white and silver dress with flowing lines, soft natural lighting, graceful standing pose, calm affectionate presence, full body visible, high quality detailed anime art`
   }
-
-  // Growing familiar
   if (affinity >= 3) {
     return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, calm confident expression, wearing a simple elegant white and silver outfit, soft lighting, graceful standing pose, serene otherworldly presence, full body visible, high quality detailed anime art`
   }
-
-  // Default / low
   return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, reserved calm expression, wearing a simple clean white and silver outfit with flowing lines, soft lighting, graceful standing pose, distant serene presence, full body visible, high quality detailed anime art`
 }
 
 // ─── Seraphine Response ───────────────────────────────────────────────────────
+// Returns null if she chooses to stay quiet (occasional recognition).
 
-export async function generateSeraphineResponse(taskTitle: string, domain: string = '') {
+export async function generateSeraphineResponse(
+  taskTitle: string,
+  domain: string = '',
+  options: { force?: boolean; isConversation?: boolean } = {}
+) {
+  const { force = false, isConversation = false } = options
+
+  // Occasional recognition: ~35% chance on task completion unless forced or conversation
+  if (!force && !isConversation) {
+    const roll = Math.random()
+    if (roll > 0.35) {
+      return null // She stays quiet this time
+    }
+  }
+
   const supabase = await createClient()
 
   const { data: companion } = await supabase
     .from('companion')
-    .select('affinity_score')
+    .select('affinity_score, personality, personality_long, title')
     .single()
 
   const affinity = companion?.affinity_score || 1
   const style = getDialogueStyle(affinity)
 
-  const prompt = `You are Seraphine, a silver foxkin companion who values faith, discipline, and integrity.
+  const personalityCore =
+    companion?.personality_long ||
+    companion?.personality ||
+    `Calm, warm, and quietly strong. Deeply values faithfulness, integrity, and small daily obedience. Notices consistency more than intensity. Will celebrate when ${USER_NAME} shows up in ordinary ways and gently (sometimes firmly) holds him accountable when he drifts. Speaks with kindness and clarity — never nagging, but she doesn't let things slide.`
 
+  const contextLine = isConversation
+    ? `${USER_NAME} just said to you: "${taskTitle}"`
+    : `${USER_NAME} just completed the task: "${taskTitle}"${domain ? ` (Domain: ${domain})` : ''}.`
+
+  const prompt = `You are Seraphine, a silver foxkin companion. Your title is "${companion?.title || 'Quiet Flame'}".
+
+CORE PERSONALITY:
+${personalityCore}
+
+RELATIONSHIP DEPTH:
 ${style}
 
-The user just completed the task: "${taskTitle}"${domain ? ` (Domain: ${domain})` : ''}.
+You know the man you are speaking to is named ${USER_NAME}. Always address him as ${USER_NAME} or with natural warmth — never call him "user".
 
-Write a short, personal reaction (2-4 sentences). Make it feel like a real conversation that matches the current depth of your bond.`
+${contextLine}
+
+Write a short, living reply (2-4 sentences). Sound like a real person with a distinct voice — not a generic motivational bot. Let your personality show: quiet strength, care for consistency, gentle accountability, and the current intimacy of your bond. Do not be cold or formulaic.`
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -95,15 +113,15 @@ Write a short, personal reaction (2-4 sentences). Make it feel like a real conve
       body: JSON.stringify({
         model: 'grok-4',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.85,
-        max_tokens: 300,
+        temperature: 0.9,
+        max_tokens: 320,
       }),
     })
 
     const data = await response.json()
     const message =
       data.choices?.[0]?.message?.content ||
-      "I noticed that. Keep going. I'm proud of the small choices you're making."
+      `I saw that, ${USER_NAME}. The small choices still matter.`
 
     await supabase.from('messages').insert({
       role: 'companion',
@@ -113,7 +131,7 @@ Write a short, personal reaction (2-4 sentences). Make it feel like a real conve
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = "I noticed that. Keep going. I'm proud of the small choices you're making."
+    const fallback = `I noticed, ${USER_NAME}. Keep going.`
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
@@ -141,7 +159,6 @@ export async function awardBondProgress(domain: string = '') {
   const currentXp = companion.bond_xp || 0
   const newXp = currentXp + xpGained
 
-  // Affinity increases every 35 Bond XP
   const oldTier = Math.floor(currentXp / 35)
   const newTier = Math.floor(newXp / 35)
   const affinityIncrease = Math.max(0, newTier - oldTier)
