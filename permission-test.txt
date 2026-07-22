@@ -1,1 +1,0 @@
-Permission test - if you see this file, write access is working. Safe to delete.
