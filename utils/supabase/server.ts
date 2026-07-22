@@ -14,7 +14,7 @@ export async function createClient() {
 
   if (!url || !key) {
     throw new Error(
-      'MISSING_SUPABASE_ENV: Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel → Settings → Environment Variables, then Redeploy.'
+      'MISSING_SUPABASE_ENV: Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Vercel → Settings → Environment Variables (Production + Preview), then Redeploy.'
     )
   }
 
