@@ -14,7 +14,7 @@ async function generateCompanionImage() {
 
   const affinity = companion?.affinity_score || 1
   const characterName = companion?.name || 'Seraphine'
-  const prompt = getScenePrompt(affinity)
+  const prompt = await getScenePrompt(affinity)
 
   try {
     const response = await fetch('https://api.x.ai/v1/images/generations', {
