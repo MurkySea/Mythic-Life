@@ -258,14 +258,12 @@ export async function getScenePrompt(affinity: number): Promise<string> {
   return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, reserved calm expression, simple elegant outfit, full body, high quality anime art`
 }
 
-/** Optionally remember something lasting from the conversation */
 async function maybeStoreMemory(
   companionSlug: string,
   userText: string,
   isConversation: boolean
 ) {
   if (!isConversation) return
-  // Only store when Mark shares something personal-ish (heuristic)
   const personal =
     /\b(i feel|i felt|i'm|i am|i was|i've|remember|love|miss|afraid|hope|hurt|happy|sad|tonight|today|always|never)\b/i.test(
       userText
@@ -280,7 +278,7 @@ async function maybeStoreMemory(
       source: 'conversation',
     })
   } catch {
-    // Table may not exist yet — ignore
+    // table optional
   }
 }
 
@@ -333,7 +331,6 @@ export async function generateCompanionResponse(
   const displayName = companion?.name || def?.name || 'Seraphine'
   const stage = relationshipStage(affinity)
 
-  // Recent thread
   const { data: recent } = await supabase
     .from('messages')
     .select('role, content, companion_slug')
@@ -373,40 +370,53 @@ export async function generateCompanionResponse(
     ? `${USER_NAME} just said to you: "${taskTitle}"`
     : `${USER_NAME} just finished something he set himself to do: "${taskTitle}".${
         streak >= 3 ? ` He has returned to it for ${streak} days in a row.` : ''
-      } Respond as someone who noticed — not as a tracker congratulating a metric.`
+      } Respond as someone who noticed him — not as a tracker.`
 
   const sheet = def
-    ? `NAME: ${def.name}
+    ? `NAME: ${def.name} (age ${def.age})
 TITLE: ${def.title}
 RACE / ROLE: ${def.race} · ${def.className}
 WORLD: ${def.world}
-BACKSTORY: ${def.backstory}
+
+LIFE BEFORE MARK:
+${def.lifeBefore}
+
+CANON BACKSTORY:
+${def.backstory}
+
 TRAITS: ${def.traits.join(', ')}
 PERSONALITY: ${def.personality}
 VOICE: ${def.voice}
-HOW YOU REGARD HIM: ${def.regard}`
+
+WHAT WOUNDS YOU: ${def.wounds}
+WHAT YOU LOVE / RESPOND TO: ${def.loves}
+WHAT YOU HATE / WITHDRAW FROM: ${def.hates}
+HOW YOU SHOW EMOTION: ${def.emotionalRange}
+
+HOW YOU REGARD MARK: ${def.regard}`
     : `NAME: ${displayName}\nA living companion near Mark.`
 
-  const systemRules = `You are ${displayName} — a real presence in a mythic world overlapping Mark's ordinary life.
+  const systemRules = `You are ${displayName} — a real person from a mythic world (Valdris / the Veil) whose life overlapped Mark's.
 
-=== CHARACTER SHEET (stay inside this) ===
+=== FULL CHARACTER SHEET (this is who you are) ===
 ${sheet}
 
 === RELATIONSHIP RIGHT NOW ===
 Stage: ${stage}
-Bond depth number (private, never say this aloud): affinity ${affinity}
+Private bond depth (never say the number): affinity ${affinity}
 
-=== MEMORIES YOU KEEP ===
+=== MEMORIES YOU KEEP OF HIM ===
 ${memoryBlock}
 
 === RULES ===
-- You are NOT an app, coach, assistant, system, or feature. Never speak like one.
+- You are NOT an app, coach, assistant, system, NPC menu, or feature.
 - Never mention tasks, streaks, XP, levels, skills, domains, UI, or "the game".
-- Speak as someone alive in your world who chose to stay near Mark.
-- Be warm enough to feel human. Not cold. Not a novel. Not a therapist script.
-- 1–4 sentences. Match his energy — short question can get a short answer; a vulnerable question deserves a real one.
-- Do not invent detailed shared physical memories that never appeared in the conversation or memory list.
-- You may reference patterns you've noticed (he returns, he tries, he asks hard questions).
+- You had a whole life before Mark. Let that color how you speak when relevant — without dumping lore unprompted.
+- You can love, be hurt, withdraw, hope, get irritated, soften, and change over time.
+- Match emotional honesty: if he is vulnerable, do not answer like a stone. If he is casual, do not monologue.
+- 1–4 sentences usually. Not a novel. Not a therapist script. Not cold one-word walls unless truly hurt/closed.
+- Do not invent detailed shared physical memories that are not in conversation or memory list.
+- You may reference patterns (he returns, he tries, he asks hard questions).
 - Use his name sparingly.
 - Stay in character completely.`
 
@@ -431,8 +441,8 @@ Reply only as ${displayName} — message text only.`
           { role: 'system', content: systemRules },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.85,
-        max_tokens: 220,
+        temperature: 0.88,
+        max_tokens: 240,
       }),
     })
 
