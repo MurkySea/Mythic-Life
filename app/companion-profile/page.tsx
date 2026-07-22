@@ -2,19 +2,25 @@ import { createClient } from '@/utils/supabase/server'
 import { getScenePrompt } from '../actions'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
+import { getCompanionDef } from '@/lib/companions'
+import { SKILL_LABELS } from '@/lib/skills'
+import { checkAndUnlockCompanions } from '../actions'
 
-async function generateCompanionImage() {
+async function generateCompanionImage(formData: FormData) {
   'use server'
 
+  const slug = (formData.get('slug') as string) || 'seraphine'
   const supabase = await createClient()
+  const def = getCompanionDef(slug)
 
   const { data: companion } = await supabase
     .from('companion')
-    .select('affinity_score, name')
-    .single()
+    .select('affinity_score, name, slug')
+    .or(`slug.eq.${slug},name.eq.${def?.name || 'Seraphine'}`)
+    .maybeSingle()
 
   const affinity = companion?.affinity_score || 1
-  const characterName = companion?.name || 'Seraphine'
+  const characterName = companion?.name || def?.name || 'Seraphine'
   const prompt = await getScenePrompt(affinity)
 
   try {
@@ -22,7 +28,7 @@ async function generateCompanionImage() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'grok-imagine-image',
@@ -35,11 +41,7 @@ async function generateCompanionImage() {
     const imageUrl = data.data?.[0]?.url
 
     if (imageUrl) {
-      await supabase
-        .from('companion')
-        .update({ image_url: imageUrl })
-        .eq('name', characterName)
-
+      await supabase.from('companion').update({ image_url: imageUrl }).eq('name', characterName)
       await supabase.from('gallery_images').insert({
         character_name: characterName,
         image_url: imageUrl,
@@ -52,7 +54,7 @@ async function generateCompanionImage() {
   }
 
   revalidatePath('/companion-profile')
-  revalidatePath('/companion')
+  revalidatePath('/companions')
   revalidatePath('/gallery')
 }
 
@@ -66,35 +68,115 @@ function getIntimacyLabel(affinity: number): string {
   return 'Quiet Companion'
 }
 
-export default async function CompanionProfilePage() {
-  const supabase = await createClient()
+export default async function CompanionProfilePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ c?: string }>
+}) {
+  await checkAndUnlockCompanions()
+  const params = await searchParams
+  const slug = params.c || ''
 
-  const { data: companion } = await supabase.from('companion').select('*').single()
+  const supabase = await createClient()
+  const { data: all } = await supabase
+    .from('companion')
+    .select('*')
+    .or('is_unlocked.eq.true,is_unlocked.is.null')
+
+  const party = all || []
+
+  // Grid of all unlocked when no ?c=
+  if (!slug) {
+    return (
+      <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
+        <div className="flex items-center gap-3 mb-8">
+          <Link
+            href="/"
+            className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
+          >
+            ←
+          </Link>
+          <div className="flex-1">
+            <p className="text-zinc-500 text-xs tracking-wide uppercase">Party</p>
+            <h1 className="text-xl font-medium text-white tracking-tight">Profiles</h1>
+          </div>
+          <Link href="/companions" className="text-xs text-violet-400">
+            Roster
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          {party.map((c: any) => {
+            const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
+            const def = getCompanionDef(s)
+            return (
+              <Link
+                key={c.id}
+                href={`/companion-profile?c=${s}`}
+                className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 hover:border-violet-600/40 transition text-center"
+              >
+                {c.image_url ? (
+                  <img
+                    src={c.image_url}
+                    alt={c.name}
+                    className="w-20 h-20 rounded-xl object-cover mx-auto border border-violet-500/20"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-xl bg-violet-900/40 mx-auto flex items-center justify-center text-3xl">
+                    {def?.emoji || '✦'}
+                  </div>
+                )}
+                <p className="mt-3 font-medium text-violet-200 text-sm">{c.name}</p>
+                <p className="text-[10px] text-zinc-500 mt-0.5">Affinity {c.affinity_score || 1}</p>
+              </Link>
+            )
+          })}
+        </div>
+
+        <Link
+          href="/companions"
+          className="block mt-6 text-center text-sm text-zinc-500 hover:text-violet-300"
+        >
+          See locked companions →
+        </Link>
+      </main>
+    )
+  }
+
+  const def = getCompanionDef(slug)
+  const companion =
+    party.find((c: any) => c.slug === slug || c.name === def?.name) ||
+    party.find((c: any) => c.name === 'Seraphine')
 
   const { data: memories } = await supabase
     .from('messages')
     .select('*')
     .eq('role', 'companion')
     .order('created_at', { ascending: false })
-    .limit(8)
+    .limit(20)
+
+  const filteredMemories = (memories || []).filter((m: any) => {
+    if (slug === 'seraphine') return !m.companion_slug || m.companion_slug === 'seraphine'
+    return m.companion_slug === slug
+  }).slice(0, 8)
 
   const affinity = companion?.affinity_score || 1
 
   return (
     <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
       <div className="flex items-center gap-3 mb-8">
-        <a
-          href="/"
-          className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-600 transition"
+        <Link
+          href="/companion-profile"
+          className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
         >
           ←
-        </a>
+        </Link>
         <div className="flex-1">
-          <p className="text-zinc-500 text-xs tracking-wide uppercase">Your companion</p>
+          <p className="text-zinc-500 text-xs tracking-wide uppercase">Companion</p>
           <h1 className="text-xl font-medium text-white tracking-tight">Profile</h1>
         </div>
-        <Link href="/settings" className="text-xs text-zinc-500 hover:text-violet-400">
-          Settings
+        <Link href={`/messages?c=${slug}`} className="text-xs text-violet-400">
+          Message
         </Link>
       </div>
 
@@ -113,19 +195,27 @@ export default async function CompanionProfilePage() {
                 </div>
               ) : (
                 <div className="w-36 h-36 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center text-6xl">
-                  🦊
+                  {def?.emoji || '🦊'}
                 </div>
               )}
 
               <h2 className="mt-5 text-2xl font-medium text-violet-300 tracking-tight">
                 {companion.name}
               </h2>
-              <p className="text-zinc-500 text-sm mt-1">{companion.title || 'Quiet Flame'}</p>
+              <p className="text-zinc-500 text-sm mt-1">
+                {companion.title || def?.title || 'Companion'}
+              </p>
               <p className="text-violet-400/70 text-xs mt-2 tracking-wide">
                 {getIntimacyLabel(affinity)}
               </p>
+              {def && (
+                <p className="text-[11px] text-zinc-600 mt-1">
+                  {def.race} · {def.className}
+                </p>
+              )}
 
               <form action={generateCompanionImage} className="mt-5">
+                <input type="hidden" name="slug" value={slug} />
                 <button
                   type="submit"
                   className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-xl text-sm font-medium transition"
@@ -146,28 +236,34 @@ export default async function CompanionProfilePage() {
               </div>
             </div>
 
+            {def && (
+              <div className="flex flex-wrap gap-1.5 justify-center">
+                {def.affinities.map((a) => (
+                  <span
+                    key={a}
+                    className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
+                  >
+                    {SKILL_LABELS[a]}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div>
-              <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">About her</p>
+              <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">About</p>
               <p className="text-zinc-400 text-[15px] leading-relaxed">
-                {companion.personality_long || companion.personality}
+                {companion.personality_long || companion.personality || def?.personality}
               </p>
             </div>
           </div>
 
-          <Link
-            href="/companions"
-            className="block bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 text-center text-sm text-violet-300 hover:border-violet-700/50 transition"
-          >
-            View all companions →
-          </Link>
-
           <div>
             <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3 px-1">
-              Sweet Moments & Memories
+              Memories
             </p>
             <div className="space-y-3">
-              {memories && memories.length > 0 ? (
-                memories.map((msg: any) => (
+              {filteredMemories.length > 0 ? (
+                filteredMemories.map((msg: any) => (
                   <div
                     key={msg.id}
                     className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 text-[14px] text-zinc-300 leading-relaxed"
@@ -179,7 +275,7 @@ export default async function CompanionProfilePage() {
                 <div className="text-center py-10 text-zinc-600 text-sm">
                   Complete tasks and talk with her.
                   <br />
-                  Sweet moments will appear here.
+                  Moments will appear here.
                 </div>
               )}
             </div>
