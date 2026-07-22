@@ -10,8 +10,8 @@ import {
   awardSkillXp,
   pickReactingCompanion,
   postUnlockCeremony,
-  maybeCompanionCheckIn,
 } from './actions'
+import { maybeCompanionCheckIn } from './check-in-actions'
 import { parseDomains, SKILL_LABELS, SKILLS, xpIntoLevel, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
@@ -99,7 +99,6 @@ export default async function TodayPage() {
 
   await ensureRecurringTasks()
 
-  // Occasional companion-initiated message (lands in inbox; not noisy)
   after(async () => {
     try {
       await maybeCompanionCheckIn()
@@ -135,10 +134,13 @@ export default async function TodayPage() {
   const skillMap: Record<string, number> = {}
   for (const s of skills || []) skillMap[s.skill] = s.xp || 0
 
-  // All domains — hide ones still at zero XP only if user has some progress elsewhere
   const hasAnyXp = Object.values(skillMap).some((xp) => xp > 0)
   const stripKeys = hasAnyXp
-    ? (SKILLS as readonly SkillKey[]).filter((k) => (skillMap[k] || 0) > 0 || ['faith', 'discipline', 'fitness', 'knowledge'].includes(k))
+    ? (SKILLS as readonly SkillKey[]).filter(
+        (k) =>
+          (skillMap[k] || 0) > 0 ||
+          (['faith', 'discipline', 'fitness', 'knowledge'] as SkillKey[]).includes(k)
+      )
     : (['faith', 'discipline', 'fitness', 'knowledge'] as SkillKey[])
 
   const topSkills = stripKeys.map((k) => {
