@@ -4,7 +4,73 @@ import { createClient } from '@/utils/supabase/server'
 
 const USER_NAME = 'Mark'
 
-// ─── Dialogue Style by Affinity ───────────────────────────────────────────────
+function getLocalYmd(): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
+function getYesterdayYmd(): string {
+  const now = new Date()
+  // Approximate yesterday in Chicago by formatting a date 24h ago
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(yesterday)
+}
+
+/**
+ * Updates streak_count for a task on completion.
+ * Consecutive local days continue the streak; a gap resets to 1.
+ * Requires columns: streak_count integer, last_streak_date text (YYYY-MM-DD)
+ */
+export async function updateTaskStreak(taskId: string) {
+  const supabase = await createClient()
+
+  const { data: task } = await supabase
+    .from('tasks')
+    .select('id, recurrence, streak_count, last_streak_date')
+    .eq('id', taskId)
+    .single()
+
+  if (!task) return { streak: 0 }
+
+  // Only track streaks for daily (and weekly lightly)
+  if (task.recurrence !== 'daily' && task.recurrence !== 'weekly') {
+    return { streak: task.streak_count || 0 }
+  }
+
+  const today = getLocalYmd()
+  const yesterday = getYesterdayYmd()
+  const last = task.last_streak_date as string | null
+  const prev = task.streak_count || 0
+
+  let next = 1
+  if (last === today) {
+    // Already counted today
+    next = prev
+  } else if (last === yesterday) {
+    next = prev + 1
+  } else {
+    next = 1
+  }
+
+  await supabase
+    .from('tasks')
+    .update({
+      streak_count: next,
+      last_streak_date: today,
+    })
+    .eq('id', taskId)
+
+  return { streak: next }
+}
 
 function getDialogueStyle(affinity: number): string {
   if (affinity >= 20) {
@@ -28,8 +94,6 @@ function getDialogueStyle(affinity: number): string {
   return `You are a calm, warm, quietly strong companion to ${USER_NAME}. Speak with kindness and quiet respect. You may use his name sparingly.`
 }
 
-// ─── Scene Prompt by Affinity ─────────────────────────────────────────────────
-
 export async function getScenePrompt(affinity: number): Promise<string> {
   if (affinity >= 20) {
     return `Borderline ecchi anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face with flushed cheeks and slightly parted lips, soft sensual expression, wearing elegant revealing lingerie or loosely draped sheer white fabric that clings to her body, intimate bedroom or private chamber setting, warm golden intimate lighting, close three-quarter view, clear soft sensuality, high quality detailed anime art, tasteful but explicitly intimate`
@@ -52,22 +116,15 @@ export async function getScenePrompt(affinity: number): Promise<string> {
   return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, reserved calm expression, wearing a simple clean white and silver outfit with flowing lines, soft lighting, graceful standing pose, distant serene presence, full body visible, high quality detailed anime art`
 }
 
-// ─── Seraphine Response ───────────────────────────────────────────────────────
-// Returns null if she chooses to stay quiet (occasional recognition).
-
 export async function generateSeraphineResponse(
   taskTitle: string,
   domain: string = '',
-  options: { force?: boolean; isConversation?: boolean } = {}
+  options: { force?: boolean; isConversation?: boolean; streak?: number } = {}
 ) {
-  const { force = false, isConversation = false } = options
+  const { force = false, isConversation = false, streak = 0 } = options
 
-  // Occasional recognition: ~35% chance on task completion unless forced or conversation
   if (!force && !isConversation) {
-    const roll = Math.random()
-    if (roll > 0.35) {
-      return null // She stays quiet this time
-    }
+    if (Math.random() > 0.35) return null
   }
 
   const supabase = await createClient()
@@ -85,9 +142,14 @@ export async function generateSeraphineResponse(
     companion?.personality ||
     `Calm, warm, and quietly strong. Deeply values faithfulness, integrity, and small daily obedience. Notices consistency more than intensity. Will celebrate when ${USER_NAME} shows up in ordinary ways and gently (sometimes firmly) holds him accountable when he drifts. Speaks with kindness and clarity — never nagging, but she doesn't let things slide.`
 
+  const streakNote =
+    streak >= 3
+      ? ` He is on a ${streak}-day streak for this task — consistency matters to you; acknowledge it naturally if it fits.`
+      : ''
+
   const contextLine = isConversation
     ? `${USER_NAME} just said to you: "${taskTitle}"`
-    : `${USER_NAME} just completed the task: "${taskTitle}"${domain ? ` (Domain: ${domain})` : ''}.`
+    : `${USER_NAME} just completed the task: "${taskTitle}"${domain ? ` (Domain: ${domain})` : ''}.${streakNote}`
 
   const prompt = `You are Seraphine, a silver foxkin companion. Your title is "${companion?.title || 'Quiet Flame'}".
 
@@ -140,9 +202,7 @@ Write a short, living reply (2-4 sentences). Sound like a real person with a dis
   }
 }
 
-// ─── Bond / Affinity Progression ──────────────────────────────────────────────
-
-export async function awardBondProgress(domain: string = '') {
+export async function awardBondProgress(domain: string = '', streak: number = 0) {
   const supabase = await createClient()
 
   const { data: companion } = await supabase
@@ -154,7 +214,9 @@ export async function awardBondProgress(domain: string = '') {
 
   const baseXp = 10
   const domainBonus = domain ? 3 : 0
-  const xpGained = baseXp + domainBonus
+  // Streak bonus from Notion: consistency multiplies value
+  const streakBonus = streak >= 7 ? 8 : streak >= 3 ? 4 : 0
+  const xpGained = baseXp + domainBonus + streakBonus
 
   const currentXp = companion.bond_xp || 0
   const newXp = currentXp + xpGained
@@ -180,11 +242,8 @@ export async function awardBondProgress(domain: string = '') {
   }
 }
 
-// ─── Local Midnight (America/Chicago) ─────────────────────────────────────────
-
 function getLocalDayStartISO(): string {
   const timeZone = 'America/Chicago'
-
   const chicagoYmd = new Intl.DateTimeFormat('en-CA', {
     timeZone,
     year: 'numeric',
@@ -205,11 +264,8 @@ function getLocalDayStartISO(): string {
   const offsetHours = 12 - hourInChicago
   const midnightUTC = new Date(`${chicagoYmd}T00:00:00Z`)
   midnightUTC.setUTCHours(midnightUTC.getUTCHours() + offsetHours)
-
   return midnightUTC.toISOString()
 }
-
-// ─── Recurring Tasks ──────────────────────────────────────────────────────────
 
 export async function ensureRecurringTasks() {
   const supabase = await createClient()
