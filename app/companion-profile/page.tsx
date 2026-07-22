@@ -1,10 +1,18 @@
 import { createClient } from '@/utils/supabase/server'
-import { getScenePrompt } from '../actions'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { SKILL_LABELS } from '@/lib/skills'
 import { checkAndUnlockCompanions } from '../actions'
+import {
+  buildScenePrompt,
+  scenesEarned,
+  nextSceneMilestone,
+  getIntimacyLabel,
+  SCENE_MILESTONES,
+} from '@/lib/scenes'
+
+export const dynamic = 'force-dynamic'
 
 async function generateCompanionImage(formData: FormData) {
   'use server'
@@ -15,13 +23,31 @@ async function generateCompanionImage(formData: FormData) {
 
   const { data: companion } = await supabase
     .from('companion')
-    .select('affinity_score, name, slug')
+    .select('id, affinity_score, name, slug, image_url')
     .or(`slug.eq.${slug},name.eq.${def?.name || 'Seraphine'}`)
     .maybeSingle()
 
-  const affinity = companion?.affinity_score || 1
-  const characterName = companion?.name || def?.name || 'Seraphine'
-  const prompt = await getScenePrompt(affinity)
+  if (!companion) return
+
+  const affinity = companion.affinity_score || 1
+  const characterName = companion.name || def?.name || 'Seraphine'
+  const earned = scenesEarned(affinity)
+
+  // Count scenes already generated for this character
+  const { count } = await supabase
+    .from('gallery_images')
+    .select('*', { count: 'exact', head: true })
+    .eq('character_name', characterName)
+
+  const used = count || 0
+  if (used >= earned) {
+    // No free scene slot — do nothing (UI should hide the button)
+    revalidatePath('/companion-profile')
+    return
+  }
+
+  const sceneIndex = used // 0-based which milestone we're claiming
+  const prompt = buildScenePrompt(affinity, def, sceneIndex)
 
   try {
     const response = await fetch('https://api.x.ai/v1/images/generations', {
@@ -41,12 +67,13 @@ async function generateCompanionImage(formData: FormData) {
     const imageUrl = data.data?.[0]?.url
 
     if (imageUrl) {
-      await supabase.from('companion').update({ image_url: imageUrl }).eq('name', characterName)
+      await supabase.from('companion').update({ image_url: imageUrl }).eq('id', companion.id)
       await supabase.from('gallery_images').insert({
         character_name: characterName,
         image_url: imageUrl,
         affinity_at_generation: affinity,
         prompt_used: prompt,
+        scene_index: sceneIndex,
       })
     }
   } catch (error) {
@@ -56,16 +83,6 @@ async function generateCompanionImage(formData: FormData) {
   revalidatePath('/companion-profile')
   revalidatePath('/companions')
   revalidatePath('/gallery')
-}
-
-function getIntimacyLabel(affinity: number): string {
-  if (affinity >= 20) return 'Intense & Sensual'
-  if (affinity >= 16) return 'Heated Intimacy'
-  if (affinity >= 12) return 'Deeply Intimate'
-  if (affinity >= 9) return 'Close & Tender'
-  if (affinity >= 6) return 'Warming Bond'
-  if (affinity >= 3) return 'Growing Familiar'
-  return 'Quiet Companion'
 }
 
 export default async function CompanionProfilePage({
@@ -85,7 +102,6 @@ export default async function CompanionProfilePage({
 
   const party = all || []
 
-  // Grid of all unlocked when no ?c=
   if (!slug) {
     return (
       <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
@@ -106,7 +122,7 @@ export default async function CompanionProfilePage({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {party.map((c: any) => {
+          {party.map((c: { id: string; name: string; slug?: string; image_url?: string; affinity_score?: number }) => {
             const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
             const def = getCompanionDef(s)
             return (
@@ -116,6 +132,7 @@ export default async function CompanionProfilePage({
                 className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 hover:border-violet-600/40 transition text-center"
               >
                 {c.image_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={c.image_url}
                     alt={c.name}
@@ -145,8 +162,8 @@ export default async function CompanionProfilePage({
 
   const def = getCompanionDef(slug)
   const companion =
-    party.find((c: any) => c.slug === slug || c.name === def?.name) ||
-    party.find((c: any) => c.name === 'Seraphine')
+    party.find((c: { slug?: string; name: string }) => c.slug === slug || c.name === def?.name) ||
+    party.find((c: { name: string }) => c.name === 'Seraphine')
 
   const { data: memories } = await supabase
     .from('messages')
@@ -155,12 +172,25 @@ export default async function CompanionProfilePage({
     .order('created_at', { ascending: false })
     .limit(20)
 
-  const filteredMemories = (memories || []).filter((m: any) => {
-    if (slug === 'seraphine') return !m.companion_slug || m.companion_slug === 'seraphine'
-    return m.companion_slug === slug
-  }).slice(0, 8)
+  const filteredMemories = (memories || [])
+    .filter((m: { companion_slug?: string }) => {
+      if (slug === 'seraphine') return !m.companion_slug || m.companion_slug === 'seraphine'
+      return m.companion_slug === slug
+    })
+    .slice(0, 8)
 
   const affinity = companion?.affinity_score || 1
+  const characterName = companion?.name || def?.name || 'Seraphine'
+  const earned = scenesEarned(affinity)
+  const nextAt = nextSceneMilestone(affinity)
+
+  const { count: sceneCount } = await supabase
+    .from('gallery_images')
+    .select('*', { count: 'exact', head: true })
+    .eq('character_name', characterName)
+
+  const used = sceneCount || 0
+  const canGenerate = used < earned
 
   return (
     <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
@@ -187,6 +217,7 @@ export default async function CompanionProfilePage({
               {companion.image_url ? (
                 <div className="relative">
                   <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-violet-600/40 to-fuchsia-600/20 blur-sm" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={companion.image_url}
                     alt={companion.name}
@@ -214,15 +245,51 @@ export default async function CompanionProfilePage({
                 </p>
               )}
 
-              <form action={generateCompanionImage} className="mt-5">
-                <input type="hidden" name="slug" value={slug} />
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-xl text-sm font-medium transition"
-                >
-                  Generate New Scene
-                </button>
-              </form>
+              {/* Scene economy */}
+              <div className="mt-5 w-full rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 text-center">
+                <p className="text-[11px] uppercase tracking-wider text-zinc-500">Scenes</p>
+                <p className="text-lg text-white mt-1">
+                  {used} <span className="text-zinc-500 text-sm">/ {earned} earned</span>
+                </p>
+                <p className="text-[11px] text-zinc-500 mt-1">
+                  {canGenerate
+                    ? 'A new scene is available — claim it.'
+                    : nextAt
+                      ? `Next scene unlocks at Affinity ${nextAt}`
+                      : 'All current milestones claimed'}
+                </p>
+                <div className="flex justify-center gap-1 mt-3">
+                  {SCENE_MILESTONES.map((m, i) => (
+                    <div
+                      key={m}
+                      title={`Affinity ${m}`}
+                      className={`h-1.5 w-6 rounded-full ${
+                        i < used
+                          ? 'bg-violet-500'
+                          : i < earned
+                            ? 'bg-violet-500/40'
+                            : 'bg-zinc-800'
+                      }`}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {canGenerate ? (
+                <form action={generateCompanionImage} className="mt-4">
+                  <input type="hidden" name="slug" value={slug} />
+                  <button
+                    type="submit"
+                    className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-xl text-sm font-medium transition"
+                  >
+                    Claim Scene {used + 1}
+                  </button>
+                </form>
+              ) : (
+                <p className="mt-4 text-xs text-zinc-600 text-center max-w-[240px]">
+                  Deepen the bond through tasks and conversation to unlock the next scene.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">
@@ -258,12 +325,10 @@ export default async function CompanionProfilePage({
           </div>
 
           <div>
-            <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3 px-1">
-              Memories
-            </p>
+            <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3 px-1">Memories</p>
             <div className="space-y-3">
               {filteredMemories.length > 0 ? (
-                filteredMemories.map((msg: any) => (
+                filteredMemories.map((msg: { id: string; content: string }) => (
                   <div
                     key={msg.id}
                     className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 text-[14px] text-zinc-300 leading-relaxed"
