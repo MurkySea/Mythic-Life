@@ -10,8 +10,9 @@ import {
   awardSkillXp,
   pickReactingCompanion,
   postUnlockCeremony,
+  maybeCompanionCheckIn,
 } from './actions'
-import { parseDomains, SKILL_LABELS, xpIntoLevel, type SkillKey } from '@/lib/skills'
+import { parseDomains, SKILL_LABELS, SKILLS, xpIntoLevel, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
@@ -28,7 +29,6 @@ async function completeTask(formData: FormData) {
 
   const supabase = await createClient()
 
-  // 1) Mark complete immediately
   await supabase
     .from('tasks')
     .update({
@@ -39,7 +39,6 @@ async function completeTask(formData: FormData) {
 
   const domains = parseDomains(domainsStr, domainLegacy)
 
-  // 2) Fast local rewards (DB only)
   const { streak } = await updateTaskStreak(id)
   const { newlyUnlocked, skillGains } = await awardSkillXp(domains)
   const slug = await pickReactingCompanion(domains)
@@ -61,13 +60,11 @@ async function completeTask(formData: FormData) {
     streak,
   })
 
-  // 3) Unblock the UI — task already shows completed
   revalidatePath('/')
   revalidatePath('/skills')
   revalidatePath('/companions')
   revalidatePath('/companion-profile')
 
-  // 4) Companion reply after response is sent (no waiting on Grok)
   after(async () => {
     try {
       await generateCompanionResponse(title, domains.join(', '), {
@@ -102,6 +99,16 @@ export default async function TodayPage() {
 
   await ensureRecurringTasks()
 
+  // Occasional companion-initiated message (lands in inbox; not noisy)
+  after(async () => {
+    try {
+      await maybeCompanionCheckIn()
+      revalidatePath('/messages')
+    } catch (e) {
+      console.error('check-in failed', e)
+    }
+  })
+
   const feedback = await readFeedback()
   const supabase = await createClient()
 
@@ -128,7 +135,13 @@ export default async function TodayPage() {
   const skillMap: Record<string, number> = {}
   for (const s of skills || []) skillMap[s.skill] = s.xp || 0
 
-  const topSkills = (['faith', 'discipline', 'fitness', 'knowledge'] as SkillKey[]).map((k) => {
+  // All domains — hide ones still at zero XP only if user has some progress elsewhere
+  const hasAnyXp = Object.values(skillMap).some((xp) => xp > 0)
+  const stripKeys = hasAnyXp
+    ? (SKILLS as readonly SkillKey[]).filter((k) => (skillMap[k] || 0) > 0 || ['faith', 'discipline', 'fitness', 'knowledge'].includes(k))
+    : (['faith', 'discipline', 'fitness', 'knowledge'] as SkillKey[])
+
+  const topSkills = stripKeys.map((k) => {
     const xp = skillMap[k] || 0
     const { level, into, need } = xpIntoLevel(xp)
     return { key: k, label: SKILL_LABELS[k], level, into, need, xp }
