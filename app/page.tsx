@@ -10,7 +10,7 @@ import {
   pickReactingCompanion,
   postUnlockCeremony,
 } from './actions'
-import { parseDomains, SKILL_LABELS, xpIntoLevel, XP_PER_DOMAIN, type SkillKey } from '@/lib/skills'
+import { parseDomains, SKILL_LABELS, xpIntoLevel, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readAndClearFeedback } from '@/lib/feedback'
 
@@ -131,7 +131,6 @@ export default async function TodayPage() {
         )}
       </div>
 
-      {/* XP / unlock feedback */}
       {feedback && (
         <div className="space-y-2">
           {feedback.unlocked?.map((u) => (
