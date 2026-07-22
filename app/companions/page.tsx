@@ -4,6 +4,8 @@ import { COMPANION_DEFS, meetsUnlock } from '@/lib/companions'
 import { SKILL_LABELS, skillLevelFromXp } from '@/lib/skills'
 import { checkAndUnlockCompanions } from '../actions'
 
+export const dynamic = 'force-dynamic'
+
 export default async function CompanionsPage() {
   await checkAndUnlockCompanions()
 
@@ -23,7 +25,6 @@ export default async function CompanionsPage() {
       .filter(Boolean)
   )
 
-  // Always treat starter as unlocked in UI
   unlockedSlugs.add('seraphine')
 
   const active = COMPANION_DEFS.filter((d) => d.starter || unlockedSlugs.has(d.slug))
@@ -63,46 +64,49 @@ export default async function CompanionsPage() {
         {active.map((c) => {
           const db = rows?.find((r) => r.slug === c.slug || r.name === c.name)
           return (
-            <Link
+            <div
               key={c.slug}
-              href={`/companion-profile?c=${c.slug}`}
-              className="block bg-zinc-900/80 border border-violet-800/40 rounded-2xl p-4 hover:border-violet-600/50 transition"
+              className="bg-zinc-900/80 border border-violet-800/40 rounded-2xl p-4"
             >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/40 flex items-center justify-center text-2xl">
-                  {c.emoji}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-medium text-violet-200 truncate">{c.name}</p>
-                    <span className={`text-[10px] uppercase tracking-wider shrink-0 ${rarityColor(c.rarity)}`}>
-                      {c.rarity}
-                    </span>
+              <Link href={`/companion-profile?c=${c.slug}`} className="block hover:opacity-95">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/40 flex items-center justify-center text-2xl">
+                    {c.emoji}
                   </div>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    {c.race} · {c.className}
-                  </p>
-                  {db && (
-                    <p className="text-[11px] text-zinc-600 mt-1">
-                      Affinity {db.affinity_score || 1} · Bond {db.bond_xp || 0}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-violet-200 truncate">{c.name}</p>
+                      <span className={`text-[10px] uppercase tracking-wider shrink-0 ${rarityColor(c.rarity)}`}>
+                        {c.rarity}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500 mt-0.5">
+                      {c.race} · {c.className}
                     </p>
-                  )}
+                    {db && (
+                      <p className="text-[11px] text-zinc-600 mt-1">
+                        Affinity {db.affinity_score || 1} · Bond {db.bond_xp || 0}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-1.5 mt-3">
-                {c.affinities.map((a) => (
-                  <span key={a} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
-                    {SKILL_LABELS[a]}
-                  </span>
-                ))}
-              </div>
+                <div className="flex flex-wrap gap-1.5 mt-3">
+                  {c.affinities.map((a) => (
+                    <span key={a} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
+                      {SKILL_LABELS[a]}
+                    </span>
+                  ))}
+                </div>
+              </Link>
               <div className="flex gap-3 mt-3 text-xs">
-                <span className="text-violet-400">Profile →</span>
+                <Link href={`/companion-profile?c=${c.slug}`} className="text-violet-400">
+                  Profile →
+                </Link>
                 <Link href={`/messages?c=${c.slug}`} className="text-zinc-500 hover:text-violet-300">
                   Message →
                 </Link>
               </div>
-            </Link>
+            </div>
           )
         })}
       </div>
