@@ -1,9 +1,11 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { checkAndUnlockCompanions } from '../actions'
 import ChatThread from '@/components/ChatThread'
+import { PendingSendButton } from '@/components/PendingSubmit'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,22 +18,33 @@ async function sendMessage(formData: FormData) {
   if (!content?.trim()) return
 
   const supabase = await createClient()
+  const text = content.trim()
 
+  // 1) Persist user message immediately
   await supabase.from('messages').insert({
     role: 'user',
-    content: content.trim(),
+    content: text,
     companion_slug: companionSlug,
   })
 
-  const { generateCompanionResponse } = await import('../actions')
-  await generateCompanionResponse(content.trim(), 'conversation', {
-    force: true,
-    isConversation: true,
-    companionSlug,
-  })
-
+  // 2) Unblock UI — your bubble appears now
   revalidatePath('/messages')
   revalidatePath('/')
+
+  // 3) Companion reply after the response is already on the way
+  after(async () => {
+    try {
+      const { generateCompanionResponse } = await import('../actions')
+      await generateCompanionResponse(text, 'conversation', {
+        force: true,
+        isConversation: true,
+        companionSlug,
+      })
+      revalidatePath('/messages')
+    } catch (e) {
+      console.error('background chat reply failed', e)
+    }
+  })
 }
 
 export default async function MessagesPage({
@@ -141,7 +154,6 @@ export default async function MessagesPage({
 
   return (
     <main className="max-w-md mx-auto h-[100dvh] flex flex-col pb-20">
-      {/* Header — fixed height */}
       <div className="shrink-0 flex items-center gap-3 px-4 pt-6 pb-3 border-b border-zinc-900">
         <Link
           href="/messages"
@@ -158,10 +170,8 @@ export default async function MessagesPage({
         </div>
       </div>
 
-      {/* Scrollable thread — starts at bottom (latest) */}
       <ChatThread messages={thread} companionName={displayName} />
 
-      {/* Composer above bottom nav */}
       <form
         action={sendMessage}
         className="shrink-0 px-4 pt-2 pb-3 border-t border-zinc-900 bg-zinc-950/95 backdrop-blur-md"
@@ -175,12 +185,7 @@ export default async function MessagesPage({
             className="flex-1 bg-transparent px-4 py-3 text-white placeholder:text-zinc-500 text-[15px] focus:outline-none"
             autoComplete="off"
           />
-          <button
-            type="submit"
-            className="bg-violet-600 hover:bg-violet-500 active:scale-95 px-5 py-2.5 rounded-xl text-white text-sm font-medium transition"
-          >
-            Send
-          </button>
+          <PendingSendButton />
         </div>
       </form>
     </main>
