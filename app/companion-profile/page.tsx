@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { SKILL_LABELS } from '@/lib/skills'
@@ -27,7 +28,9 @@ async function generateCompanionImage(formData: FormData) {
     .or(`slug.eq.${slug},name.eq.${def?.name || 'Seraphine'}`)
     .maybeSingle()
 
-  if (!companion) return
+  if (!companion) {
+    redirect(`/companion-profile?c=${slug}&scene=error`)
+  }
 
   const affinity = companion.affinity_score || 1
   const characterName = companion.name || def?.name || 'Seraphine'
@@ -40,8 +43,7 @@ async function generateCompanionImage(formData: FormData) {
 
   const used = count || 0
   if (used >= earned) {
-    revalidatePath('/companion-profile')
-    return
+    redirect(`/companion-profile?c=${slug}&scene=limit`)
   }
 
   const sceneIndex = used
@@ -62,34 +64,73 @@ async function generateCompanionImage(formData: FormData) {
     })
 
     const data = await response.json()
-    const imageUrl = data.data?.[0]?.url
+    const imageUrl = data.data?.[0]?.url as string | undefined
 
-    if (imageUrl) {
-      await supabase.from('companion').update({ image_url: imageUrl }).eq('id', companion.id)
-      await supabase.from('gallery_images').insert({
-        character_name: characterName,
-        image_url: imageUrl,
-        affinity_at_generation: affinity,
-        prompt_used: prompt,
-      })
+    if (!response.ok || !imageUrl) {
+      const msg = (data?.error?.message || data?.message || '').toString().toLowerCase()
+      const blocked =
+        msg.includes('safety') ||
+        msg.includes('policy') ||
+        msg.includes('blocked') ||
+        msg.includes('refus') ||
+        response.status === 400
+      redirect(`/companion-profile?c=${slug}&scene=${blocked ? 'blocked' : 'error'}`)
     }
+
+    await supabase.from('companion').update({ image_url: imageUrl }).eq('id', companion.id)
+    await supabase.from('gallery_images').insert({
+      character_name: characterName,
+      image_url: imageUrl,
+      affinity_at_generation: affinity,
+      prompt_used: prompt,
+    })
+
+    revalidatePath('/companion-profile')
+    revalidatePath('/companions')
+    revalidatePath('/gallery')
+    redirect(`/companion-profile?c=${slug}&scene=ok`)
   } catch (error) {
     console.error('Image generation error:', error)
+    redirect(`/companion-profile?c=${slug}&scene=error`)
   }
+}
 
-  revalidatePath('/companion-profile')
-  revalidatePath('/companions')
-  revalidatePath('/gallery')
+function SceneBanner({ status }: { status?: string }) {
+  if (!status) return null
+  const map: Record<string, { text: string; className: string }> = {
+    ok: {
+      text: 'Scene claimed — it is in her gallery and on her profile.',
+      className: 'border-emerald-700/50 bg-emerald-950/40 text-emerald-200',
+    },
+    limit: {
+      text: 'No scene available yet — deepen affinity to earn the next milestone.',
+      className: 'border-amber-700/50 bg-amber-950/40 text-amber-200',
+    },
+    blocked: {
+      text: 'Image model declined this prompt (safety). Try again later or claim at a lower tier.',
+      className: 'border-rose-700/50 bg-rose-950/40 text-rose-200',
+    },
+    error: {
+      text: 'Scene generation failed — check GROK_API_KEY or try again.',
+      className: 'border-zinc-600 bg-zinc-900 text-zinc-300',
+    },
+  }
+  const item = map[status]
+  if (!item) return null
+  return (
+    <div className={`rounded-2xl border px-4 py-3 text-sm mb-4 ${item.className}`}>{item.text}</div>
+  )
 }
 
 export default async function CompanionProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ c?: string }>
+  searchParams: Promise<{ c?: string; scene?: string }>
 }) {
   await checkAndUnlockCompanions()
   const params = await searchParams
   const slug = params.c || ''
+  const sceneStatus = params.scene
 
   const supabase = await createClient()
   const { data: all } = await supabase
@@ -119,32 +160,40 @@ export default async function CompanionProfilePage({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {party.map((c: { id: string; name: string; slug?: string; image_url?: string; affinity_score?: number }) => {
-            const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
-            const def = getCompanionDef(s)
-            return (
-              <Link
-                key={c.id}
-                href={`/companion-profile?c=${s}`}
-                className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 hover:border-violet-600/40 transition text-center"
-              >
-                {c.image_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={c.image_url}
-                    alt={c.name}
-                    className="w-20 h-20 rounded-xl object-cover mx-auto border border-violet-500/20"
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-xl bg-violet-900/40 mx-auto flex items-center justify-center text-3xl">
-                    {def?.emoji || '✦'}
-                  </div>
-                )}
-                <p className="mt-3 font-medium text-violet-200 text-sm">{c.name}</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">Affinity {c.affinity_score || 1}</p>
-              </Link>
-            )
-          })}
+          {party.map(
+            (c: {
+              id: string
+              name: string
+              slug?: string
+              image_url?: string
+              affinity_score?: number
+            }) => {
+              const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
+              const def = getCompanionDef(s)
+              return (
+                <Link
+                  key={c.id}
+                  href={`/companion-profile?c=${s}`}
+                  className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 hover:border-violet-600/40 transition text-center"
+                >
+                  {c.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.image_url}
+                      alt={c.name}
+                      className="w-20 h-20 rounded-xl object-cover mx-auto border border-violet-500/20"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-xl bg-violet-900/40 mx-auto flex items-center justify-center text-3xl">
+                      {def?.emoji || '✦'}
+                    </div>
+                  )}
+                  <p className="mt-3 font-medium text-violet-200 text-sm">{c.name}</p>
+                  <p className="text-[10px] text-zinc-500 mt-0.5">Affinity {c.affinity_score || 1}</p>
+                </Link>
+              )
+            }
+          )}
         </div>
 
         <Link
@@ -206,6 +255,8 @@ export default async function CompanionProfilePage({
           Message
         </Link>
       </div>
+
+      <SceneBanner status={sceneStatus} />
 
       {companion && (
         <div className="space-y-6">
