@@ -1,5 +1,6 @@
 import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import Link from 'next/link'
 import {
   ensureRecurringTasks,
@@ -13,6 +14,7 @@ import {
 import { parseDomains, SKILL_LABELS, xpIntoLevel, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
+import { PendingCircleButton } from '@/components/PendingSubmit'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,6 +28,7 @@ async function completeTask(formData: FormData) {
 
   const supabase = await createClient()
 
+  // 1) Mark complete immediately
   await supabase
     .from('tasks')
     .update({
@@ -35,12 +38,12 @@ async function completeTask(formData: FormData) {
     .eq('id', id)
 
   const domains = parseDomains(domainsStr, domainLegacy)
+
+  // 2) Fast local rewards (DB only)
   const { streak } = await updateTaskStreak(id)
   const { newlyUnlocked, skillGains } = await awardSkillXp(domains)
   const slug = await pickReactingCompanion(domains)
   const bond = await awardBondProgress(domains.join(','), streak, slug)
-  await generateCompanionResponse(title, domains.join(', '), { streak, companionSlug: slug })
-
   const unlockedDetails = await postUnlockCeremony(newlyUnlocked)
 
   const def = getCompanionDef(slug)
@@ -58,11 +61,25 @@ async function completeTask(formData: FormData) {
     streak,
   })
 
+  // 3) Unblock the UI — task already shows completed
   revalidatePath('/')
-  revalidatePath('/messages')
-  revalidatePath('/companions')
   revalidatePath('/skills')
+  revalidatePath('/companions')
   revalidatePath('/companion-profile')
+
+  // 4) Companion reply after response is sent (no waiting on Grok)
+  after(async () => {
+    try {
+      await generateCompanionResponse(title, domains.join(', '), {
+        streak,
+        companionSlug: slug,
+      })
+      revalidatePath('/messages')
+      revalidatePath('/')
+    } catch (e) {
+      console.error('background companion reply failed', e)
+    }
+  })
 }
 
 export default async function TodayPage() {
@@ -103,7 +120,10 @@ export default async function TodayPage() {
 
   const incompleteTasks = todayTasks?.filter((t) => !t.is_completed) || []
   const completedTasks = todayTasks?.filter((t) => t.is_completed) || []
-  const bestStreak = Math.max(0, ...(todayTasks || []).map((t: { streak_count?: number }) => t.streak_count || 0))
+  const bestStreak = Math.max(
+    0,
+    ...(todayTasks || []).map((t: { streak_count?: number }) => t.streak_count || 0)
+  )
 
   const skillMap: Record<string, number> = {}
   for (const s of skills || []) skillMap[s.skill] = s.xp || 0
@@ -256,11 +276,7 @@ export default async function TodayPage() {
                         <input type="hidden" name="title" value={task.title} />
                         <input type="hidden" name="domains" value={domains.join(',')} />
                         <input type="hidden" name="domain" value={task.domain || ''} />
-                        <button
-                          type="submit"
-                          className="mt-0.5 w-6 h-6 rounded-full border-2 border-zinc-600 hover:border-violet-500 hover:bg-violet-600/20 transition"
-                          title="Mark complete"
-                        />
+                        <PendingCircleButton />
                       </form>
                       <div className="flex-1">
                         <p className="font-medium text-white">{task.title}</p>
@@ -294,7 +310,9 @@ export default async function TodayPage() {
         ) : (
           <div className="bg-zinc-900/50 border border-dashed border-zinc-800 rounded-xl p-8 text-center">
             <p className="text-zinc-500 text-sm">
-              {completedTasks.length > 0 ? 'All tasks completed for today.' : 'No tasks for today yet.'}
+              {completedTasks.length > 0
+                ? 'All tasks completed for today.'
+                : 'No tasks for today yet.'}
             </p>
             {completedTasks.length === 0 && (
               <Link href="/mother-list" className="inline-block mt-3 text-sm text-violet-400">
