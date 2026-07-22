@@ -11,6 +11,15 @@ import { COMPANION_DEFS, meetsUnlock, getCompanionDef } from '@/lib/companions'
 
 const USER_NAME = 'Mark'
 
+/** Normalize affinities whether DB stored text or text[] */
+function normalizeAffinities(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String)
+  if (typeof raw === 'string' && raw.trim()) {
+    return raw.split(',').map((s) => s.trim()).filter(Boolean)
+  }
+  return []
+}
+
 function getLocalYmd(): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Chicago',
@@ -70,7 +79,6 @@ export async function updateTaskStreak(taskId: string) {
   return { streak: next }
 }
 
-/** Award XP to each domain on a task; returns updated levels map */
 export async function awardSkillXp(domains: string[]) {
   const supabase = await createClient()
   const keys = parseDomains(domains.join(','))
@@ -96,7 +104,6 @@ export async function awardSkillXp(domains: string[]) {
     levels[skill] = level
   }
 
-  // Fill levels for skills we didn't touch (needed for unlock checks)
   const { data: all } = await supabase.from('player_skills').select('skill, xp, level')
   const full: Record<string, number> = {}
   for (const r of all || []) {
@@ -108,7 +115,6 @@ export async function awardSkillXp(domains: string[]) {
   return { levels: full, newlyUnlocked }
 }
 
-/** Unlock companions whose skill requirements are met */
 export async function checkAndUnlockCompanions(levels?: Record<string, number>) {
   const supabase = await createClient()
 
@@ -133,6 +139,9 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
       .or(`slug.eq.${def.slug},name.eq.${def.name}`)
       .maybeSingle()
 
+    // Prefer text[] for affinities (matches Supabase schema from agent)
+    const affinitiesValue = def.affinities
+
     if (existing) {
       if (existing.is_unlocked === false || existing.is_unlocked == null) {
         await supabase
@@ -142,10 +151,15 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
             slug: def.slug,
             title: def.title,
             personality: def.personality,
-            affinities: def.affinities.join(','),
+            affinities: affinitiesValue,
           })
           .eq('id', existing.id)
         if (!def.starter) newly.push(def.name)
+      } else if (!existing.slug) {
+        await supabase
+          .from('companion')
+          .update({ slug: def.slug, affinities: affinitiesValue })
+          .eq('id', existing.id)
       }
     } else {
       await supabase.from('companion').insert({
@@ -153,7 +167,7 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
         slug: def.slug,
         title: def.title,
         personality: def.personality,
-        affinities: def.affinities.join(','),
+        affinities: affinitiesValue,
         is_unlocked: true,
         affinity_score: 1,
         bond_xp: 0,
@@ -162,10 +176,9 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
     }
   }
 
-  // Ensure Seraphine exists unlocked
   const { data: sera } = await supabase
     .from('companion')
-    .select('id')
+    .select('id, slug')
     .or('slug.eq.seraphine,name.eq.Seraphine')
     .maybeSingle()
 
@@ -175,11 +188,20 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
       slug: 'seraphine',
       title: 'Quiet Flame',
       personality: COMPANION_DEFS[0].personality,
-      affinities: 'faith,discipline',
+      affinities: ['faith', 'discipline'],
       is_unlocked: true,
       affinity_score: 1,
       bond_xp: 0,
     })
+  } else if (!sera.slug) {
+    await supabase
+      .from('companion')
+      .update({
+        slug: 'seraphine',
+        is_unlocked: true,
+        affinities: ['faith', 'discipline'],
+      })
+      .eq('id', sera.id)
   }
 
   return newly
@@ -211,7 +233,6 @@ export async function getScenePrompt(affinity: number): Promise<string> {
   return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, reserved calm expression, simple elegant outfit, full body, high quality anime art`
 }
 
-/** Multi-companion aware dialogue */
 export async function generateCompanionResponse(
   taskTitle: string,
   domain: string = '',
@@ -291,8 +312,7 @@ Write 2-4 sentences in your distinct voice. Not a generic motivational bot.`
 
     const data = await response.json()
     const message =
-      data.choices?.[0]?.message?.content ||
-      `I saw that, ${USER_NAME}.`
+      data.choices?.[0]?.message?.content || `I saw that, ${USER_NAME}.`
 
     await supabase.from('messages').insert({
       role: 'companion',
@@ -313,7 +333,6 @@ Write 2-4 sentences in your distinct voice. Not a generic motivational bot.`
   }
 }
 
-/** @deprecated use generateCompanionResponse */
 export async function generateSeraphineResponse(
   taskTitle: string,
   domain: string = '',
@@ -366,7 +385,6 @@ export async function awardBondProgress(
   }
 }
 
-/** Pick which unlocked companion reacts to a task (affinity match preferred) */
 export async function pickReactingCompanion(domains: SkillKey[]): Promise<string> {
   const supabase = await createClient()
   const { data: unlocked } = await supabase
@@ -379,9 +397,9 @@ export async function pickReactingCompanion(domains: SkillKey[]): Promise<string
   const scored = list.map((c) => {
     const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
     const def = getCompanionDef(slug)
-    const aff = (c.affinities || def?.affinities?.join(',') || '')
-      .split(',')
-      .map((s: string) => s.trim())
+    const aff = normalizeAffinities(c.affinities).length
+      ? normalizeAffinities(c.affinities)
+      : def?.affinities || []
     const overlap = domains.filter((d) => aff.includes(d)).length
     return { slug: slug || 'seraphine', overlap }
   })
@@ -481,6 +499,9 @@ export async function ensureRecurringTasks() {
     }
   }
 
-  // Keep unlocks in sync when opening the app
-  await checkAndUnlockCompanions()
+  try {
+    await checkAndUnlockCompanions()
+  } catch (e) {
+    console.error('unlock check failed', e)
+  }
 }
