@@ -36,7 +36,7 @@ function appearanceFor(def?: CompanionDef | null): string {
   if (!def) {
     return 'elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes'
   }
-  return `${def.race} ${def.className} named ${def.name}, distinctive features matching their canon`
+  return `${def.race} ${def.className} named ${def.name}, adult woman, distinctive features matching their canon`
 }
 
 /** Personality tint so Sable scenes don't read like Nettle scenes */
@@ -54,7 +54,9 @@ function moodFor(def?: CompanionDef | null, tier = 0): string {
       : 'sweet steel, tiny but unignorable presence'
   }
   if (slug === 'bok_unfinished') {
-    return 'earnest carved face, gentle giant stillness, gold repair seams catching light'
+    return tier >= 4
+      ? 'adult living-statue woman, warm clay glow, earnest sensual stillness, gold seams catching candlelight'
+      : 'earnest carved adult feminine face, gentle giant stillness, gold repair seams catching light'
   }
   if (slug === 'mirelle_glasslung') {
     return tier >= 4
@@ -70,10 +72,14 @@ function moodFor(def?: CompanionDef | null, tier = 0): string {
     return 'corvid cleverness, bright dark eyes, pockets full of secrets'
   }
   if (slug === 'ember_crimsonfall') {
-    return tier >= 4 ? 'competitive heat, physical confidence, battle-scarred sensuality' : 'fierce grin, training-ground energy'
+    return tier >= 4
+      ? 'competitive heat, physical confidence, battle-scarred sensuality'
+      : 'fierce grin, training-ground energy'
   }
   if (slug === 'seris_nightthorn') {
-    return tier >= 4 ? 'controlled intimacy, violet-eyed assessment, rare unguarded moment' : 'economical expression, lethal stillness'
+    return tier >= 4
+      ? 'controlled intimacy, violet-eyed assessment, rare unguarded moment'
+      : 'economical expression, lethal stillness'
   }
   return ''
 }
@@ -81,6 +87,7 @@ function moodFor(def?: CompanionDef | null, tier = 0): string {
 /**
  * Progressive scene prompts — each tier must read clearly different.
  * Highest tiers are borderline ecchi / sensual, still elegant, never crude.
+ * All subjects are adult women.
  */
 export function buildScenePrompt(
   affinity: number,
@@ -90,7 +97,7 @@ export function buildScenePrompt(
   const look = appearanceFor(def)
   const name = def?.name || 'companion'
   const quality =
-    'masterpiece anime illustration, detailed, coherent anatomy, beautiful lighting, high quality'
+    'masterpiece anime illustration of an adult woman, detailed, coherent anatomy, beautiful lighting, high quality'
 
   const tier =
     affinity >= 24
