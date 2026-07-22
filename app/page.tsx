@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
+import { ensureRecurringTasks } from './actions'
 
 async function completeTask(formData: FormData) {
   'use server'
@@ -30,6 +31,9 @@ async function completeTask(formData: FormData) {
 }
 
 export default async function TodayPage() {
+  // Run the recurring-task reset logic first
+  await ensureRecurringTasks()
+
   const supabase = await createClient()
 
   const { data: companion } = await supabase
@@ -111,11 +115,19 @@ export default async function TodayPage() {
                     {task.notes && (
                       <p className="text-zinc-500 text-sm mt-0.5">{task.notes}</p>
                     )}
-                    {task.domain && (
-                      <span className="inline-block mt-2 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
-                        {task.domain}
-                      </span>
-                    )}
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {task.domain && (
+                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
+                          {task.domain}
+                        </span>
+                      )}
+                      {/* NEW: Recurrence badge */}
+                      {task.recurrence && task.recurrence !== 'none' && (
+                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
+                          {task.recurrence}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

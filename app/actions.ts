@@ -49,3 +49,72 @@ Make it feel like a real conversation.`
     return fallback
   }
 }
+
+/**
+ * Ensures recurring tasks (daily / weekly) are correctly set for the current day.
+ * - Daily: incomplete ones always appear on Today. Completed ones from previous days are reset.
+ * - Weekly: completed ones older than 7 days are reset and put back on Today.
+ * Call this at the start of the Today page.
+ */
+export async function ensureRecurringTasks() {
+  const supabase = await createClient()
+  const now = new Date()
+
+  // Start of today in UTC (consistent with typical Supabase timestamptz)
+  const todayStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  ).toISOString()
+
+  // ── Daily ────────────────────────────────────────────────
+  // Reset any daily tasks that were completed before today
+  const { data: completedDaily } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('recurrence', 'daily')
+    .eq('is_completed', true)
+    .lt('completed_at', todayStart)
+
+  if (completedDaily && completedDaily.length > 0) {
+    await supabase
+      .from('tasks')
+      .update({
+        is_completed: false,
+        is_today: true,
+      })
+      .in(
+        'id',
+        completedDaily.map((t) => t.id)
+      )
+  }
+
+  // Make sure every incomplete daily task is on Today
+  await supabase
+    .from('tasks')
+    .update({ is_today: true })
+    .eq('recurrence', 'daily')
+    .eq('is_completed', false)
+
+  // ── Weekly ───────────────────────────────────────────────
+  // Reset weekly tasks completed more than 7 days ago
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+  const { data: completedWeekly } = await supabase
+    .from('tasks')
+    .select('id')
+    .eq('recurrence', 'weekly')
+    .eq('is_completed', true)
+    .lt('completed_at', weekAgo)
+
+  if (completedWeekly && completedWeekly.length > 0) {
+    await supabase
+      .from('tasks')
+      .update({
+        is_completed: false,
+        is_today: true,
+      })
+      .in(
+        'id',
+        completedWeekly.map((t) => t.id)
+      )
+  }
+}

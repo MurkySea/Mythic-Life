@@ -7,16 +7,21 @@ async function addTask(formData: FormData) {
   const title = formData.get('title') as string
   const notes = formData.get('notes') as string
   const domain = formData.get('domain') as string
+  const recurrence = (formData.get('recurrence') as string) || 'none'
 
   if (!title?.trim()) return
 
   const supabase = await createClient()
 
+  // If the task is daily, put it on Today immediately
+  const isToday = recurrence === 'daily'
+
   await supabase.from('tasks').insert({
     title: title.trim(),
     notes: notes?.trim() || null,
     domain: domain || null,
-    is_today: false,
+    recurrence: recurrence,
+    is_today: isToday,
     is_completed: false,
   })
 
@@ -106,6 +111,17 @@ export default async function MotherListPage() {
           <option value="business">Business</option>
           <option value="knowledge">Knowledge</option>
         </select>
+
+        {/* NEW: Recurrence selector */}
+        <select
+          name="recurrence"
+          className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-violet-500"
+        >
+          <option value="none">Does not repeat</option>
+          <option value="daily">Daily</option>
+          <option value="weekly">Weekly</option>
+        </select>
+
         <button
           type="submit"
           className="w-full bg-violet-600 hover:bg-violet-500 text-white font-medium py-3 rounded-xl transition"
@@ -137,6 +153,12 @@ export default async function MotherListPage() {
                     {task.is_today && (
                       <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300">
                         Today
+                      </span>
+                    )}
+                    {/* NEW: Recurrence badge */}
+                    {task.recurrence && task.recurrence !== 'none' && (
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
+                        {task.recurrence}
                       </span>
                     )}
                   </div>
