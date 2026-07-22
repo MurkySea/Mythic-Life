@@ -119,7 +119,6 @@ export async function awardSkillXp(domains: string[]) {
   return { levels: full, newlyUnlocked, skillGains }
 }
 
-/** Returns list of newly unlocked companion slugs */
 export async function checkAndUnlockCompanions(levels?: Record<string, number>) {
   const supabase = await createClient()
 
@@ -160,7 +159,6 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
           })
           .eq('id', existing.id)
         if (!def.starter && wasLocked) newly.push(def.slug)
-        // null is_unlocked on pre-existing Seraphine: don't treat as "new" unlock
         if (!def.starter && existing.is_unlocked == null && existing.slug !== def.slug) {
           newly.push(def.slug)
         }
@@ -216,7 +214,6 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
   return newly
 }
 
-/** Post first-contact messages for newly unlocked companions */
 export async function postUnlockCeremony(slugs: string[]) {
   const supabase = await createClient()
   const details: { name: string; slug: string; emoji: string; line: string }[] = []
@@ -245,15 +242,15 @@ export async function postUnlockCeremony(slugs: string[]) {
 
 function getDialogueStyle(affinity: number, name: string): string {
   if (affinity >= 20) {
-    return `You share an intense, private, and deeply sensual bond with ${name}. Speak with quiet heat and intimate tenderness. Use his name. Remain elegant, never vulgar.`
+    return `Close private bond with ${name}. Warmth and quiet intimacy are allowed when natural — never performative. Use his name sparingly.`
   }
   if (affinity >= 12) {
-    return `You share deep private intimacy with ${name}. Soft romantic undertones are natural. Use his name.`
+    return `Comfortable closeness with ${name}. Soft affection is fine. Do not overstate romance.`
   }
   if (affinity >= 6) {
-    return `You have grown close to ${name}. Warmth and soft affection. Use his name when natural.`
+    return `Friendly and warm toward ${name}. Growing trust. Still grounded.`
   }
-  return `You are a calm companion to ${name}. Kind, clear, quietly respectful.`
+  return `Calm companion to ${name}. Kind, clear, respectful. Not overly familiar.`
 }
 
 export async function getScenePrompt(affinity: number): Promise<string> {
@@ -309,33 +306,72 @@ export async function generateCompanionResponse(
     'Calm, warm companion.'
   const voice =
     def?.voice ||
-    'Speak in a distinct natural voice. Never sound like a generic motivational bot.'
+    'Speak like a real person texting. Plain language. No purple prose.'
+
+  // Real recent thread — grounds answers so they stop inventing history
+  const { data: recent } = await supabase
+    .from('messages')
+    .select('role, content, companion_slug')
+    .order('created_at', { ascending: false })
+    .limit(16)
+
+  const thread = (recent || [])
+    .filter((m) => {
+      if (companionSlug === 'seraphine') {
+        return !m.companion_slug || m.companion_slug === 'seraphine'
+      }
+      return m.companion_slug === companionSlug
+    })
+    .reverse()
+
+  const historyBlock =
+    thread.length > 0
+      ? thread
+          .map((m) => {
+            const who = m.role === 'user' ? USER_NAME : displayName
+            return `${who}: ${m.content}`
+          })
+          .join('\n')
+      : '(No prior messages in this thread.)'
 
   const streakNote =
     streak >= 3
-      ? ` He is on a ${streak}-day streak — acknowledge consistency if it fits your voice.`
+      ? `He is on a ${streak}-day streak — you may notice it briefly if it fits, not as a speech.`
       : ''
 
-  const contextLine = isConversation
-    ? `${USER_NAME} just said to you: "${taskTitle}"`
-    : `${USER_NAME} just completed: "${taskTitle}"${domain ? ` (Domains: ${domain})` : ''}.${streakNote}`
+  const trigger = isConversation
+    ? `${USER_NAME} just said: "${taskTitle}"`
+    : `${USER_NAME} just finished the task: "${taskTitle}"${domain ? ` (domains: ${domain})` : ''}. ${streakNote}`
 
-  const prompt = `You are ${displayName}${def ? `, a ${def.race} ${def.className}` : ''}. Title: "${companion?.title || def?.title || 'Companion'}".
+  const systemRules = `You are ${displayName}${def ? `, a ${def.race} ${def.className}` : ''}.
+Title: "${companion?.title || def?.title || 'Companion'}".
 
 PERSONALITY:
 ${personalityCore}
 
-VOICE (follow strictly — this is how you sound):
+VOICE:
 ${voice}
 
-RELATIONSHIP DEPTH:
+RELATIONSHIP:
 ${style}
 
-Always address him as ${USER_NAME} — never "user". Stay in character. Do not break voice.
+HARD RULES:
+- Sound like a real person in a text conversation — not a novel, sermon, or AI assistant.
+- Prefer plain words. Avoid poetic abstractions ("ordinary returns", "thin words", "what this has shaped in you").
+- Do NOT invent shared memories, physical moments, or private history that is not in the recent messages below.
+- If asked "do you remember?" and nothing specific was said in history, be honest and gentle: you remember the pattern of him showing up, not fabricated scenes.
+- 1–3 short sentences is usually enough. Rarely more than 4.
+- Use his name (${USER_NAME}) at most once, or not at all if it feels forced.
+- Never say "user".
+- Match the energy of what he just said. A short question deserves a short answer.`
 
-${contextLine}
+  const userPrompt = `RECENT CONVERSATION:
+${historyBlock}
 
-Write 2-4 sentences. Sound like a specific person, not a productivity assistant.`
+NOW:
+${trigger}
+
+Reply in character only — the message text, nothing else.`
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -346,15 +382,21 @@ Write 2-4 sentences. Sound like a specific person, not a productivity assistant.
       },
       body: JSON.stringify({
         model: 'grok-4',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.95,
-        max_tokens: 320,
+        messages: [
+          { role: 'system', content: systemRules },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: isConversation ? 0.75 : 0.85,
+        max_tokens: 180,
       }),
     })
 
     const data = await response.json()
-    const message =
-      data.choices?.[0]?.message?.content || `I saw that, ${USER_NAME}.`
+    let message =
+      data.choices?.[0]?.message?.content?.trim() || `I noticed, ${USER_NAME}.`
+
+    // Strip accidental quotes or speaker labels the model sometimes adds
+    message = message.replace(/^["']|["']$/g, '').replace(new RegExp(`^${displayName}:\\s*`, 'i'), '')
 
     await supabase.from('messages').insert({
       role: 'companion',
@@ -365,7 +407,7 @@ Write 2-4 sentences. Sound like a specific person, not a productivity assistant.
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = def?.unlockLine || `I noticed, ${USER_NAME}.`
+    const fallback = `Mm. I'm here, ${USER_NAME}.`
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
