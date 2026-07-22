@@ -1,10 +1,19 @@
 import { createClient } from '@/utils/supabase/server'
+import { getScenePrompt } from '../actions'
+import { revalidatePath } from 'next/cache'
 
-// @ts-ignore
 async function generateCompanionImage() {
   'use server'
 
-  const prompt = `Full body elegant anime fantasy woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face, calm and gently confident expression, graceful standing pose, simple elegant white and silver outfit with clean flowing lines, soft fabrics, slightly otherworldly and serene presence, high quality detailed anime art style, smooth shading, soft lighting, beautiful composition, full body visible`
+  const supabase = await createClient()
+
+  const { data: companion } = await supabase
+    .from('companion')
+    .select('affinity_score')
+    .single()
+
+  const affinity = companion?.affinity_score || 1
+  const prompt = getScenePrompt(affinity)
 
   try {
     const response = await fetch('https://api.x.ai/v1/images/generations', {
@@ -24,7 +33,6 @@ async function generateCompanionImage() {
     const imageUrl = data.data?.[0]?.url
 
     if (imageUrl) {
-      const supabase = await createClient()
       await supabase
         .from('companion')
         .update({ image_url: imageUrl })
@@ -35,6 +43,16 @@ async function generateCompanionImage() {
   } catch (error) {
     console.error("Image generation error:", error)
   }
+
+  revalidatePath('/companion')
+  revalidatePath('/companion-profile')
+}
+
+function getIntimacyLabel(affinity: number): string {
+  if (affinity >= 10) return 'Deeply Intimate'
+  if (affinity >= 7) return 'Close & Tender'
+  if (affinity >= 4) return 'Warming Bond'
+  return 'Quiet Companion'
 }
 
 export default async function CompanionPage() {
@@ -44,6 +62,9 @@ export default async function CompanionPage() {
     .from('companion')
     .select('*')
     .single()
+
+  const affinity = companion?.affinity_score || 1
+  const intimacyLabel = getIntimacyLabel(affinity)
 
   return (
     <main className="max-w-md mx-auto p-4 space-y-6 pb-24">
@@ -71,10 +92,10 @@ export default async function CompanionPage() {
               <img 
                 src={companion.image_url} 
                 alt="Seraphine" 
-                className="w-28 h-28 rounded-2xl object-cover border border-violet-700"
+                className="w-40 h-40 rounded-2xl object-cover border border-violet-700"
               />
             ) : (
-              <div className="w-28 h-28 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-5xl overflow-hidden border border-violet-700">
+              <div className="w-40 h-40 rounded-2xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-5xl overflow-hidden border border-violet-700">
                 🦊
               </div>
             )}
@@ -84,9 +105,13 @@ export default async function CompanionPage() {
                 type="submit"
                 className="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-sm flex items-center gap-2 transition"
               >
-                Generate New Portrait
+                Generate New Scene
               </button>
             </form>
+
+            <p className="text-xs text-violet-400/80 mt-1">
+              Current depth: {intimacyLabel}
+            </p>
           </div>
 
           {/* Info */}
@@ -112,6 +137,13 @@ export default async function CompanionPage() {
               <p className="text-xs text-zinc-500">Bond XP</p>
               <p className="text-2xl font-medium text-violet-400">{companion.bond_xp || 0}</p>
             </div>
+          </div>
+
+          {/* Intimacy note */}
+          <div className="text-center pt-2">
+            <p className="text-xs text-zinc-500 leading-relaxed">
+              As your Affinity grows, Seraphine’s words and the scenes you can generate with her become deeper and more intimate.
+            </p>
           </div>
         </div>
       )}
