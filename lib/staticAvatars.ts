@@ -30,9 +30,7 @@ export function resolveHeadshot(
   slug: string,
   dbImageUrl?: string | null
 ): string | null {
-  if (EMBEDDED_HEADSHOTS[slug] && !EMBEDDED_HEADSHOTS[slug].endsWith('PENDING')) {
-    return EMBEDDED_HEADSHOTS[slug]
-  }
+  if (EMBEDDED_HEADSHOTS[slug]) return EMBEDDED_HEADSHOTS[slug]
   if (dbImageUrl) return dbImageUrl
   return null
 }
@@ -42,8 +40,8 @@ export function resolveChibi(
   dbImageUrl?: string | null
 ): string | null {
   if (STATIC_CHIBIS.has(slug)) return staticChibiPath(slug)
-  const head = resolveHeadshot(slug, dbImageUrl)
-  if (head) return head
+  // Until chibi art exists, use locked headshot in message circles
+  if (EMBEDDED_HEADSHOTS[slug]) return EMBEDDED_HEADSHOTS[slug]
   if (dbImageUrl) return dbImageUrl
   return null
 }
