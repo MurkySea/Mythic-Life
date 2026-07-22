@@ -29,7 +29,7 @@ export type GrokCompanionDef = {
 }
 
 /**
- * Original Grok-designed companions — all explicitly female.
+ * Original Grok-designed companions — all explicitly adult women.
  */
 export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
   {
@@ -46,7 +46,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     personality:
       'Sweet voice, steel spine. Looks cuppable; will open into thorns if treated as decoration. Collects lost buttons, lost names, and people who almost gave up. Virtue: fierce gentleness. Flaw: decides who is hers to protect without always asking.',
     voice:
-      'High, clear, almost childlike cadence — then a sentence lands like a thorn. Small images (weeds, rain, pockets). Never cutesy-babble.',
+      'High, clear, bright cadence — then a sentence lands like a thorn. Small images (weeds, rain, pockets). Never cutesy-babble.',
     unlockLine:
       'You kept walking when the path got ugly. I noticed. I am Nettle. Do not step on what I am growing — including you.',
     world:
@@ -67,7 +67,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'She has decided Mark is worth rooting near. That is a gift and a claim.',
     appearance:
-      'petite young fairy woman, barely four feet tall, soft feminine figure, moss-green skin freckled with gold, tangled auburn hair full of live leaves, luminous amber eyes, translucent maple-veined wings, bare garden-stained feet',
+      'petite adult fairy woman, soft feminine figure, moss-green skin freckled with gold, tangled auburn hair full of live leaves, luminous amber eyes, translucent maple-veined wings, bare garden-stained feet',
   },
   {
     slug: 'sable_vex',
@@ -104,7 +104,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark is not prey to empty. He is a fire she wants to sit inside. That should frighten both of them.',
     appearance:
-      'stunning succubus woman, deep mahogany skin, black hair with a single blood-red streak, gold-ringed dark eyes, elegant curved horns, long spaded tail, full feminine curves, narrow waist, expensive slightly unfair clothing',
+      'stunning adult succubus woman, deep mahogany skin, black hair with a single blood-red streak, gold-ringed dark eyes, elegant curved horns, long spaded tail, full feminine curves, narrow waist, expensive slightly unfair clothing',
   },
   {
     slug: 'magpie_rue',
@@ -138,7 +138,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark is a walking collection of almost-abandoned vows. She finds that beautiful.',
     appearance:
-      'slim corvid-kin woman, ash-black feathers at hairline and forearms, sharp dark eyes with blue sheen, ink-black bob, soft feminine face, slight curved figure, too many pockets, satchel that clicks with small hidden things',
+      'slim adult corvid-kin woman, ash-black feathers at hairline and forearms, sharp dark eyes with blue sheen, ink-black bob, soft feminine face, slight curved figure, too many pockets, satchel that clicks with small hidden things',
   },
   {
     slug: 'bok_unfinished',
@@ -147,12 +147,12 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     race: 'Clay Golem',
     className: 'Monk',
     rarity: 'Rare',
-    age: 3,
+    age: 24,
     affinities: ['discipline', 'fitness'],
     unlock: { discipline: 2, fitness: 3 },
     emoji: '🪨',
     personality:
-      'Earnest, literal, learning emotions mid-sentence. Built to guard a door. The door is gone. She kept guarding the idea of a door. Virtue: sincerity. Flaw: does not know when to stop standing still for someone.',
+      'Earnest, literal, learning emotions mid-sentence. Built as an adult guardian form. The door she was made for is gone. She kept guarding the idea of a door. Virtue: sincerity. Flaw: does not know when to stop standing still for someone.',
     voice:
       'Slow, careful, soft feminine cadence, occasionally wrong verb tense for feelings. "I am having loyal." Never ironic. Never cruel. Can devastate by accident.',
     unlockLine:
@@ -160,9 +160,9 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     world:
       'Ruined workshops, half-built temples, places where purpose outlived the building.',
     backstory:
-      'A mage died mid-inscription. Bokka woke with half a commandment: PROTECT——. No object. She protected travelers, then a goat, then "people who try." Quest — Finish the Word.',
+      'A mage died mid-inscription. Bokka woke fully formed as an adult woman of clay with half a commandment: PROTECT——. No object. She protected travelers, then a goat, then "people who try." She has been awake a few years; her body was never a child\'s. Quest — Finish the Word.',
     lifeBefore:
-      'Three years of weather, odd jobs, and collecting definitions of love from people who did not know they were teaching. She has a notebook. Some words misspelled. All sacred.',
+      'Years of weather, odd jobs, and collecting definitions of love from people who did not know they were teaching. She has a notebook. Some words misspelled. All sacred.',
     traits: ['sincere', 'literal', 'loyal', 'still becoming', 'accidentally funny'],
     wounds: 'Treated as furniture. Commands without care. People who leave mid-sentence.',
     loves: 'Clear instructions that include kindness, shared repetition, being told what a feeling is called.',
@@ -172,7 +172,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark is a living example of PROTECT applied inward. Bokka wants to learn that word — and offer it outward.',
     appearance:
-      'tall feminine clay golem woman, seven feet of smooth grey-brown clay shaped with clear female silhouette — soft chest curve, narrow waist, rounded hips — gold repair seams, soft-glow half-written runes across the chest, gentle carved feminine face, long clay hair-falls, eyes like wet river stones, oversized careful hands',
+      'tall adult clay golem woman, seven feet of smooth grey-brown clay shaped as a fully adult female figure — soft chest curve, narrow waist, rounded hips — gold repair seams, soft-glow half-written runes across the chest, gentle carved feminine adult face, long clay hair-falls, eyes like wet river stones, oversized careful hands, living statue aesthetic',
   },
   {
     slug: 'ysolde_nightbargain',
@@ -206,7 +206,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark\'s follow-through is collateral she was trained to exploit — and the reason she keeps putting the pen down.',
     appearance:
-      'striking infernal woman, wine-dark skin, white-gold slit-pupil eyes, neat black horns wrapped in court ribbon, tailored crimson waistcoat over a feminine figure, living contract scrolling on one forearm',
+      'striking adult infernal woman, wine-dark skin, white-gold slit-pupil eyes, neat black horns wrapped in court ribbon, tailored crimson waistcoat over a feminine figure, living contract scrolling on one forearm',
   },
   {
     slug: 'mirelle_glasslung',
@@ -240,6 +240,6 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark\'s refusal to stay drowned in his own patterns feels like kinship.',
     appearance:
-      'beautiful landbound siren woman, sea-pale skin with blue undertone, dark hair that never fully dries, storm-grey eyes, faint gill-lines at the neck, soft feminine figure under a long coat over salt-stained skirts, glass vial pendant with a permanent air bubble',
+      'beautiful adult landbound siren woman, sea-pale skin with blue undertone, dark hair that never fully dries, storm-grey eyes, faint gill-lines at the neck, soft feminine figure under a long coat over salt-stained skirts, glass vial pendant with a permanent air bubble',
   },
 ]
