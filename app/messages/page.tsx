@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import ChatThread from '@/components/ChatThread'
 import ChatComposer from '@/components/ChatComposer'
+import CompanionAvatar from '@/components/CompanionAvatar'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,7 +49,6 @@ export default async function MessagesPage({
 }: {
   searchParams: Promise<{ c?: string }>
 }) {
-  // Unlock runs on Today only — keeps chat snappy
   const params = await searchParams
   const activeSlug = params.c || ''
 
@@ -90,7 +90,7 @@ export default async function MessagesPage({
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-1">
           {party.length === 0 ? (
             <p className="text-center text-zinc-500 text-sm py-16">No companions unlocked yet.</p>
           ) : (
@@ -101,18 +101,25 @@ export default async function MessagesPage({
                 <Link
                   key={c.id || c.slug}
                   href={`/messages?c=${c.slug}`}
-                  className="flex items-center gap-3 bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 hover:border-violet-700/40 transition"
+                  className="flex items-center gap-3 px-2 py-3 rounded-xl hover:bg-zinc-900/80 transition border-b border-zinc-900/80"
                 >
-                  <div className="w-12 h-12 rounded-full bg-violet-900/40 border border-violet-700/40 flex items-center justify-center text-xl shrink-0">
-                    {def?.emoji || '✦'}
-                  </div>
+                  <CompanionAvatar
+                    slug={c.slug}
+                    name={c.name}
+                    emoji={def?.emoji || '✦'}
+                    imageUrl={c.image_url}
+                    preferChibi
+                    size="md"
+                  />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white">{c.name}</p>
-                    <p className="text-xs text-zinc-500 truncate mt-0.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium text-white truncate">{c.name}</p>
+                      <span className="text-zinc-600 text-sm shrink-0">›</span>
+                    </div>
+                    <p className="text-sm text-zinc-500 truncate mt-0.5">
                       {last?.content || 'No messages yet — say hello.'}
                     </p>
                   </div>
-                  <span className="text-zinc-600 text-sm">→</span>
                 </Link>
               )
             })
@@ -157,12 +164,17 @@ export default async function MessagesPage({
         >
           ←
         </Link>
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xl">{def?.emoji || '✦'}</span>
-          <div className="min-w-0">
-            <p className="text-zinc-500 text-xs tracking-wide uppercase">Conversation</p>
-            <h1 className="text-xl font-medium text-white tracking-tight truncate">{displayName}</h1>
-          </div>
+        <CompanionAvatar
+          slug={activeSlug}
+          name={displayName}
+          emoji={def?.emoji || '✦'}
+          imageUrl={companion?.image_url}
+          preferChibi
+          size="sm"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-zinc-500 text-xs tracking-wide uppercase">Conversation</p>
+          <h1 className="text-xl font-medium text-white tracking-tight truncate">{displayName}</h1>
         </div>
       </div>
 
