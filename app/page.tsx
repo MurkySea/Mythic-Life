@@ -1,4 +1,4 @@
-import { createClient } from '@/utils/supabase/server'
+import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
 import {
@@ -8,8 +8,11 @@ import {
   updateTaskStreak,
   awardSkillXp,
   pickReactingCompanion,
+  postUnlockCeremony,
 } from './actions'
-import { parseDomains, SKILL_LABELS, xpIntoLevel, type SkillKey } from '@/lib/skills'
+import { parseDomains, SKILL_LABELS, xpIntoLevel, XP_PER_DOMAIN, type SkillKey } from '@/lib/skills'
+import { getCompanionDef } from '@/lib/companions'
+import { setFeedback, readAndClearFeedback } from '@/lib/feedback'
 
 async function completeTask(formData: FormData) {
   'use server'
@@ -31,10 +34,29 @@ async function completeTask(formData: FormData) {
 
   const domains = parseDomains(domainsStr, domainLegacy)
   const { streak } = await updateTaskStreak(id)
-  await awardSkillXp(domains)
+  const { levels, newlyUnlocked, skillGains } = await awardSkillXp(domains)
   const slug = await pickReactingCompanion(domains)
-  await awardBondProgress(domains.join(','), streak, slug)
+  const bond = await awardBondProgress(domains.join(','), streak, slug)
   await generateCompanionResponse(title, domains.join(', '), { streak, companionSlug: slug })
+
+  const unlockedDetails = await postUnlockCeremony(newlyUnlocked)
+
+  const def = getCompanionDef(slug)
+  await setFeedback({
+    skillGains: skillGains.map((g) => ({
+      skill: g.skill,
+      label: SKILL_LABELS[g.skill as SkillKey] || g.skill,
+      xp: g.xpAdded,
+      level: g.level,
+    })),
+    bondXp: bond.xpGained || 0,
+    companionName: def?.name || 'Companion',
+    companionSlug: slug,
+    unlocked: unlockedDetails,
+    streak,
+  })
+
+  void levels
 
   revalidatePath('/')
   revalidatePath('/messages')
@@ -44,8 +66,26 @@ async function completeTask(formData: FormData) {
 }
 
 export default async function TodayPage() {
+  if (!hasSupabaseEnv()) {
+    return (
+      <main className="max-w-md mx-auto p-6 pb-24 space-y-4">
+        <h1 className="text-xl font-medium text-white pt-8">Configuration needed</h1>
+        <p className="text-zinc-400 text-sm leading-relaxed">
+          Supabase environment variables are missing on this deployment. In Vercel → Settings →
+          Environment Variables, set:
+        </p>
+        <ul className="text-sm text-violet-300 space-y-1 font-mono">
+          <li>NEXT_PUBLIC_SUPABASE_URL</li>
+          <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+        </ul>
+        <p className="text-zinc-500 text-xs">Then Redeploy Production from the Deployments tab.</p>
+      </main>
+    )
+  }
+
   await ensureRecurringTasks()
 
+  const feedback = await readAndClearFeedback()
   const supabase = await createClient()
 
   const { data: companions } = await supabase
@@ -68,12 +108,11 @@ export default async function TodayPage() {
   const skillMap: Record<string, number> = {}
   for (const s of skills || []) skillMap[s.skill] = s.xp || 0
 
-  const topSkills = (['faith', 'discipline', 'fitness', 'knowledge'] as SkillKey[])
-    .map((k) => {
-      const xp = skillMap[k] || 0
-      const { level, into, need } = xpIntoLevel(xp)
-      return { key: k, label: SKILL_LABELS[k], level, into, need, xp }
-    })
+  const topSkills = (['faith', 'discipline', 'fitness', 'knowledge'] as SkillKey[]).map((k) => {
+    const xp = skillMap[k] || 0
+    const { level, into, need } = xpIntoLevel(xp)
+    return { key: k, label: SKILL_LABELS[k], level, into, need, xp }
+  })
 
   const unlocked = companions || []
 
@@ -92,7 +131,52 @@ export default async function TodayPage() {
         )}
       </div>
 
-      {/* Skill snapshot */}
+      {/* XP / unlock feedback */}
+      {feedback && (
+        <div className="space-y-2">
+          {feedback.unlocked?.map((u) => (
+            <div
+              key={u.slug}
+              className="rounded-2xl border border-amber-600/40 bg-amber-950/30 p-4"
+            >
+              <p className="text-amber-200 text-sm font-medium">
+                {u.emoji} {u.name} joined your party
+              </p>
+              <p className="text-zinc-400 text-sm mt-1 leading-relaxed">{u.line}</p>
+              <Link
+                href={`/messages?c=${u.slug}`}
+                className="inline-block mt-2 text-xs text-amber-300/90 hover:text-amber-200"
+              >
+                Speak with them →
+              </Link>
+            </div>
+          ))}
+          <div className="rounded-2xl border border-violet-700/40 bg-violet-950/30 p-4">
+            <p className="text-[11px] uppercase tracking-wider text-violet-400/80 mb-2">Gains</p>
+            <div className="flex flex-wrap gap-2">
+              {feedback.skillGains.map((g) => (
+                <span
+                  key={g.skill}
+                  className="text-xs px-2.5 py-1 rounded-full bg-zinc-900 text-violet-200 border border-violet-800/40"
+                >
+                  +{g.xp} {g.label} · Lv {g.level}
+                </span>
+              ))}
+              {feedback.bondXp > 0 && (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-zinc-900 text-fuchsia-200 border border-fuchsia-800/40">
+                  +{feedback.bondXp} bond · {feedback.companionName}
+                </span>
+              )}
+              {(feedback.streak || 0) >= 2 && (
+                <span className="text-xs px-2.5 py-1 rounded-full bg-zinc-900 text-amber-200 border border-amber-800/40">
+                  {feedback.streak} day streak
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 space-y-3">
         <div className="flex items-center justify-between">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">Skills</p>
@@ -118,21 +202,24 @@ export default async function TodayPage() {
         </div>
       </div>
 
-      {/* Party strip */}
       {unlocked.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {unlocked.map((c: any) => (
-            <Link
-              key={c.id}
-              href={`/messages?c=${c.slug || 'seraphine'}`}
-              className="shrink-0 flex flex-col items-center gap-1 px-2"
-            >
-              <div className="w-11 h-11 rounded-full bg-violet-900/40 border border-violet-700/50 flex items-center justify-center text-lg">
-                {c.name === 'Seraphine' ? '🦊' : '✦'}
-              </div>
-              <span className="text-[10px] text-zinc-400 max-w-[56px] truncate">{c.name}</span>
-            </Link>
-          ))}
+          {unlocked.map((c: any) => {
+            const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
+            const def = getCompanionDef(slug)
+            return (
+              <Link
+                key={c.id}
+                href={`/messages?c=${slug}`}
+                className="shrink-0 flex flex-col items-center gap-1 px-2"
+              >
+                <div className="w-11 h-11 rounded-full bg-violet-900/40 border border-violet-700/50 flex items-center justify-center text-lg">
+                  {def?.emoji || '✦'}
+                </div>
+                <span className="text-[10px] text-zinc-400 max-w-[56px] truncate">{c.name}</span>
+              </Link>
+            )
+          })}
           <Link href="/companions" className="shrink-0 flex flex-col items-center gap-1 px-2">
             <div className="w-11 h-11 rounded-full border border-dashed border-zinc-700 flex items-center justify-center text-zinc-500 text-sm">
               +
