@@ -1,4 +1,12 @@
 import Link from 'next/link'
+import {
+  devUnlockAllCompanions,
+  devBoostAllAffinity,
+  hardResetGame,
+} from '../dev-actions'
+import { COMPANION_DEFS } from '@/lib/companions'
+
+export const dynamic = 'force-dynamic'
 
 export default function SettingsPage() {
   return (
@@ -26,6 +34,10 @@ export default function SettingsPage() {
           <div className="flex justify-between items-center">
             <span className="text-zinc-400 text-sm">Timezone</span>
             <span className="text-white font-medium">America/Chicago</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-zinc-400 text-sm">Roster size</span>
+            <span className="text-white font-medium">{COMPANION_DEFS.length}</span>
           </div>
         </div>
 
@@ -64,10 +76,51 @@ export default function SettingsPage() {
           </div>
         </div>
 
+        {/* Developer tools */}
+        <div className="bg-amber-950/30 border border-amber-800/40 rounded-2xl p-5 space-y-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-amber-500/90">Developer</p>
+            <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+              Testing tools. Unlock does not max bonds — use boost for scene tiers. Hard reset keeps
+              your task list but wipes skills, companions, messages, and gallery.
+            </p>
+          </div>
+
+          <form action={devUnlockAllCompanions}>
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-amber-900/50 border border-amber-700/50 text-amber-100 text-sm font-medium hover:bg-amber-800/50 active:scale-[0.99] transition"
+            >
+              Unlock all companions
+            </button>
+          </form>
+
+          <form action={devBoostAllAffinity.bind(null, 20)}>
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm font-medium hover:border-violet-600/50 active:scale-[0.99] transition"
+            >
+              Boost all affinity → 20 (scene test)
+            </button>
+          </form>
+
+          <form action={hardResetGame}>
+            <button
+              type="submit"
+              className="w-full py-3 rounded-xl bg-red-950/60 border border-red-800/50 text-red-200 text-sm font-medium hover:bg-red-900/50 active:scale-[0.99] transition"
+            >
+              Hard reset game
+            </button>
+          </form>
+          <p className="text-[10px] text-zinc-600 leading-relaxed">
+            Hard reset: Seraphine only, affinity 1, empty inbox, empty gallery, skills cleared. Tasks
+            stay.
+          </p>
+        </div>
+
         <p className="text-xs text-zinc-600 leading-relaxed px-1 pt-2">
-          Skills level from task domains. Multi-domain tasks (e.g. Faith + Discipline) feed both trees.
-          Companions unlock when your levels meet their thresholds — then they join Messages and the
-          party strip.
+          Skills level from task domains. Multi-domain tasks feed both trees. Companions unlock when
+          your levels meet their thresholds — then they join Messages and the party strip.
         </p>
       </div>
     </main>
