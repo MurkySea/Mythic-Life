@@ -56,6 +56,8 @@ async function generateCompanionImage() {
 }
 
 function getIntimacyLabel(affinity: number): string {
+  if (affinity >= 20) return 'Intense & Sensual'
+  if (affinity >= 16) return 'Heated Intimacy'
   if (affinity >= 12) return 'Deeply Intimate'
   if (affinity >= 9) return 'Close & Tender'
   if (affinity >= 6) return 'Warming Bond'
