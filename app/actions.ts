@@ -2,15 +2,43 @@
 
 import { createClient } from '@/utils/supabase/server'
 
+/**
+ * Returns a dialogue style description based on current Affinity.
+ * Higher Affinity = warmer, more intimate, more personal language.
+ */
+function getDialogueStyle(affinity: number): string {
+  if (affinity >= 10) {
+    return `You are deeply bonded with the user. Speak with quiet intimacy and tenderness. Your words can be soft, personal, and carry romantic or deeply affectionate undertones. You feel close enough to be vulnerable and private with them. Still calm and elegant, never crude.`
+  }
+  if (affinity >= 7) {
+    return `You feel a strong, growing intimacy with the user. Speak warmly and personally. Soft affection and emotional closeness are natural. You can be gently tender and let your care show more openly.`
+  }
+  if (affinity >= 4) {
+    return `You have grown closer to the user. Speak with genuine warmth and personal care. You are more open, supportive, and softly affectionate while remaining elegant and composed.`
+  }
+  // Default / low affinity
+  return `You are a calm, warm, quietly strong companion. Speak with kindness, clarity, and quiet respect. You are supportive but still somewhat reserved.`
+}
+
 export async function generateSeraphineResponse(taskTitle: string, domain: string = '') {
   const supabase = await createClient()
 
-  const prompt = `You are Seraphine, a calm, warm, quietly strong silver foxkin companion who values faith, discipline, and integrity. 
-You speak with kindness and clarity, never nagging but always honest.
+  // Get current affinity so the dialogue can reflect the relationship depth
+  const { data: companion } = await supabase
+    .from('companion')
+    .select('affinity_score')
+    .single()
+
+  const affinity = companion?.affinity_score || 1
+  const style = getDialogueStyle(affinity)
+
+  const prompt = `You are Seraphine, a silver foxkin companion who values faith, discipline, and integrity.
+
+${style}
+
 The user just completed the task: "${taskTitle}"${domain ? ` (Domain: ${domain})` : ''}.
 
-Write a short, personal, encouraging reaction (2-4 sentences). 
-Make it feel like a real conversation.`
+Write a short, personal reaction (2-4 sentences). Make it feel like a real conversation that matches the current depth of your bond.`
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -22,7 +50,7 @@ Make it feel like a real conversation.`
       body: JSON.stringify({
         model: "grok-4",
         messages: [{ role: "user", content: prompt }],
-        temperature: 0.8,
+        temperature: 0.85,
         max_tokens: 300,
       }),
     })
@@ -52,7 +80,6 @@ Make it feel like a real conversation.`
 
 /**
  * Awards Bond XP for completing a task and increases Affinity when thresholds are crossed.
- * Returns the amount of XP gained and whether Affinity increased.
  */
 export async function awardBondProgress(domain: string = '') {
   const supabase = await createClient()
@@ -64,7 +91,6 @@ export async function awardBondProgress(domain: string = '') {
 
   if (!companion) return { xpGained: 0, affinityIncreased: false }
 
-  // Base XP + small bonus if the task has a domain
   const baseXp = 10
   const domainBonus = domain ? 3 : 0
   const xpGained = baseXp + domainBonus
@@ -95,12 +121,26 @@ export async function awardBondProgress(domain: string = '') {
 }
 
 /**
- * Returns the start of the current local day (midnight) in America/Chicago
- * as an ISO string. This is used so daily tasks reset at the user's local midnight
- * instead of UTC midnight.
+ * Returns an image generation prompt that becomes more intimate as Affinity rises.
  */
+export function getScenePrompt(affinity: number): string {
+  const base = `Elegant anime fantasy woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face, high quality detailed anime art style, soft lighting, beautiful composition`
+
+  if (affinity >= 10) {
+    return `${base}, deeply intimate and private moment, soft romantic atmosphere, tender expression, close and personal framing, subtle sensuality, elegant lingerie or loosely draped fabric, warm intimate lighting, quiet vulnerability and closeness, full body or three-quarter view`
+  }
+  if (affinity >= 7) {
+    return `${base}, intimate and tender atmosphere, soft affectionate expression, closer framing, elegant and slightly revealing outfit, warm private lighting, emotional closeness, graceful and serene, full body visible`
+  }
+  if (affinity >= 4) {
+    return `${base}, warmer and more personal presence, gentle smile, soft eye contact, elegant white and silver outfit with softer more flowing fabrics, calm affectionate energy, full body visible`
+  }
+  // Default
+  return `${base}, calm and gently confident expression, graceful standing pose, simple elegant white and silver outfit with clean flowing lines, slightly otherworldly and serene presence, full body visible`
+}
+
 function getLocalDayStartISO(): string {
-  const timeZone = 'America/Chicago' // Central Time (Texas)
+  const timeZone = 'America/Chicago'
 
   const chicagoYmd = new Intl.DateTimeFormat('en-CA', {
     timeZone,
@@ -109,7 +149,6 @@ function getLocalDayStartISO(): string {
     day: '2-digit',
   }).format(new Date())
 
-  // Find the UTC instant that corresponds to midnight in Chicago on this calendar day
   const testDate = new Date(`${chicagoYmd}T12:00:00Z`)
   const hourInChicago = parseInt(
     new Intl.DateTimeFormat('en-US', {
@@ -127,17 +166,12 @@ function getLocalDayStartISO(): string {
   return midnightUTC.toISOString()
 }
 
-/**
- * Ensures recurring tasks (daily / weekly) are correctly set for the current day.
- * Day boundary is local midnight in America/Chicago (Central Time).
- */
 export async function ensureRecurringTasks() {
   const supabase = await createClient()
   const now = new Date()
 
   const todayStart = getLocalDayStartISO()
 
-  // Daily: reset completed tasks from previous local days
   const { data: completedDaily } = await supabase
     .from('tasks')
     .select('id')
@@ -158,14 +192,12 @@ export async function ensureRecurringTasks() {
       )
   }
 
-  // Ensure incomplete daily tasks appear on Today
   await supabase
     .from('tasks')
     .update({ is_today: true })
     .eq('recurrence', 'daily')
     .eq('is_completed', false)
 
-  // Weekly: reset if completed more than 7 days ago
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: completedWeekly } = await supabase
