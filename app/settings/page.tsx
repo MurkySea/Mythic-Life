@@ -5,6 +5,7 @@ import {
   hardResetGame,
 } from '../dev-actions'
 import { COMPANION_DEFS } from '@/lib/companions'
+import PushEnable from '@/components/PushEnable'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,8 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-4">
-        {/* Developer tools — top of page for visibility */}
+        <PushEnable />
+
         <div className="bg-amber-950/40 border-2 border-amber-600/50 rounded-2xl p-5 space-y-4">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-amber-400 font-semibold">
@@ -103,25 +105,23 @@ export default function SettingsPage() {
           </Link>
         </div>
 
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-4">
-          <p className="text-[11px] uppercase tracking-wider text-zinc-500">Companions</p>
-          <div className="flex justify-between items-center">
-            <span className="text-zinc-400 text-sm">Task recognition</span>
-            <span className="text-violet-300 text-sm">Occasional (~35%)</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-zinc-400 text-sm">Unlock model</span>
-            <span className="text-violet-300 text-sm">Skill milestones</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-zinc-400 text-sm">Push notifications</span>
-            <span className="text-zinc-500 text-sm">Coming soon</span>
-          </div>
+        <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-3">
+          <p className="text-[11px] uppercase tracking-wider text-zinc-500">Supabase SQL (one-time)</p>
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            Run in Supabase → SQL Editor if push subscribe fails:
+          </p>
+          <pre className="text-[10px] text-zinc-400 bg-zinc-950 rounded-xl p-3 overflow-x-auto leading-relaxed">{`create table if not exists push_subscriptions (
+  endpoint text primary key,
+  p256dh text not null,
+  auth text not null,
+  updated_at timestamptz default now()
+);
+`}</pre>
         </div>
 
         <p className="text-xs text-zinc-600 leading-relaxed px-1 pt-2">
-          Skills level from task domains. Multi-domain tasks feed both trees. Companions unlock when
-          your levels meet their thresholds — then they join Messages and the party strip.
+          Skills level from task domains. Companions unlock on skill milestones. Push uses Web Push +
+          Home Screen on iPhone.
         </p>
       </div>
     </main>
