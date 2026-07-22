@@ -9,10 +9,11 @@ async function generateCompanionImage() {
 
   const { data: companion } = await supabase
     .from('companion')
-    .select('affinity_score')
+    .select('affinity_score, name')
     .single()
 
   const affinity = companion?.affinity_score || 1
+  const characterName = companion?.name || 'Seraphine'
   const prompt = getScenePrompt(affinity)
 
   try {
@@ -33,10 +34,19 @@ async function generateCompanionImage() {
     const imageUrl = data.data?.[0]?.url
 
     if (imageUrl) {
+      // Update the main portrait
       await supabase
         .from('companion')
         .update({ image_url: imageUrl })
-        .eq('name', 'Seraphine')
+        .eq('name', characterName)
+
+      // Also save to the gallery for history
+      await supabase.from('gallery_images').insert({
+        character_name: characterName,
+        image_url: imageUrl,
+        affinity_at_generation: affinity,
+        prompt_used: prompt,
+      })
     }
 
     console.log("Grok Imagine response:", data)
@@ -46,6 +56,7 @@ async function generateCompanionImage() {
 
   revalidatePath('/companion')
   revalidatePath('/companion-profile')
+  revalidatePath('/gallery')
 }
 
 function getIntimacyLabel(affinity: number): string {
