@@ -14,9 +14,7 @@ function getLocalYmd(): string {
 }
 
 function getYesterdayYmd(): string {
-  const now = new Date()
-  // Approximate yesterday in Chicago by formatting a date 24h ago
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Chicago',
     year: 'numeric',
@@ -25,11 +23,17 @@ function getYesterdayYmd(): string {
   }).format(yesterday)
 }
 
-/**
- * Updates streak_count for a task on completion.
- * Consecutive local days continue the streak; a gap resets to 1.
- * Requires columns: streak_count integer, last_streak_date text (YYYY-MM-DD)
- */
+/** Local weekday key: mon, tue, wed, thu, fri, sat, sun */
+function getLocalWeekdayKey(): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    weekday: 'short',
+  })
+    .format(new Date())
+    .toLowerCase()
+    .slice(0, 3)
+}
+
 export async function updateTaskStreak(taskId: string) {
   const supabase = await createClient()
 
@@ -41,7 +45,6 @@ export async function updateTaskStreak(taskId: string) {
 
   if (!task) return { streak: 0 }
 
-  // Only track streaks for daily (and weekly lightly)
   if (task.recurrence !== 'daily' && task.recurrence !== 'weekly') {
     return { streak: task.streak_count || 0 }
   }
@@ -52,21 +55,13 @@ export async function updateTaskStreak(taskId: string) {
   const prev = task.streak_count || 0
 
   let next = 1
-  if (last === today) {
-    // Already counted today
-    next = prev
-  } else if (last === yesterday) {
-    next = prev + 1
-  } else {
-    next = 1
-  }
+  if (last === today) next = prev
+  else if (last === yesterday) next = prev + 1
+  else next = 1
 
   await supabase
     .from('tasks')
-    .update({
-      streak_count: next,
-      last_streak_date: today,
-    })
+    .update({ streak_count: next, last_streak_date: today })
     .eq('id', taskId)
 
   return { streak: next }
@@ -214,7 +209,6 @@ export async function awardBondProgress(domain: string = '', streak: number = 0)
 
   const baseXp = 10
   const domainBonus = domain ? 3 : 0
-  // Streak bonus from Notion: consistency multiplies value
   const streakBonus = streak >= 7 ? 8 : streak >= 3 ? 4 : 0
   const xpGained = baseXp + domainBonus + streakBonus
 
@@ -228,10 +222,7 @@ export async function awardBondProgress(domain: string = '', streak: number = 0)
 
   await supabase
     .from('companion')
-    .update({
-      bond_xp: newXp,
-      affinity_score: newAffinity,
-    })
+    .update({ bond_xp: newXp, affinity_score: newAffinity })
     .eq('id', companion.id)
 
   return {
@@ -271,7 +262,9 @@ export async function ensureRecurringTasks() {
   const supabase = await createClient()
   const now = new Date()
   const todayStart = getLocalDayStartISO()
+  const todayWd = getLocalWeekdayKey()
 
+  // ── Daily ───────────────────────────────────────────────────────────────────
   const { data: completedDaily } = await supabase
     .from('tasks')
     .select('id')
@@ -283,7 +276,10 @@ export async function ensureRecurringTasks() {
     await supabase
       .from('tasks')
       .update({ is_completed: false, is_today: true })
-      .in('id', completedDaily.map((t) => t.id))
+      .in(
+        'id',
+        completedDaily.map((t) => t.id)
+      )
   }
 
   await supabase
@@ -292,19 +288,56 @@ export async function ensureRecurringTasks() {
     .eq('recurrence', 'daily')
     .eq('is_completed', false)
 
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-
-  const { data: completedWeekly } = await supabase
+  // ── Weekly with optional weekdays ───────────────────────────────────────────
+  const { data: weeklyTasks } = await supabase
     .from('tasks')
-    .select('id')
+    .select('id, weekdays, is_completed, completed_at')
     .eq('recurrence', 'weekly')
-    .eq('is_completed', true)
-    .lt('completed_at', weekAgo)
 
-  if (completedWeekly && completedWeekly.length > 0) {
-    await supabase
-      .from('tasks')
-      .update({ is_completed: false, is_today: true })
-      .in('id', completedWeekly.map((t) => t.id))
+  if (weeklyTasks && weeklyTasks.length > 0) {
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
+    for (const task of weeklyTasks) {
+      const days =
+        task.weekdays && typeof task.weekdays === 'string' && task.weekdays.trim()
+          ? task.weekdays.split(',').map((d: string) => d.trim())
+          : []
+
+      if (days.length > 0) {
+        // Specific weekdays (e.g. mon,thu)
+        const isScheduledToday = days.includes(todayWd)
+
+        if (isScheduledToday) {
+          const completedBeforeToday =
+            task.is_completed &&
+            task.completed_at &&
+            task.completed_at < todayStart
+
+          if (completedBeforeToday) {
+            await supabase
+              .from('tasks')
+              .update({ is_completed: false, is_today: true })
+              .eq('id', task.id)
+          } else if (!task.is_completed) {
+            await supabase.from('tasks').update({ is_today: true }).eq('id', task.id)
+          }
+        } else {
+          // Not a scheduled day — pull off Today
+          await supabase.from('tasks').update({ is_today: false }).eq('id', task.id)
+        }
+      } else {
+        // Legacy weekly with no days: reset once every ~7 days
+        if (
+          task.is_completed &&
+          task.completed_at &&
+          task.completed_at < weekAgo
+        ) {
+          await supabase
+            .from('tasks')
+            .update({ is_completed: false, is_today: true })
+            .eq('id', task.id)
+        }
+      }
+    }
   }
 }
