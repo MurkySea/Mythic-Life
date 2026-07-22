@@ -1,7 +1,12 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
-import { ensureRecurringTasks, awardBondProgress, generateSeraphineResponse } from './actions'
+import {
+  ensureRecurringTasks,
+  awardBondProgress,
+  generateSeraphineResponse,
+  updateTaskStreak,
+} from './actions'
 
 async function completeTask(formData: FormData) {
   'use server'
@@ -12,20 +17,17 @@ async function completeTask(formData: FormData) {
 
   const supabase = await createClient()
 
-  // Mark task as completed
   await supabase
     .from('tasks')
-    .update({ 
+    .update({
       is_completed: true,
-      completed_at: new Date().toISOString()
+      completed_at: new Date().toISOString(),
     })
     .eq('id', id)
 
-  // Award Bond XP + possible Affinity increase
-  await awardBondProgress(domain)
-
-  // Generate intelligent response from Seraphine using Grok
-  await generateSeraphineResponse(title, domain)
+  const { streak } = await updateTaskStreak(id)
+  await awardBondProgress(domain, streak)
+  await generateSeraphineResponse(title, domain, { streak })
 
   revalidatePath('/')
   revalidatePath('/messages')
@@ -34,15 +36,11 @@ async function completeTask(formData: FormData) {
 }
 
 export default async function TodayPage() {
-  // Run the recurring-task reset logic first
   await ensureRecurringTasks()
 
   const supabase = await createClient()
 
-  const { data: companion } = await supabase
-    .from('companion')
-    .select('*')
-    .single()
+  const { data: companion } = await supabase.from('companion').select('*').single()
 
   const { data: todayTasks } = await supabase
     .from('tasks')
@@ -50,18 +48,26 @@ export default async function TodayPage() {
     .eq('is_today', true)
     .order('created_at', { ascending: true })
 
-  const incompleteTasks = todayTasks?.filter(t => !t.is_completed) || []
-  const completedTasks = todayTasks?.filter(t => t.is_completed) || []
+  const incompleteTasks = todayTasks?.filter((t) => !t.is_completed) || []
+  const completedTasks = todayTasks?.filter((t) => t.is_completed) || []
+
+  const bestStreak = Math.max(0, ...(todayTasks || []).map((t: any) => t.streak_count || 0))
 
   return (
     <main className="max-w-md mx-auto p-4 space-y-6 pb-24">
-      {/* Header */}
-      <div className="pt-4">
-        <p className="text-zinc-500 text-sm">Good day</p>
-        <h1 className="text-2xl font-medium text-white">Today</h1>
+      <div className="pt-4 flex items-end justify-between">
+        <div>
+          <p className="text-zinc-500 text-sm">Good day, Mark</p>
+          <h1 className="text-2xl font-medium text-white">Today</h1>
+        </div>
+        {bestStreak > 0 && (
+          <div className="text-right">
+            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Best streak</p>
+            <p className="text-lg font-medium text-amber-400">{bestStreak}🔥</p>
+          </div>
+        )}
       </div>
 
-      {/* Seraphine greeting */}
       {companion && (
         <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4">
           <div className="flex items-start gap-3">
@@ -85,7 +91,6 @@ export default async function TodayPage() {
         </div>
       )}
 
-      {/* Incomplete Tasks */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium text-zinc-400 uppercase tracking-wider">Focus</h2>
@@ -97,10 +102,7 @@ export default async function TodayPage() {
         {incompleteTasks.length > 0 ? (
           <div className="space-y-2">
             {incompleteTasks.map((task: any) => (
-              <div
-                key={task.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl p-4"
-              >
+              <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                 <div className="flex items-start gap-3">
                   <form action={completeTask}>
                     <input type="hidden" name="id" value={task.id} />
@@ -110,8 +112,7 @@ export default async function TodayPage() {
                       type="submit"
                       className="mt-0.5 w-6 h-6 rounded-full border-2 border-zinc-600 hover:border-violet-500 hover:bg-violet-600/20 transition flex items-center justify-center"
                       title="Mark complete"
-                    >
-                    </button>
+                    />
                   </form>
                   <div className="flex-1">
                     <p className="font-medium text-white">{task.title}</p>
@@ -129,6 +130,11 @@ export default async function TodayPage() {
                           {task.recurrence}
                         </span>
                       )}
+                      {(task.streak_count || 0) >= 2 && (
+                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-300">
+                          {task.streak_count} day streak
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -138,15 +144,10 @@ export default async function TodayPage() {
         ) : (
           <div className="bg-zinc-900/50 border border-dashed border-zinc-800 rounded-xl p-8 text-center">
             <p className="text-zinc-500 text-sm">
-              {completedTasks.length > 0 
-                ? "All tasks completed for today." 
-                : "No tasks for today yet."}
+              {completedTasks.length > 0 ? 'All tasks completed for today.' : 'No tasks for today yet.'}
             </p>
             {completedTasks.length === 0 && (
-              <Link 
-                href="/mother-list" 
-                className="inline-block mt-3 text-sm text-violet-400 hover:text-violet-300"
-              >
+              <Link href="/mother-list" className="inline-block mt-3 text-sm text-violet-400 hover:text-violet-300">
                 Choose from Mother List →
               </Link>
             )}
@@ -154,7 +155,6 @@ export default async function TodayPage() {
         )}
       </div>
 
-      {/* Completed Tasks */}
       {completedTasks.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Completed</h2>
@@ -169,6 +169,9 @@ export default async function TodayPage() {
                 </div>
                 <div className="flex-1">
                   <p className="font-medium line-through text-zinc-500">{task.title}</p>
+                  {(task.streak_count || 0) >= 2 && (
+                    <p className="text-[10px] text-amber-500/80 mt-1">{task.streak_count} day streak</p>
+                  )}
                 </div>
               </div>
             ))}
