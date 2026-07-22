@@ -2,13 +2,10 @@ import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { SKILLS, SKILL_LABELS, xpIntoLevel } from '@/lib/skills'
 import { COMPANION_DEFS, meetsUnlock } from '@/lib/companions'
-import { checkAndUnlockCompanions } from '../actions'
 
 export const dynamic = 'force-dynamic'
 
 export default async function SkillsPage() {
-  await checkAndUnlockCompanions()
-
   const supabase = await createClient()
   const { data: rows } = await supabase.from('player_skills').select('*')
 
