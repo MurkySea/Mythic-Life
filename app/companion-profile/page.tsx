@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { SKILL_LABELS } from '@/lib/skills'
+import { resolveHeadshot } from '@/lib/staticAvatars'
 import {
   buildScenePrompt,
   scenesEarned,
@@ -168,16 +169,17 @@ export default async function CompanionProfilePage({
             }) => {
               const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
               const def = getCompanionDef(s)
+              const portrait = resolveHeadshot(s, c.image_url)
               return (
                 <Link
                   key={c.id}
                   href={`/companion-profile?c=${s}`}
                   className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 hover:border-violet-600/40 transition text-center"
                 >
-                  {c.image_url ? (
+                  {portrait ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={c.image_url}
+                      src={portrait}
                       alt={c.name}
                       className="w-20 h-20 rounded-xl object-cover mx-auto border border-violet-500/20"
                     />
@@ -213,6 +215,8 @@ export default async function CompanionProfilePage({
   const affinity = companion?.affinity_score || 1
   const earned = scenesEarned(affinity)
   const nextAt = nextSceneMilestone(affinity)
+  // Prefer claimed scene photo on profile; fall back to locked base avatar
+  const portraitSrc = companion?.image_url || resolveHeadshot(slug, null)
 
   const [{ data: memories }, { count: sceneCount }] = await Promise.all([
     supabase
@@ -261,12 +265,12 @@ export default async function CompanionProfilePage({
         <div className="space-y-6">
           <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-3xl p-6 space-y-6">
             <div className="flex flex-col items-center">
-              {companion.image_url ? (
+              {portraitSrc ? (
                 <div className="relative">
                   <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-violet-600/40 to-fuchsia-600/20 blur-sm" />
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={companion.image_url}
+                    src={portraitSrc}
                     alt={companion.name}
                     className="relative w-36 h-36 rounded-2xl object-cover border border-violet-500/30"
                   />
