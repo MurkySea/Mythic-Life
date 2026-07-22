@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { checkAndUnlockCompanions } from '../actions'
 import ChatThread from '@/components/ChatThread'
-import { PendingSendButton } from '@/components/PendingSubmit'
+import ChatComposer from '@/components/ChatComposer'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,18 +20,15 @@ async function sendMessage(formData: FormData) {
   const supabase = await createClient()
   const text = content.trim()
 
-  // 1) Persist user message immediately
   await supabase.from('messages').insert({
     role: 'user',
     content: text,
     companion_slug: companionSlug,
   })
 
-  // 2) Unblock UI — your bubble appears now
   revalidatePath('/messages')
   revalidatePath('/')
 
-  // 3) Companion reply after the response is already on the way
   after(async () => {
     try {
       const { generateCompanionResponse } = await import('../actions')
@@ -172,22 +169,11 @@ export default async function MessagesPage({
 
       <ChatThread messages={thread} companionName={displayName} />
 
-      <form
+      <ChatComposer
+        companionSlug={activeSlug}
+        displayName={displayName}
         action={sendMessage}
-        className="shrink-0 px-4 pt-2 pb-3 border-t border-zinc-900 bg-zinc-950/95 backdrop-blur-md"
-      >
-        <input type="hidden" name="companion_slug" value={activeSlug} />
-        <div className="flex gap-2 items-center bg-zinc-900 border border-zinc-800 rounded-2xl p-1.5">
-          <input
-            type="text"
-            name="content"
-            placeholder={`Reply to ${displayName}...`}
-            className="flex-1 bg-transparent px-4 py-3 text-white placeholder:text-zinc-500 text-[15px] focus:outline-none"
-            autoComplete="off"
-          />
-          <PendingSendButton />
-        </div>
-      </form>
+      />
     </main>
   )
 }
