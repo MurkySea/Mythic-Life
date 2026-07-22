@@ -1,35 +1,40 @@
 import Link from 'next/link'
+import { createClient } from '@/utils/supabase/server'
+import { COMPANION_DEFS, meetsUnlock } from '@/lib/companions'
+import { SKILL_LABELS, skillLevelFromXp } from '@/lib/skills'
+import { checkAndUnlockCompanions } from '../actions'
 
-/** Founding companions from Mythic Life — Character Bible (Notion) */
-const FOUNDING = [
-  { id: 'seraphine', name: 'Seraphine', race: 'Silver Foxkin', class: 'Companion', rarity: 'Founding', affinity: ['Faith', 'Discipline'], pool: 'Active', unlocked: true },
-  { id: 'kira_foxveil', name: 'Kira Foxveil', race: 'Red Fox Foxkin', class: 'Enchantress', rarity: 'Legendary', affinity: ['Faith', 'Discipline', 'Relations'], pool: 'Starter', unlocked: false },
-  { id: 'nyx_voidbane', name: 'Nyx Voidbane', race: 'Shadow Fairy', class: 'Oracle', rarity: 'Legendary', affinity: ['Faith', 'Knowledge'], pool: 'Starter', unlocked: false },
-  { id: 'ember_crimsonfall', name: 'Ember Crimsonfall', race: 'Fire Dragonkin', class: 'Berserker', rarity: 'SSR', affinity: ['Fitness', 'Discipline'], pool: 'Starter', unlocked: false },
-  { id: 'lyra_dawnforge', name: 'Lyra Dawnforge', race: 'Guardian Angel', class: 'Paladin', rarity: 'SSR', affinity: ['Faith', 'Relations'], pool: 'Starter', unlocked: false },
-  { id: 'mira_quillweave', name: 'Mira Quillweave', race: 'High Elf', class: 'Mage', rarity: 'Epic', affinity: ['Knowledge', 'Business'], pool: 'Starter', unlocked: false },
-  { id: 'seris_nightthorn', name: 'Seris Nightthorn', race: 'Dark Elf', class: 'Assassin', rarity: 'SSR', affinity: ['Discipline', 'Knowledge'], pool: 'Starter', unlocked: false },
-  { id: 'iris_bellweather', name: 'Iris Bellweather', race: 'Fennec Foxkin', class: 'Bard', rarity: 'Epic', affinity: ['Relations', 'Faith'], pool: 'Starter', unlocked: false },
-  { id: 'kael_ashrunner', name: 'Kael Ashrunner', race: 'Grey Wolfkin', class: 'Ranger', rarity: 'Rare', affinity: ['Fitness', 'Discipline'], pool: 'Starter', unlocked: false },
-  { id: 'rowan_ironmane', name: 'Rowan Ironmane', race: 'Lion Catfolk', class: 'Warden', rarity: 'Rare', affinity: ['Discipline', 'Relations', 'Fitness'], pool: 'Starter', unlocked: false },
-  { id: 'orion_halovard', name: 'Orion Halovard', race: 'Human Heartlander', class: 'Paladin', rarity: 'Legendary', affinity: ['Faith', 'Discipline'], pool: 'Milestone', unlocked: false },
-  { id: 'selene_tideglass', name: 'Selene Tideglass', race: 'Deep-Sea Mermaid', class: 'Priestess', rarity: 'SSR', affinity: ['Faith', 'Relations', 'Knowledge'], pool: 'Milestone', unlocked: false },
-  { id: 'elias_stillwater', name: 'Elias Stillwater', race: 'Human Highlander', class: 'Monk', rarity: 'Epic', affinity: ['Discipline', 'Faith', 'Fitness'], pool: 'Milestone', unlocked: false },
-  { id: 'bramble_mossheart', name: 'Bramble Mossheart', race: 'Oak Dryad', class: 'Druid', rarity: 'Rare', affinity: ['Fitness', 'Faith', 'Relations'], pool: 'Milestone', unlocked: false },
-  { id: 'aster_chrona', name: 'Aster Chrona', race: 'Celestial Dragonkin', class: 'Mage', rarity: 'Legendary', affinity: ['Knowledge', 'Discipline', 'Faith'], pool: 'Hidden', unlocked: false },
-  { id: 'gideon_brasswake', name: 'Gideon Brasswake', race: 'Human Desertborn', class: 'Alchemist', rarity: 'SSR', affinity: ['Business', 'Knowledge', 'Discipline'], pool: 'Hidden', unlocked: false },
-]
+export default async function CompanionsPage() {
+  await checkAndUnlockCompanions()
 
-function rarityColor(r: string) {
-  if (r === 'Legendary' || r === 'Founding') return 'text-amber-300'
-  if (r === 'SSR') return 'text-orange-300'
-  if (r === 'Epic') return 'text-violet-300'
-  return 'text-zinc-400'
-}
+  const supabase = await createClient()
+  const { data: rows } = await supabase.from('companion').select('*')
+  const { data: skills } = await supabase.from('player_skills').select('*')
 
-export default function CompanionsPage() {
-  const active = FOUNDING.filter((c) => c.unlocked)
-  const locked = FOUNDING.filter((c) => !c.unlocked)
+  const levelMap: Record<string, number> = {}
+  for (const s of skills || []) {
+    levelMap[s.skill] = s.level || skillLevelFromXp(s.xp || 0)
+  }
+
+  const unlockedSlugs = new Set(
+    (rows || [])
+      .filter((c) => c.is_unlocked !== false)
+      .map((c) => c.slug || (c.name === 'Seraphine' ? 'seraphine' : ''))
+      .filter(Boolean)
+  )
+
+  // Always treat starter as unlocked in UI
+  unlockedSlugs.add('seraphine')
+
+  const active = COMPANION_DEFS.filter((d) => d.starter || unlockedSlugs.has(d.slug))
+  const locked = COMPANION_DEFS.filter((d) => !d.starter && !unlockedSlugs.has(d.slug))
+
+  function rarityColor(r: string) {
+    if (r === 'Legendary' || r === 'Founding') return 'text-amber-300'
+    if (r === 'SSR') return 'text-orange-300'
+    if (r === 'Epic') return 'text-violet-300'
+    return 'text-zinc-400'
+  }
 
   return (
     <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
@@ -41,78 +46,102 @@ export default function CompanionsPage() {
           ←
         </Link>
         <div>
-          <p className="text-zinc-500 text-xs tracking-wide uppercase">Character Bible</p>
+          <p className="text-zinc-500 text-xs tracking-wide uppercase">Your party</p>
           <h1 className="text-xl font-medium text-white tracking-tight">Companions</h1>
         </div>
       </div>
 
       <p className="text-zinc-500 text-sm mb-6 leading-relaxed">
-        Founding companions of Project Ascension. Only those you have bonded with can speak and walk with you yet.
+        Companions unlock as your skills grow. Raise Faith, Discipline, Fitness, and the rest — they notice
+        who you are becoming.
       </p>
 
-      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Active</p>
+      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">
+        Active ({active.length})
+      </p>
       <div className="space-y-2 mb-8">
-        {active.map((c) => (
-          <Link
-            key={c.id}
-            href="/companion-profile"
-            className="block bg-zinc-900/80 border border-violet-800/40 rounded-2xl p-4 hover:border-violet-600/50 transition"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-violet-200">{c.name}</p>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  {c.race} · {c.class}
-                </p>
+        {active.map((c) => {
+          const db = rows?.find((r) => r.slug === c.slug || r.name === c.name)
+          return (
+            <Link
+              key={c.slug}
+              href={`/companion-profile?c=${c.slug}`}
+              className="block bg-zinc-900/80 border border-violet-800/40 rounded-2xl p-4 hover:border-violet-600/50 transition"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/40 flex items-center justify-center text-2xl">
+                  {c.emoji}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium text-violet-200 truncate">{c.name}</p>
+                    <span className={`text-[10px] uppercase tracking-wider shrink-0 ${rarityColor(c.rarity)}`}>
+                      {c.rarity}
+                    </span>
+                  </div>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {c.race} · {c.className}
+                  </p>
+                  {db && (
+                    <p className="text-[11px] text-zinc-600 mt-1">
+                      Affinity {db.affinity_score || 1} · Bond {db.bond_xp || 0}
+                    </p>
+                  )}
+                </div>
               </div>
-              <span className={`text-[10px] uppercase tracking-wider ${rarityColor(c.rarity)}`}>
-                {c.rarity}
-              </span>
-            </div>
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {c.affinity.map((a) => (
-                <span
-                  key={a}
-                  className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
-                >
-                  {a}
-                </span>
-              ))}
-            </div>
-          </Link>
-        ))}
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {c.affinities.map((a) => (
+                  <span key={a} className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
+                    {SKILL_LABELS[a]}
+                  </span>
+                ))}
+              </div>
+              <div className="flex gap-3 mt-3 text-xs">
+                <span className="text-violet-400">Profile →</span>
+                <Link href={`/messages?c=${c.slug}`} className="text-zinc-500 hover:text-violet-300">
+                  Message →
+                </Link>
+              </div>
+            </Link>
+          )
+        })}
       </div>
 
-      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Not yet summoned</p>
+      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Not yet unlocked</p>
       <div className="space-y-2">
-        {locked.map((c) => (
-          <div
-            key={c.id}
-            className="bg-zinc-950/60 border border-zinc-800/60 rounded-2xl p-4 opacity-70"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-zinc-400">{c.name}</p>
-                <p className="text-xs text-zinc-600 mt-0.5">
-                  {c.race} · {c.class} · {c.pool}
-                </p>
+        {locked.map((c) => {
+          const ready = meetsUnlock(c.unlock, levelMap)
+          return (
+            <div
+              key={c.slug}
+              className={`rounded-2xl border p-4 ${
+                ready ? 'border-amber-700/40 bg-amber-950/10' : 'border-zinc-800/60 bg-zinc-950/60 opacity-80'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-2xl grayscale">
+                  {c.emoji}
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between">
+                    <p className="font-medium text-zinc-400">{c.name}</p>
+                    <span className={`text-[10px] uppercase ${rarityColor(c.rarity)}`}>{c.rarity}</span>
+                  </div>
+                  <p className="text-xs text-zinc-600 mt-0.5">
+                    {c.race} · {c.className}
+                  </p>
+                  <p className="text-[11px] text-zinc-500 mt-1">
+                    {ready
+                      ? 'Requirements met — open the app again to bond'
+                      : `Needs ${Object.entries(c.unlock)
+                          .map(([k, v]) => `${SKILL_LABELS[k as keyof typeof SKILL_LABELS]} ${v}`)
+                          .join(', ')}`}
+                  </p>
+                </div>
               </div>
-              <span className={`text-[10px] uppercase tracking-wider ${rarityColor(c.rarity)}`}>
-                {c.rarity}
-              </span>
             </div>
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {c.affinity.map((a) => (
-                <span
-                  key={a}
-                  className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-900 text-zinc-600"
-                >
-                  {a}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </main>
   )
