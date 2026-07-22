@@ -11,11 +11,13 @@ import { COMPANION_DEFS, meetsUnlock, getCompanionDef } from '@/lib/companions'
 
 const USER_NAME = 'Mark'
 
-/** Normalize affinities whether DB stored text or text[] */
 function normalizeAffinities(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String)
   if (typeof raw === 'string' && raw.trim()) {
-    return raw.split(',').map((s) => s.trim()).filter(Boolean)
+    return raw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
   }
   return []
 }
@@ -83,6 +85,7 @@ export async function awardSkillXp(domains: string[]) {
   const supabase = await createClient()
   const keys = parseDomains(domains.join(','))
   const levels: Record<string, number> = {}
+  const skillGains: { skill: string; xpAdded: number; level: number }[] = []
 
   for (const skill of keys) {
     const { data: row } = await supabase
@@ -102,6 +105,7 @@ export async function awardSkillXp(domains: string[]) {
     })
 
     levels[skill] = level
+    skillGains.push({ skill, xpAdded: XP_PER_DOMAIN, level })
   }
 
   const { data: all } = await supabase.from('player_skills').select('skill, xp, level')
@@ -112,9 +116,10 @@ export async function awardSkillXp(domains: string[]) {
   for (const [k, v] of Object.entries(levels)) full[k] = v
 
   const newlyUnlocked = await checkAndUnlockCompanions(full)
-  return { levels: full, newlyUnlocked }
+  return { levels: full, newlyUnlocked, skillGains }
 }
 
+/** Returns list of newly unlocked companion slugs */
 export async function checkAndUnlockCompanions(levels?: Record<string, number>) {
   const supabase = await createClient()
 
@@ -139,11 +144,11 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
       .or(`slug.eq.${def.slug},name.eq.${def.name}`)
       .maybeSingle()
 
-    // Prefer text[] for affinities (matches Supabase schema from agent)
     const affinitiesValue = def.affinities
 
     if (existing) {
-      if (existing.is_unlocked === false || existing.is_unlocked == null) {
+      const wasLocked = existing.is_unlocked === false
+      if (wasLocked || existing.is_unlocked == null) {
         await supabase
           .from('companion')
           .update({
@@ -154,7 +159,11 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
             affinities: affinitiesValue,
           })
           .eq('id', existing.id)
-        if (!def.starter) newly.push(def.name)
+        if (!def.starter && wasLocked) newly.push(def.slug)
+        // null is_unlocked on pre-existing Seraphine: don't treat as "new" unlock
+        if (!def.starter && existing.is_unlocked == null && existing.slug !== def.slug) {
+          newly.push(def.slug)
+        }
       } else if (!existing.slug) {
         await supabase
           .from('companion')
@@ -172,7 +181,7 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
         affinity_score: 1,
         bond_xp: 0,
       })
-      if (!def.starter) newly.push(def.name)
+      if (!def.starter) newly.push(def.slug)
     }
   }
 
@@ -205,6 +214,33 @@ export async function checkAndUnlockCompanions(levels?: Record<string, number>) 
   }
 
   return newly
+}
+
+/** Post first-contact messages for newly unlocked companions */
+export async function postUnlockCeremony(slugs: string[]) {
+  const supabase = await createClient()
+  const details: { name: string; slug: string; emoji: string; line: string }[] = []
+
+  for (const slug of slugs) {
+    const def = getCompanionDef(slug)
+    if (!def || def.starter) continue
+
+    const line = def.unlockLine
+    await supabase.from('messages').insert({
+      role: 'companion',
+      content: line,
+      companion_slug: slug,
+    })
+
+    details.push({
+      name: def.name,
+      slug: def.slug,
+      emoji: def.emoji,
+      line,
+    })
+  }
+
+  return details
 }
 
 function getDialogueStyle(affinity: number, name: string): string {
@@ -271,10 +307,13 @@ export async function generateCompanionResponse(
     companion?.personality ||
     def?.personality ||
     'Calm, warm companion.'
+  const voice =
+    def?.voice ||
+    'Speak in a distinct natural voice. Never sound like a generic motivational bot.'
 
   const streakNote =
     streak >= 3
-      ? ` He is on a ${streak}-day streak — acknowledge consistency if it fits.`
+      ? ` He is on a ${streak}-day streak — acknowledge consistency if it fits your voice.`
       : ''
 
   const contextLine = isConversation
@@ -286,14 +325,17 @@ export async function generateCompanionResponse(
 PERSONALITY:
 ${personalityCore}
 
-RELATIONSHIP:
+VOICE (follow strictly — this is how you sound):
+${voice}
+
+RELATIONSHIP DEPTH:
 ${style}
 
-Always address him as ${USER_NAME} — never "user".
+Always address him as ${USER_NAME} — never "user". Stay in character. Do not break voice.
 
 ${contextLine}
 
-Write 2-4 sentences in your distinct voice. Not a generic motivational bot.`
+Write 2-4 sentences. Sound like a specific person, not a productivity assistant.`
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -305,7 +347,7 @@ Write 2-4 sentences in your distinct voice. Not a generic motivational bot.`
       body: JSON.stringify({
         model: 'grok-4',
         messages: [{ role: 'user', content: prompt }],
-        temperature: 0.9,
+        temperature: 0.95,
         max_tokens: 320,
       }),
     })
@@ -323,7 +365,7 @@ Write 2-4 sentences in your distinct voice. Not a generic motivational bot.`
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = `I noticed, ${USER_NAME}.`
+    const fallback = def?.unlockLine || `I noticed, ${USER_NAME}.`
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
