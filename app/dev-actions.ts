@@ -4,18 +4,25 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { COMPANION_DEFS } from '@/lib/companions'
 
-/**
- * Developer: unlock every companion in the roster for testing.
- * Does not max affinity — starts each at affinity 1 / bond 0 unless already higher.
- */
-export async function devUnlockAllCompanions() {
+function revalidateApp() {
+  revalidatePath('/companions')
+  revalidatePath('/messages')
+  revalidatePath('/companion-profile')
+  revalidatePath('/gallery')
+  revalidatePath('/skills')
+  revalidatePath('/settings')
+  revalidatePath('/')
+}
+
+/** Developer: unlock every companion for testing. */
+export async function devUnlockAllCompanions(_formData?: FormData) {
   const supabase = await createClient()
   let unlocked = 0
 
   for (const def of COMPANION_DEFS) {
     const { data: existing } = await supabase
       .from('companion')
-      .select('id, affinity_score, bond_xp')
+      .select('id')
       .or(`slug.eq.${def.slug},name.eq.${def.name}`)
       .maybeSingle()
 
@@ -45,19 +52,13 @@ export async function devUnlockAllCompanions() {
     unlocked++
   }
 
-  revalidatePath('/companions')
-  revalidatePath('/messages')
-  revalidatePath('/companion-profile')
-  revalidatePath('/settings')
-  revalidatePath('/')
-
+  revalidateApp()
   return { ok: true, unlocked }
 }
 
-/**
- * Developer: set every unlocked companion to a high affinity for scene testing.
- */
-export async function devBoostAllAffinity(level = 20) {
+/** Developer: boost all companions to affinity 20 for scene testing. */
+export async function devBoostAllAffinity(_formData?: FormData) {
+  const level = 20
   const supabase = await createClient()
   const { data: rows } = await supabase.from('companion').select('id')
   for (const r of rows || []) {
@@ -66,24 +67,19 @@ export async function devBoostAllAffinity(level = 20) {
       .update({ affinity_score: level, bond_xp: level * 35 })
       .eq('id', r.id)
   }
-  revalidatePath('/companion-profile')
-  revalidatePath('/companions')
-  revalidatePath('/gallery')
+  revalidateApp()
   return { ok: true, level }
 }
 
 /**
- * Hard reset: wipe progression and return to a fresh Seraphine-only start.
- * Keeps your task list (real-life productivity data).
- * Clears: companions (re-seeds Seraphine), skills, messages, gallery, memories.
+ * Hard reset: wipe progression, keep task list, re-seed Seraphine only.
  */
-export async function hardResetGame() {
+export async function hardResetGame(_formData?: FormData) {
   const supabase = await createClient()
 
-  // Messages
   try {
     const { data: msgs } = await supabase.from('messages').select('id')
-    if (msgs && msgs.length > 0) {
+    if (msgs?.length) {
       await supabase.from('messages').delete().in(
         'id',
         msgs.map((m) => m.id)
@@ -93,10 +89,9 @@ export async function hardResetGame() {
     console.error('reset messages', e)
   }
 
-  // Gallery
   try {
     const { data: imgs } = await supabase.from('gallery_images').select('id')
-    if (imgs && imgs.length > 0) {
+    if (imgs?.length) {
       await supabase.from('gallery_images').delete().in(
         'id',
         imgs.map((i) => i.id)
@@ -106,23 +101,21 @@ export async function hardResetGame() {
     console.error('reset gallery', e)
   }
 
-  // Memories (optional table)
   try {
     const { data: mems } = await supabase.from('companion_memories').select('id')
-    if (mems && mems.length > 0) {
+    if (mems?.length) {
       await supabase.from('companion_memories').delete().in(
         'id',
         mems.map((m) => m.id)
       )
     }
   } catch {
-    // table may not exist
+    // optional table
   }
 
-  // Skills
   try {
     const { data: skills } = await supabase.from('player_skills').select('skill')
-    if (skills && skills.length > 0) {
+    if (skills?.length) {
       for (const s of skills) {
         await supabase.from('player_skills').delete().eq('skill', s.skill)
       }
@@ -131,10 +124,9 @@ export async function hardResetGame() {
     console.error('reset skills', e)
   }
 
-  // Companions — remove all, re-seed Seraphine
   try {
     const { data: comps } = await supabase.from('companion').select('id')
-    if (comps && comps.length > 0) {
+    if (comps?.length) {
       await supabase.from('companion').delete().in(
         'id',
         comps.map((c) => c.id)
@@ -154,16 +146,8 @@ export async function hardResetGame() {
     is_unlocked: true,
     affinity_score: 1,
     bond_xp: 0,
-    image_url: null,
   })
 
-  revalidatePath('/companions')
-  revalidatePath('/messages')
-  revalidatePath('/companion-profile')
-  revalidatePath('/gallery')
-  revalidatePath('/skills')
-  revalidatePath('/settings')
-  revalidatePath('/')
-
+  revalidateApp()
   return { ok: true }
 }
