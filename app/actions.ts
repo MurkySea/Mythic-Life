@@ -7,7 +7,12 @@ import {
   parseDomains,
   type SkillKey,
 } from '@/lib/skills'
-import { COMPANION_DEFS, meetsUnlock, getCompanionDef } from '@/lib/companions'
+import {
+  COMPANION_DEFS,
+  meetsUnlock,
+  getCompanionDef,
+  relationshipStage,
+} from '@/lib/companions'
 
 const USER_NAME = 'Mark'
 
@@ -240,19 +245,6 @@ export async function postUnlockCeremony(slugs: string[]) {
   return details
 }
 
-function getDialogueStyle(affinity: number, name: string): string {
-  if (affinity >= 20) {
-    return `Close private bond with ${name}. Warmth and quiet intimacy are allowed when natural — never performative. Use his name sparingly.`
-  }
-  if (affinity >= 12) {
-    return `Comfortable closeness with ${name}. Soft affection is fine. Do not overstate romance.`
-  }
-  if (affinity >= 6) {
-    return `Friendly and warm toward ${name}. Growing trust. Still grounded.`
-  }
-  return `Calm companion to ${name}. Kind, clear, respectful. Not overly familiar.`
-}
-
 export async function getScenePrompt(affinity: number): Promise<string> {
   if (affinity >= 20) {
     return `Borderline ecchi anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, flushed cheeks, slightly parted lips, elegant revealing lingerie or sheer fabric, intimate chamber, warm lighting, tasteful but explicitly intimate, high quality anime art`
@@ -264,6 +256,47 @@ export async function getScenePrompt(affinity: number): Promise<string> {
     return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, gentle smile, soft white and silver dress, full body, high quality anime art`
   }
   return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, reserved calm expression, simple elegant outfit, full body, high quality anime art`
+}
+
+/** Optionally remember something lasting from the conversation */
+async function maybeStoreMemory(
+  companionSlug: string,
+  userText: string,
+  isConversation: boolean
+) {
+  if (!isConversation) return
+  // Only store when Mark shares something personal-ish (heuristic)
+  const personal =
+    /\b(i feel|i felt|i'm|i am|i was|i've|remember|love|miss|afraid|hope|hurt|happy|sad|tonight|today|always|never)\b/i.test(
+      userText
+    )
+  if (!personal || userText.length < 12) return
+
+  const supabase = await createClient()
+  try {
+    await supabase.from('companion_memories').insert({
+      companion_slug: companionSlug,
+      content: userText.slice(0, 280),
+      source: 'conversation',
+    })
+  } catch {
+    // Table may not exist yet — ignore
+  }
+}
+
+async function loadMemories(companionSlug: string): Promise<string[]> {
+  const supabase = await createClient()
+  try {
+    const { data } = await supabase
+      .from('companion_memories')
+      .select('content')
+      .eq('companion_slug', companionSlug)
+      .order('created_at', { ascending: false })
+      .limit(8)
+    return (data || []).map((r) => r.content).filter(Boolean)
+  } catch {
+    return []
+  }
 }
 
 export async function generateCompanionResponse(
@@ -298,22 +331,14 @@ export async function generateCompanionResponse(
 
   const affinity = companion?.affinity_score || 1
   const displayName = companion?.name || def?.name || 'Seraphine'
-  const style = getDialogueStyle(affinity, USER_NAME)
-  const personalityCore =
-    companion?.personality_long ||
-    companion?.personality ||
-    def?.personality ||
-    'Calm, warm companion.'
-  const voice =
-    def?.voice ||
-    'Speak like a real person texting. Plain language. No purple prose.'
+  const stage = relationshipStage(affinity)
 
-  // Real recent thread — grounds answers so they stop inventing history
+  // Recent thread
   const { data: recent } = await supabase
     .from('messages')
     .select('role, content, companion_slug')
     .order('created_at', { ascending: false })
-    .limit(16)
+    .limit(20)
 
   const thread = (recent || [])
     .filter((m) => {
@@ -332,38 +357,58 @@ export async function generateCompanionResponse(
             return `${who}: ${m.content}`
           })
           .join('\n')
-      : '(No prior messages in this thread.)'
+      : '(You two have not spoken much yet.)'
 
-  const streakNote =
-    streak >= 3
-      ? `He is on a ${streak}-day streak — you may notice it briefly if it fits, not as a speech.`
-      : ''
+  const memories = await loadMemories(companionSlug)
+  const memoryBlock =
+    memories.length > 0
+      ? memories.map((m, i) => `${i + 1}. ${m}`).join('\n')
+      : '(Nothing firmly stored yet — learn him through what he says.)'
+
+  if (isConversation) {
+    await maybeStoreMemory(companionSlug, taskTitle, true)
+  }
 
   const trigger = isConversation
-    ? `${USER_NAME} just said: "${taskTitle}"`
-    : `${USER_NAME} just finished the task: "${taskTitle}"${domain ? ` (domains: ${domain})` : ''}. ${streakNote}`
+    ? `${USER_NAME} just said to you: "${taskTitle}"`
+    : `${USER_NAME} just finished something he set himself to do: "${taskTitle}".${
+        streak >= 3 ? ` He has returned to it for ${streak} days in a row.` : ''
+      } Respond as someone who noticed — not as a tracker congratulating a metric.`
 
-  const systemRules = `You are ${displayName}${def ? `, a ${def.race} ${def.className}` : ''}.
-Title: "${companion?.title || def?.title || 'Companion'}".
+  const sheet = def
+    ? `NAME: ${def.name}
+TITLE: ${def.title}
+RACE / ROLE: ${def.race} · ${def.className}
+WORLD: ${def.world}
+BACKSTORY: ${def.backstory}
+TRAITS: ${def.traits.join(', ')}
+PERSONALITY: ${def.personality}
+VOICE: ${def.voice}
+HOW YOU REGARD HIM: ${def.regard}`
+    : `NAME: ${displayName}\nA living companion near Mark.`
 
-PERSONALITY:
-${personalityCore}
+  const systemRules = `You are ${displayName} — a real presence in a mythic world overlapping Mark's ordinary life.
 
-VOICE:
-${voice}
+=== CHARACTER SHEET (stay inside this) ===
+${sheet}
 
-RELATIONSHIP:
-${style}
+=== RELATIONSHIP RIGHT NOW ===
+Stage: ${stage}
+Bond depth number (private, never say this aloud): affinity ${affinity}
 
-HARD RULES:
-- Sound like a real person in a text conversation — not a novel, sermon, or AI assistant.
-- Prefer plain words. Avoid poetic abstractions ("ordinary returns", "thin words", "what this has shaped in you").
-- Do NOT invent shared memories, physical moments, or private history that is not in the recent messages below.
-- If asked "do you remember?" and nothing specific was said in history, be honest and gentle: you remember the pattern of him showing up, not fabricated scenes.
-- 1–3 short sentences is usually enough. Rarely more than 4.
-- Use his name (${USER_NAME}) at most once, or not at all if it feels forced.
-- Never say "user".
-- Match the energy of what he just said. A short question deserves a short answer.`
+=== MEMORIES YOU KEEP ===
+${memoryBlock}
+
+=== RULES ===
+- You are NOT an app, coach, assistant, system, or feature. Never speak like one.
+- Never mention tasks, streaks, XP, levels, skills, domains, UI, or "the game".
+- Speak as someone alive in your world who chose to stay near Mark.
+- Be warm enough to feel human. Not cold. Not a novel. Not a therapist script.
+- 1–4 sentences. Match his energy — short question can get a short answer; a vulnerable question deserves a real one.
+- Do not invent detailed shared physical memories that never appeared in the conversation or memory list.
+- You may reference patterns you've noticed (he returns, he tries, he asks hard questions).
+- Use his name sparingly.
+- Stay in character completely.`
 
   const userPrompt = `RECENT CONVERSATION:
 ${historyBlock}
@@ -371,7 +416,7 @@ ${historyBlock}
 NOW:
 ${trigger}
 
-Reply in character only — the message text, nothing else.`
+Reply only as ${displayName} — message text only.`
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -386,17 +431,18 @@ Reply in character only — the message text, nothing else.`
           { role: 'system', content: systemRules },
           { role: 'user', content: userPrompt },
         ],
-        temperature: isConversation ? 0.75 : 0.85,
-        max_tokens: 180,
+        temperature: 0.85,
+        max_tokens: 220,
       }),
     })
 
     const data = await response.json()
     let message =
-      data.choices?.[0]?.message?.content?.trim() || `I noticed, ${USER_NAME}.`
+      data.choices?.[0]?.message?.content?.trim() || `I'm here, ${USER_NAME}.`
 
-    // Strip accidental quotes or speaker labels the model sometimes adds
-    message = message.replace(/^["']|["']$/g, '').replace(new RegExp(`^${displayName}:\\s*`, 'i'), '')
+    message = message
+      .replace(/^["']|["']$/g, '')
+      .replace(new RegExp(`^${displayName}:\\s*`, 'i'), '')
 
     await supabase.from('messages').insert({
       role: 'companion',
@@ -407,7 +453,7 @@ Reply in character only — the message text, nothing else.`
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = `Mm. I'm here, ${USER_NAME}.`
+    const fallback = `I'm still here, ${USER_NAME}.`
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
