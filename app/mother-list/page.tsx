@@ -1,5 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { SKILLS, SKILL_LABELS } from '@/lib/skills'
 
 const WEEKDAY_LABELS: Record<string, string> = {
   mon: 'Mon',
@@ -16,19 +17,19 @@ async function addTask(formData: FormData) {
 
   const title = formData.get('title') as string
   const notes = formData.get('notes') as string
-  const domain = formData.get('domain') as string
+  const domainsRaw = formData.getAll('domains') as string[]
+  const domains = domainsRaw.length > 0 ? domainsRaw.join(',') : null
+  // Keep legacy single domain as first selected for older UI
+  const domain = domainsRaw[0] || null
   const recurrence = (formData.get('recurrence') as string) || 'none'
   const weekdaysRaw = formData.getAll('weekdays') as string[]
   const weekdays =
-    recurrence === 'weekly' && weekdaysRaw.length > 0
-      ? weekdaysRaw.join(',')
-      : null
+    recurrence === 'weekly' && weekdaysRaw.length > 0 ? weekdaysRaw.join(',') : null
 
   if (!title?.trim()) return
 
   const supabase = await createClient()
 
-  // Daily always on Today; weekly only if today is one of the selected days
   let isToday = false
   if (recurrence === 'daily') {
     isToday = true
@@ -46,7 +47,8 @@ async function addTask(formData: FormData) {
   await supabase.from('tasks').insert({
     title: title.trim(),
     notes: notes?.trim() || null,
-    domain: domain || null,
+    domain,
+    domains,
     recurrence,
     weekdays,
     is_today: isToday,
@@ -59,36 +61,25 @@ async function addTask(formData: FormData) {
 
 async function toggleToday(formData: FormData) {
   'use server'
-
   const id = formData.get('id') as string
   const currentlyToday = formData.get('is_today') === 'true'
-
   const supabase = await createClient()
-
-  await supabase
-    .from('tasks')
-    .update({ is_today: !currentlyToday })
-    .eq('id', id)
-
+  await supabase.from('tasks').update({ is_today: !currentlyToday }).eq('id', id)
   revalidatePath('/mother-list')
   revalidatePath('/')
 }
 
 async function deleteTask(formData: FormData) {
   'use server'
-
   const id = formData.get('id') as string
   const supabase = await createClient()
-
   await supabase.from('tasks').delete().eq('id', id)
-
   revalidatePath('/mother-list')
   revalidatePath('/')
 }
 
 export default async function MotherListPage() {
   const supabase = await createClient()
-
   const { data: tasks } = await supabase
     .from('tasks')
     .select('*')
@@ -123,20 +114,26 @@ export default async function MotherListPage() {
           placeholder="Notes (optional)"
           className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-violet-500"
         />
-        <select
-          name="domain"
-          className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-violet-500"
-        >
-          <option value="">Domain (optional)</option>
-          <option value="faith">Faith</option>
-          <option value="discipline">Discipline</option>
-          <option value="stewardship">Stewardship</option>
-          <option value="wisdom">Wisdom</option>
-          <option value="fitness">Fitness</option>
-          <option value="relations">Relations</option>
-          <option value="business">Business</option>
-          <option value="knowledge">Knowledge</option>
-        </select>
+
+        <div className="space-y-2">
+          <p className="text-[11px] uppercase tracking-wider text-zinc-500">
+            Domains <span className="text-zinc-600 normal-case">(pick one or more)</span>
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {SKILLS.map((s) => (
+              <label
+                key={s}
+                className="px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-950 text-xs text-zinc-300 cursor-pointer hover:border-violet-600 has-[:checked]:border-violet-500 has-[:checked]:bg-violet-600/20 has-[:checked]:text-violet-200"
+              >
+                <input type="checkbox" name="domains" value={s} className="sr-only" />
+                {SKILL_LABELS[s]}
+              </label>
+            ))}
+          </div>
+          <p className="text-[11px] text-zinc-600">
+            Example: Quiet time → Faith + Discipline
+          </p>
+        </div>
 
         <select
           name="recurrence"
@@ -147,25 +144,21 @@ export default async function MotherListPage() {
           <option value="weekly">Weekly</option>
         </select>
 
-        {/* Weekday multi-select — used when recurrence is Weekly */}
         <div className="space-y-2">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">
-            Weekly days <span className="text-zinc-600 normal-case">(select one or more)</span>
+            Weekly days <span className="text-zinc-600 normal-case">(if Weekly)</span>
           </p>
           <div className="flex flex-wrap gap-2">
             {(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const).map((d) => (
               <label
                 key={d}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-950 text-xs text-zinc-300 cursor-pointer hover:border-violet-600 has-[:checked]:border-violet-500 has-[:checked]:bg-violet-600/20 has-[:checked]:text-violet-200"
+                className="px-3 py-1.5 rounded-lg border border-zinc-700 bg-zinc-950 text-xs text-zinc-300 cursor-pointer hover:border-violet-600 has-[:checked]:border-violet-500 has-[:checked]:bg-violet-600/20 has-[:checked]:text-violet-200"
               >
                 <input type="checkbox" name="weekdays" value={d} className="sr-only" />
                 {WEEKDAY_LABELS[d]}
               </label>
             ))}
           </div>
-          <p className="text-[11px] text-zinc-600">
-            Only applies when you choose Weekly. Example: Mon + Thu.
-          </p>
         </div>
 
         <button
@@ -186,36 +179,39 @@ export default async function MotherListPage() {
                     .map((d: string) => WEEKDAY_LABELS[d.trim()] || d)
                     .join(' · ')
                 : null
+            const domainList =
+              task.domains || task.domain
+                ? String(task.domains || task.domain)
+                    .split(',')
+                    .map((d: string) => d.trim())
+                    .filter(Boolean)
+                : []
 
             return (
               <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="font-medium text-white">{task.title}</p>
-                    {task.notes && (
-                      <p className="text-zinc-500 text-sm mt-0.5">{task.notes}</p>
-                    )}
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {task.domain && (
-                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400">
-                          {task.domain}
-                        </span>
-                      )}
-                      {task.is_today && (
-                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300">
-                          Today
-                        </span>
-                      )}
-                      {task.recurrence && task.recurrence !== 'none' && (
-                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
-                          {task.recurrence}
-                          {dayBadges ? ` · ${dayBadges}` : ''}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                <p className="font-medium text-white">{task.title}</p>
+                {task.notes && <p className="text-zinc-500 text-sm mt-0.5">{task.notes}</p>}
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {domainList.map((d: string) => (
+                    <span
+                      key={d}
+                      className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
+                    >
+                      {d}
+                    </span>
+                  ))}
+                  {task.is_today && (
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300">
+                      Today
+                    </span>
+                  )}
+                  {task.recurrence && task.recurrence !== 'none' && (
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
+                      {task.recurrence}
+                      {dayBadges ? ` · ${dayBadges}` : ''}
+                    </span>
+                  )}
                 </div>
-
                 <div className="flex gap-2 mt-3">
                   <form action={toggleToday}>
                     <input type="hidden" name="id" value={task.id} />
@@ -231,7 +227,6 @@ export default async function MotherListPage() {
                       {task.is_today ? 'Remove from Today' : 'Add to Today'}
                     </button>
                   </form>
-
                   <form action={deleteTask}>
                     <input type="hidden" name="id" value={task.id} />
                     <button
