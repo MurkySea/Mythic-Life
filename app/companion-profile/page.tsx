@@ -1,4 +1,63 @@
 import { createClient } from '@/utils/supabase/server'
+import { getScenePrompt } from '../actions'
+import { revalidatePath } from 'next/cache'
+
+async function generateCompanionImage() {
+  'use server'
+
+  const supabase = await createClient()
+
+  const { data: companion } = await supabase
+    .from('companion')
+    .select('affinity_score, name')
+    .single()
+
+  const affinity = companion?.affinity_score || 1
+  const characterName = companion?.name || 'Seraphine'
+  const prompt = getScenePrompt(affinity)
+
+  try {
+    const response = await fetch('https://api.x.ai/v1/images/generations', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "grok-imagine-image",
+        prompt: prompt,
+        n: 1,
+      }),
+    })
+
+    const data = await response.json()
+    const imageUrl = data.data?.[0]?.url
+
+    if (imageUrl) {
+      // Update main portrait
+      await supabase
+        .from('companion')
+        .update({ image_url: imageUrl })
+        .eq('name', characterName)
+
+      // Save to gallery
+      await supabase.from('gallery_images').insert({
+        character_name: characterName,
+        image_url: imageUrl,
+        affinity_at_generation: affinity,
+        prompt_used: prompt,
+      })
+    }
+
+    console.log("Grok Imagine response:", data)
+  } catch (error) {
+    console.error("Image generation error:", error)
+  }
+
+  revalidatePath('/companion-profile')
+  revalidatePath('/companion')
+  revalidatePath('/gallery')
+}
 
 export default async function CompanionProfilePage() {
   const supabase = await createClient()
@@ -66,6 +125,16 @@ export default async function CompanionProfilePage() {
               <p className="text-violet-400/70 text-xs mt-2 tracking-wide">
                 {getIntimacyLabel(affinity)}
               </p>
+
+              {/* Generate button */}
+              <form action={generateCompanionImage} className="mt-5">
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-xl text-sm font-medium transition"
+                >
+                  Generate New Scene
+                </button>
+              </form>
             </div>
 
             {/* Stats */}
