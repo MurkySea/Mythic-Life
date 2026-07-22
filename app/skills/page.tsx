@@ -4,6 +4,8 @@ import { SKILLS, SKILL_LABELS, xpIntoLevel } from '@/lib/skills'
 import { COMPANION_DEFS, meetsUnlock } from '@/lib/companions'
 import { checkAndUnlockCompanions } from '../actions'
 
+export const dynamic = 'force-dynamic'
+
 export default async function SkillsPage() {
   await checkAndUnlockCompanions()
 
