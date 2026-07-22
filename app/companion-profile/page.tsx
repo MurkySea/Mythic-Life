@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { SKILL_LABELS } from '@/lib/skills'
-import { checkAndUnlockCompanions } from '../actions'
 import {
   buildScenePrompt,
   scenesEarned,
@@ -127,7 +126,6 @@ export default async function CompanionProfilePage({
 }: {
   searchParams: Promise<{ c?: string; scene?: string }>
 }) {
-  await checkAndUnlockCompanions()
   const params = await searchParams
   const slug = params.c || ''
   const sceneStatus = params.scene
@@ -211,12 +209,23 @@ export default async function CompanionProfilePage({
     party.find((c: { slug?: string; name: string }) => c.slug === slug || c.name === def?.name) ||
     party.find((c: { name: string }) => c.name === 'Seraphine')
 
-  const { data: memories } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('role', 'companion')
-    .order('created_at', { ascending: false })
-    .limit(20)
+  const characterName = companion?.name || def?.name || 'Seraphine'
+  const affinity = companion?.affinity_score || 1
+  const earned = scenesEarned(affinity)
+  const nextAt = nextSceneMilestone(affinity)
+
+  const [{ data: memories }, { count: sceneCount }] = await Promise.all([
+    supabase
+      .from('messages')
+      .select('*')
+      .eq('role', 'companion')
+      .order('created_at', { ascending: false })
+      .limit(20),
+    supabase
+      .from('gallery_images')
+      .select('*', { count: 'exact', head: true })
+      .eq('character_name', characterName),
+  ])
 
   const filteredMemories = (memories || [])
     .filter((m: { companion_slug?: string }) => {
@@ -224,16 +233,6 @@ export default async function CompanionProfilePage({
       return m.companion_slug === slug
     })
     .slice(0, 8)
-
-  const affinity = companion?.affinity_score || 1
-  const characterName = companion?.name || def?.name || 'Seraphine'
-  const earned = scenesEarned(affinity)
-  const nextAt = nextSceneMilestone(affinity)
-
-  const { count: sceneCount } = await supabase
-    .from('gallery_images')
-    .select('*', { count: 'exact', head: true })
-    .eq('character_name', characterName)
 
   const used = sceneCount || 0
   const canGenerate = used < earned
