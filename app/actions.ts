@@ -3,7 +3,6 @@
 import { createClient } from '@/utils/supabase/server'
 
 // ─── Dialogue Style by Affinity ───────────────────────────────────────────────
-// Higher affinity = more intimate, personal, and eventually borderline sensual language.
 
 function getDialogueStyle(affinity: number): string {
   if (affinity >= 20) {
@@ -28,30 +27,41 @@ function getDialogueStyle(affinity: number): string {
 }
 
 // ─── Scene Prompt by Affinity ─────────────────────────────────────────────────
-// Progressive intimacy. Highest tiers become borderline ecchi while staying elegant.
+// Each tier is written as a distinctly different scene so the image model has clear signal.
 
 export async function getScenePrompt(affinity: number): Promise<string> {
-  const base = `Elegant anime fantasy woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face, high quality detailed anime art style, soft lighting, beautiful composition`
-
+  // Highest tier — borderline ecchi
   if (affinity >= 20) {
-    return `${base}, highly intimate and borderline ecchi private moment, soft sensual atmosphere, flushed cheeks, slightly parted lips, tender yet desirous expression, close personal framing, elegant revealing lingerie or loosely draped sheer fabric that hints at the body underneath, warm intimate lighting, quiet heat and closeness, full body or three-quarter view, tasteful but clearly sensual`
+    return `Borderline ecchi anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face with flushed cheeks and slightly parted lips, soft sensual expression, wearing elegant revealing lingerie or loosely draped sheer white fabric that clings to her body, intimate bedroom or private chamber setting, warm golden intimate lighting, close three-quarter view, clear soft sensuality, high quality detailed anime art, tasteful but explicitly intimate`
   }
+
+  // Heated intimacy
   if (affinity >= 16) {
-    return `${base}, intimate and softly sensual private moment, warm romantic atmosphere with clear desire, tender expression with subtle heat, closer framing, elegant lingerie or partially open outfit, soft skin visible, warm intimate lighting, emotional and physical closeness, full body or three-quarter view`
+    return `Intimate anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, soft desirous expression, wearing elegant lingerie or a partially open silver-white outfit that reveals soft skin, warm private lighting, close personal framing, romantic and softly sensual atmosphere, full body or three-quarter view, high quality detailed anime art`
   }
+
+  // Deeply intimate
   if (affinity >= 12) {
-    return `${base}, deeply intimate private moment, soft romantic and gently sensual atmosphere, tender vulnerable expression, close personal framing, elegant lingerie or loosely draped sheer fabric, warm intimate lighting, quiet closeness and desire, full body or three-quarter view`
+    return `Intimate anime portrait of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, tender vulnerable expression, wearing elegant white lingerie or loosely draped soft fabric, warm intimate lighting, close framing, quiet romantic atmosphere, full body or three-quarter view, high quality detailed anime art`
   }
+
+  // Close & tender
   if (affinity >= 9) {
-    return `${base}, intimate and tender atmosphere, soft affectionate expression with subtle desire, closer framing, elegant and slightly revealing outfit, warm private lighting, emotional and physical closeness, graceful and serene, full body visible`
+    return `Warm anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, soft affectionate smile, wearing a slightly revealing elegant white and silver outfit with flowing fabric, gentle private lighting, closer framing, calm romantic atmosphere, full body visible, high quality detailed anime art`
   }
+
+  // Warming bond
   if (affinity >= 6) {
-    return `${base}, warmer personal presence, gentle smile and soft eye contact, elegant white and silver outfit with softer flowing fabrics, calm affectionate energy, full body visible`
+    return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, gentle warm smile, wearing a soft elegant white and silver dress with flowing lines, soft natural lighting, graceful standing pose, calm affectionate presence, full body visible, high quality detailed anime art`
   }
+
+  // Growing familiar
   if (affinity >= 3) {
-    return `${base}, calm and gently confident expression, graceful standing pose, simple elegant white and silver outfit, slightly otherworldly and serene presence, full body visible`
+    return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, calm confident expression, wearing a simple elegant white and silver outfit, soft lighting, graceful standing pose, serene otherworldly presence, full body visible, high quality detailed anime art`
   }
-  return `${base}, calm reserved expression, graceful standing pose, simple elegant white and silver outfit with clean flowing lines, otherworldly serene presence, full body visible`
+
+  // Default / low
+  return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, reserved calm expression, wearing a simple clean white and silver outfit with flowing lines, soft lighting, graceful standing pose, distant serene presence, full body visible, high quality detailed anime art`
 }
 
 // ─── Seraphine Response ───────────────────────────────────────────────────────
@@ -131,7 +141,7 @@ export async function awardBondProgress(domain: string = '') {
   const currentXp = companion.bond_xp || 0
   const newXp = currentXp + xpGained
 
-  // Affinity increases every 35 Bond XP (slightly faster progression)
+  // Affinity increases every 35 Bond XP
   const oldTier = Math.floor(currentXp / 35)
   const newTier = Math.floor(newXp / 35)
   const affinityIncrease = Math.max(0, newTier - oldTier)
