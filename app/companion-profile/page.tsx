@@ -1,6 +1,7 @@
 import { createClient } from '@/utils/supabase/server'
 import { getScenePrompt } from '../actions'
 import { revalidatePath } from 'next/cache'
+import Link from 'next/link'
 
 async function generateCompanionImage() {
   'use server'
@@ -68,10 +69,7 @@ function getIntimacyLabel(affinity: number): string {
 export default async function CompanionProfilePage() {
   const supabase = await createClient()
 
-  const { data: companion } = await supabase
-    .from('companion')
-    .select('*')
-    .single()
+  const { data: companion } = await supabase.from('companion').select('*').single()
 
   const { data: memories } = await supabase
     .from('messages')
@@ -84,7 +82,6 @@ export default async function CompanionProfilePage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <a
           href="/"
@@ -92,17 +89,18 @@ export default async function CompanionProfilePage() {
         >
           ←
         </a>
-        <div>
+        <div className="flex-1">
           <p className="text-zinc-500 text-xs tracking-wide uppercase">Your companion</p>
           <h1 className="text-xl font-medium text-white tracking-tight">Profile</h1>
         </div>
+        <Link href="/settings" className="text-xs text-zinc-500 hover:text-violet-400">
+          Settings
+        </Link>
       </div>
 
       {companion && (
         <div className="space-y-6">
-          {/* Main card */}
           <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-3xl p-6 space-y-6">
-            {/* Portrait */}
             <div className="flex flex-col items-center">
               {companion.image_url ? (
                 <div className="relative">
@@ -137,7 +135,6 @@ export default async function CompanionProfilePage() {
               </form>
             </div>
 
-            {/* Stats */}
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-zinc-950/70 rounded-2xl p-4 text-center border border-zinc-800/50">
                 <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Affinity</p>
@@ -149,7 +146,6 @@ export default async function CompanionProfilePage() {
               </div>
             </div>
 
-            {/* About */}
             <div>
               <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">About her</p>
               <p className="text-zinc-400 text-[15px] leading-relaxed">
@@ -158,7 +154,13 @@ export default async function CompanionProfilePage() {
             </div>
           </div>
 
-          {/* Memories */}
+          <Link
+            href="/companions"
+            className="block bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 text-center text-sm text-violet-300 hover:border-violet-700/50 transition"
+          >
+            View all companions →
+          </Link>
+
           <div>
             <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3 px-1">
               Sweet Moments & Memories
