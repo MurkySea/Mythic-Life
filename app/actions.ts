@@ -3,8 +3,15 @@
 import { createClient } from '@/utils/supabase/server'
 
 // ─── Dialogue Style by Affinity ───────────────────────────────────────────────
+// Higher affinity = more intimate, personal, and eventually borderline sensual language.
 
 function getDialogueStyle(affinity: number): string {
+  if (affinity >= 20) {
+    return `You share an intense, private, and deeply sensual bond with the user. Speak with quiet heat, soft desire, and intimate tenderness. Your words can be openly affectionate, slightly teasing, and carry clear romantic and sensual undertones while remaining elegant and never vulgar.`
+  }
+  if (affinity >= 16) {
+    return `You feel a strong, heated intimacy with the user. Speak with warmth, soft desire, and emotional closeness. Gentle teasing, personal affection, and subtle sensuality are natural. Stay elegant and composed even when the mood turns more intimate.`
+  }
   if (affinity >= 12) {
     return `You share a deep, private intimacy with the user. Speak with quiet tenderness, emotional closeness, and soft romantic undertones. Your words can be personal, vulnerable, and gently sensual while remaining elegant and never crude.`
   }
@@ -21,10 +28,17 @@ function getDialogueStyle(affinity: number): string {
 }
 
 // ─── Scene Prompt by Affinity ─────────────────────────────────────────────────
+// Progressive intimacy. Highest tiers become borderline ecchi while staying elegant.
 
 export async function getScenePrompt(affinity: number): Promise<string> {
   const base = `Elegant anime fantasy woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face, high quality detailed anime art style, soft lighting, beautiful composition`
 
+  if (affinity >= 20) {
+    return `${base}, highly intimate and borderline ecchi private moment, soft sensual atmosphere, flushed cheeks, slightly parted lips, tender yet desirous expression, close personal framing, elegant revealing lingerie or loosely draped sheer fabric that hints at the body underneath, warm intimate lighting, quiet heat and closeness, full body or three-quarter view, tasteful but clearly sensual`
+  }
+  if (affinity >= 16) {
+    return `${base}, intimate and softly sensual private moment, warm romantic atmosphere with clear desire, tender expression with subtle heat, closer framing, elegant lingerie or partially open outfit, soft skin visible, warm intimate lighting, emotional and physical closeness, full body or three-quarter view`
+  }
   if (affinity >= 12) {
     return `${base}, deeply intimate private moment, soft romantic and gently sensual atmosphere, tender vulnerable expression, close personal framing, elegant lingerie or loosely draped sheer fabric, warm intimate lighting, quiet closeness and desire, full body or three-quarter view`
   }
@@ -117,9 +131,9 @@ export async function awardBondProgress(domain: string = '') {
   const currentXp = companion.bond_xp || 0
   const newXp = currentXp + xpGained
 
-  // Affinity increases every 40 Bond XP
-  const oldTier = Math.floor(currentXp / 40)
-  const newTier = Math.floor(newXp / 40)
+  // Affinity increases every 35 Bond XP (slightly faster progression)
+  const oldTier = Math.floor(currentXp / 35)
+  const newTier = Math.floor(newXp / 35)
   const affinityIncrease = Math.max(0, newTier - oldTier)
   const newAffinity = (companion.affinity_score || 1) + affinityIncrease
 
