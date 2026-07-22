@@ -14,7 +14,7 @@ function revalidateApp() {
   revalidatePath('/')
 }
 
-/** Developer: unlock every companion for testing. */
+/** Developer: unlock every companion for testing. Syncs name/title from roster. */
 export async function devUnlockAllCompanions(_formData: FormData): Promise<void> {
   const supabase = await createClient()
 
@@ -22,20 +22,32 @@ export async function devUnlockAllCompanions(_formData: FormData): Promise<void>
     const { data: existing } = await supabase
       .from('companion')
       .select('id')
-      .or(`slug.eq.${def.slug},name.eq.${def.name}`)
+      .eq('slug', def.slug)
       .maybeSingle()
 
-    if (existing) {
+    // Also match by old masculine names if slug row missing
+    let row = existing
+    if (!row) {
+      const { data: byName } = await supabase
+        .from('companion')
+        .select('id')
+        .eq('name', def.name)
+        .maybeSingle()
+      row = byName
+    }
+
+    if (row) {
       await supabase
         .from('companion')
         .update({
           is_unlocked: true,
+          name: def.name,
           slug: def.slug,
           title: def.title,
           personality: def.personality,
           affinities: def.affinities,
         })
-        .eq('id', existing.id)
+        .eq('id', row.id)
     } else {
       await supabase.from('companion').insert({
         name: def.name,
