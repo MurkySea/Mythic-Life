@@ -105,7 +105,8 @@ export default function SettingsPage() {
 
           <form action={hardResetGame}>
             <button
-              type="submit"\chapter              className="w-full py-3 rounded-xl bg-red-950/60 border border-red-800/50 text-red-200 text-sm font-medium hover:bg-red-900/50 active:scale-[0.99] transition"
+              type="submit"
+              className="w-full py-3 rounded-xl bg-red-950/60 border border-red-800/50 text-red-200 text-sm font-medium hover:bg-red-900/50 active:scale-[0.99] transition"
             >
               Hard reset game
             </button>
