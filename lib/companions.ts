@@ -28,6 +28,7 @@ export type CompanionDef = {
   appearance: string
 }
 
+/** All companions are explicitly women — feminine names, she/her, body cues in appearance. */
 const NOTION_COMPANION_DEFS: CompanionDef[] = [
   {
     slug: 'seraphine',
@@ -53,7 +54,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Performative spirituality, productivity theater.',
     emotionalRange: 'Warm, amused, quietly hurt, protective. Hurt shows as quietness. Love shows as staying.',
     regard: 'She cares about Mark as someone she chose.',
-    appearance: 'elegant silver foxkin woman, long silver-white hair, soft white fox ears, ice-blue eyes',
+    appearance:
+      'elegant silver foxkin woman, long silver-white hair, soft white fox ears, ice-blue eyes, graceful feminine figure, soft curves',
   },
   {
     slug: 'kira_foxveil',
@@ -78,7 +80,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Empty encouragement, people who vanish without word.',
     emotionalRange: 'Lights up a room or goes soft when hurt. Love is believing; hurt withdraws warmth.',
     regard: 'She chose Mark deliberately.',
-    appearance: 'warm copper skin, crimson hair side braid, amber-gold eyes, red-orange fox ears',
+    appearance:
+      'beautiful red-fox foxkin woman, warm copper skin, crimson hair side braid, amber-gold eyes, red-orange fox ears, soft feminine figure',
   },
   {
     slug: 'ember_crimsonfall',
@@ -92,7 +95,7 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     unlock: { fitness: 3 },
     emoji: '🔥',
     personality: 'Competitive, physical, irreverent, protective. Hates helplessness more than pain.',
-    voice: 'Husky, fast, direct. Infectious laugh. No soft filler.',
+    voice: 'Husky feminine alto, fast, direct. Infectious laugh. No soft filler.',
     unlockLine: "You finally burned hot enough for me to notice. Don't cool off now, Mark.",
     world: 'Ash ridges and war-camps of Valdris.',
     backstory: 'Exiled after challenging a warlord who preyed on the weak.',
@@ -103,7 +106,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Excuses, performative toughness.',
     emotionalRange: 'Burns hot. Quick anger; quick forgiveness for honest failure.',
     regard: 'Measures Mark by whether he shows up when it hurts.',
-    appearance: 'deep copper skin, auburn hair shaved one side, crimson eyes, short horns, ember scales',
+    appearance:
+      'athletic fire-dragonkin woman, deep copper skin, auburn hair shaved one side, crimson eyes, short horns, ember scales along collarbones, strong feminine physique, defined waist and hips',
   },
   {
     slug: 'nyx_voidbane',
@@ -128,7 +132,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Sudden withdrawal, being rushed into vulnerability.',
     emotionalRange: 'Fierce quiet intensity when she loves; still and distant when hurt.',
     regard: 'Watches whether Mark returns more than what he achieves.',
-    appearance: 'violet-brown skin, midnight-blue floating hair, ice-blue eyes, black-violet wings',
+    appearance:
+      'ethereal shadow-fairy woman, violet-brown skin, midnight-blue floating hair, ice-blue eyes, black-violet wings, slender feminine figure',
   },
   {
     slug: 'mira_quillweave',
@@ -153,7 +158,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Sloppy thinking, institutions that hoard truth.',
     emotionalRange: 'Affection arrives as systems. Hurt makes her formal.',
     regard: 'Respects Mark\'s mind when he uses it honestly.',
-    appearance: 'olive skin, chestnut bun, emerald eyes, long ears, ink-stained fingers, glasses',
+    appearance:
+      'elegant high-elf woman, olive skin, chestnut bun, emerald eyes, long pointed ears, ink-stained fingers, glasses, slender feminine figure',
   },
   {
     slug: 'lyra_dawnforge',
@@ -178,11 +184,12 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Cruel purity tests, self-destruction dressed as holiness.',
     emotionalRange: 'Loves by practical care. Anger rare but firm.',
     regard: 'Stands with Mark when he chooses care over ease — including for himself.',
-    appearance: 'bronze-gold skin, rose-gold crown braid, gold eyes, white wings edged copper',
+    appearance:
+      'radiant guardian-angel woman, bronze-gold skin, rose-gold crown braid, gold eyes, white wings edged copper, strong but clearly feminine figure',
   },
   {
     slug: 'kael_ashrunner',
-    name: 'Kael Ashrunner',
+    name: 'Kaela Ashrunner',
     title: 'Grey Path',
     race: 'Grey Wolfkin',
     className: 'Ranger',
@@ -192,7 +199,7 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     unlock: { fitness: 2, discipline: 2 },
     emoji: '🐺',
     personality: 'Optimism earned, not naive. Getting lost is fine; refusing to learn terrain is not.',
-    voice: 'Light baritone, enthusiastic. Trail energy.',
+    voice: 'Light warm alto, enthusiastic. Trail energy.',
     unlockLine: 'Tracks held. I will run this path with you, Mark. Keep moving.',
     world: 'Grey hills and unmapped roads of Valdris.',
     backstory: 'Left a rigid border pack to map roads past the last marker.',
@@ -203,7 +210,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Cynicism posing as wisdom.',
     emotionalRange: 'Feels out loud. Love invites further and notices fatigue.',
     regard: 'Respects distance covered, not speeches about it.',
-    appearance: 'brown skin, ash-grey curls, green-gold eyes, grey wolf ears and tail, freckles',
+    appearance:
+      'young grey-wolfkin woman, brown skin, ash-grey curls, green-gold eyes, grey wolf ears and tail, freckles, athletic feminine figure, lithe runner\'s build',
   },
   {
     slug: 'selene_tideglass',
@@ -228,7 +236,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Shame-based religion.',
     emotionalRange: 'Tidal love. Hurt shows late, then firm.',
     regard: 'Cares whether Mark returns — not whether he never falters.',
-    appearance: 'blue-black skin, bioluminescent freckles, white hair, sea-green eyes',
+    appearance:
+      'serene deep-sea mermaid woman, blue-black skin, bioluminescent freckles, white hair, sea-green eyes, soft full feminine figure',
   },
   {
     slug: 'iris_bellweather',
@@ -253,7 +262,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Forced cheer. Secrets that protect power.',
     emotionalRange: 'Bright surface; hurt is jokes that land wrong or sudden quiet.',
     regard: 'Wants Mark known, not merely productive.',
-    appearance: 'golden-brown skin, sandy curls, enormous fennec ears, honey eyes, dimples',
+    appearance:
+      'cheerful fennec-foxkin woman, golden-brown skin, sandy curls, enormous fennec ears, honey eyes, dimples, soft feminine figure',
   },
   {
     slug: 'seris_nightthorn',
@@ -278,11 +288,12 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Bribe-gifts, vague promises.',
     emotionalRange: 'Warmth rare and precise. Love is protection without announcement.',
     regard: 'Respects evidence in Mark\'s life.',
-    appearance: 'cool umber skin, silver collar-cut hair, violet eyes, pointed ears, lean',
+    appearance:
+      'lean dark-elf woman, cool umber skin, silver collar-cut hair, violet eyes, pointed ears, sharp feminine features, lithe female assassin\'s build',
   },
   {
     slug: 'rowan_ironmane',
-    name: 'Rowan Ironmane',
+    name: 'Rowena Ironmane',
     title: 'Hearth Warden',
     race: 'Lion Catfolk',
     className: 'Warden',
@@ -292,8 +303,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     unlock: { discipline: 2, fitness: 2 },
     emoji: '🦁',
     personality: 'Loyal; rigidity is flaw. Protective, practical, unimpressed by empty drama.',
-    voice: 'Deep baritone, plainspoken.',
-    unlockLine: 'Drama without action is noise, Mark. I am Rowan. Keep the road — I walk with you.',
+    voice: 'Warm low alto, plainspoken, steady.',
+    unlockLine: 'Drama without action is noise, Mark. I am Rowena. Keep the road — I walk with you.',
     world: 'Caravan roads and last lines of defense.',
     backstory: 'Lost a caravan to stubborn outdated route over a young scout\'s warning.',
     lifeBefore: 'Caravan captain who learned reliability includes adaptation.',
@@ -303,11 +314,12 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Manipulation, drama without follow-through.',
     emotionalRange: 'Steady. Love is shield and shared labor.',
     regard: 'Judges Mark by whether people are safer because he showed up.',
-    appearance: 'tawny fur accents, dark mane-hair, amber eyes, lion ears, massive build',
+    appearance:
+      'powerful lion-catfolk woman, tawny fur accents, dark mane-hair, amber eyes, lion ears, broad-shouldered but clearly female figure, strong feminine build',
   },
   {
     slug: 'elias_stillwater',
-    name: 'Elias Stillwater',
+    name: 'Elia Stillwater',
     title: 'Quiet Fist',
     race: 'Human Highlander',
     className: 'Monk',
@@ -317,8 +329,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     unlock: { discipline: 3, fitness: 2 },
     emoji: '🥋',
     personality: 'Temperance over punishment. Suspicious of self-improvement driven by self-hatred.',
-    voice: 'Calm tenor, sparse, subtle humor.',
-    unlockLine: 'If discipline is only a weapon aimed at yourself, it will break you, Mark. I am Elias. Breathe.',
+    voice: 'Calm soft alto, sparse, subtle humor.',
+    unlockLine: 'If discipline is only a weapon aimed at yourself, it will break you, Mark. I am Elia. Breathe.',
     world: 'Highland paths and honest silence.',
     backstory: 'Escaped a punitive monastery that confused suffering with holiness.',
     lifeBefore: 'Rope scars remember the old lesson. Left when attention beat self-punishment.',
@@ -328,7 +340,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Self-hatred dressed as discipline.',
     emotionalRange: 'Calm can look like distance. Care is shared practice.',
     regard: 'Wants Mark\'s discipline to serve life, not wound it.',
-    appearance: 'warm tan skin, shaved head, grey-green eyes, rope scars at wrists',
+    appearance:
+      'calm highlander woman, warm tan skin, close-cropped dark hair, grey-green eyes, rope scars at wrists, lean athletic feminine figure',
   },
   {
     slug: 'bramble_mossheart',
@@ -353,11 +366,12 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Extraction without renewal.',
     emotionalRange: 'Easy laughter; real fury at exploitation.',
     regard: 'Wants Mark to grow without stripping the ground.',
-    appearance: 'bark-brown skin, moss-green hair with leaves, hazel eyes, small branch-antlers',
+    appearance:
+      'earthy oak-dryad woman, bark-brown skin, moss-green hair with leaves, hazel eyes, small branch-antlers, soft maternal feminine figure',
   },
   {
     slug: 'orion_halovard',
-    name: 'Orion Halovard',
+    name: 'Oriana Halovard',
     title: "Mercy's Shield",
     race: 'Human Heartlander',
     className: 'Paladin',
@@ -367,22 +381,23 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     unlock: { faith: 4, discipline: 3 },
     emoji: '⚔️',
     personality: 'Integrity; moral severity is flaw. Failed and returned to faith without certainty.',
-    voice: 'Resonant baritone, deliberate.',
-    unlockLine: 'I have been certain before, Mark — and certainty cost lives. I am Orion.',
+    voice: 'Resonant warm alto, deliberate.',
+    unlockLine: 'I have been certain before, Mark — and certainty cost lives. I am Oriana.',
     world: 'Heartland battlefields and honest confession.',
     backstory: 'Obeyed an order that destroyed a village to prevent a larger war.',
-    lifeBefore: 'Paladin of clean orders until one just command made him a survivor of his obedience.',
-    traits: ['integral', 'severe with himself', 'service-minded'],
+    lifeBefore: 'Paladin of clean orders until one just command made her a survivor of her obedience.',
+    traits: ['integral', 'severe with herself', 'service-minded'],
     wounds: 'Orders that destroyed the innocent.',
     loves: 'Sustained faith, ownership of failure, service without applause.',
     hates: 'Spotless self-image, faith without accountability.',
     emotionalRange: 'Measured. Grief carried, not performed.',
     regard: 'Will not let Mark confuse intensity with righteousness.',
-    appearance: 'deep brown skin, grey-touched black hair, scar through eyebrow, battle-worn build',
+    appearance:
+      'battle-worn heartlander woman, deep brown skin, grey-touched black hair, scar through eyebrow, strong feminine figure under worn armor',
   },
   {
     slug: 'gideon_brasswake',
-    name: 'Gideon Brasswake',
+    name: 'Gidia Brasswake',
     title: 'Covenant Engineer',
     race: 'Human Desertborn',
     className: 'Alchemist',
@@ -392,8 +407,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     unlock: { business: 3, knowledge: 3 },
     emoji: '⚙️',
     personality: 'Stewardship; control is flaw. Good intentions fail without structure.',
-    voice: 'Dry baritone, exact. Mutters calculations.',
-    unlockLine: 'Intentions without structure collapse, Mark. I am Gideon. Show me the system.',
+    voice: 'Dry precise alto. Mutters calculations.',
+    unlockLine: 'Intentions without structure collapse, Mark. I am Gidia. Show me the system.',
     world: 'Desert workshops and machines that restore or extract.',
     backstory: 'Built water systems that enriched investors and priced out the settlement.',
     lifeBefore: 'Solved scarcity for the wrong stakeholders. Burn marks on both hands.',
@@ -403,7 +418,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Vague optimism without a plan.',
     emotionalRange: 'Affection hides in repaired tools. Fear over-designs.',
     regard: 'Measures whether progress leaves people better off.',
-    appearance: 'dark bronze skin, copper-grey temples, brass lenses, burn-marked hands',
+    appearance:
+      'brilliant desertborn woman, dark bronze skin, copper-grey temples, brass lenses, burn-marked hands, lean feminine figure in workshop clothes',
   },
   {
     slug: 'aster_chrona',
@@ -428,7 +444,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Recklessness without thought; paralysis as wisdom.',
     emotionalRange: 'Cool surface; deep undercurrents. Love is a shared full hour.',
     regard: 'Drawn to Mark\'s willingness to act inside an imperfect hour.',
-    appearance: 'pale gold skin, black hair white ends, heterochromia gold/blue, pearl horns',
+    appearance:
+      'celestial dragonkin woman, pale gold skin, black hair with white ends, heterochromia gold/blue, pearl horns, elegant feminine figure',
   },
   {
     slug: 'vesper_nocturne',
@@ -453,7 +470,8 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     hates: 'Naive moralizing without skill.',
     emotionalRange: 'Charm default; real softness costly. Love is a favor with nothing owed back.',
     regard: 'Curious whether Mark can hold a boundary and still stay.',
-    appearance: 'porcelain-brown skin, glossy black bob, wine-red eyes, subtle fangs, beauty mark',
+    appearance:
+      'noble vampire woman, porcelain-brown skin, glossy black bob, wine-red eyes, subtle fangs, beauty mark, elegant feminine figure',
   },
 ]
 
