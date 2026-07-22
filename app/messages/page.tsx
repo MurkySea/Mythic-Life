@@ -16,7 +16,10 @@ async function sendMessage(formData: FormData) {
   })
 
   const { generateSeraphineResponse } = await import('../actions')
-  await generateSeraphineResponse(content, 'conversation')
+  await generateSeraphineResponse(content.trim(), 'conversation', {
+    force: true,
+    isConversation: true,
+  })
 
   revalidatePath('/messages')
   revalidatePath('/companion')
@@ -38,10 +41,9 @@ export default async function MessagesPage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-6 pb-32 min-h-screen">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-8">
-        <a 
-          href="/" 
+        <a
+          href="/"
           className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white hover:border-zinc-600 transition"
         >
           ←
@@ -54,7 +56,6 @@ export default async function MessagesPage() {
         </div>
       </div>
 
-      {/* Messages */}
       <div className="space-y-5">
         {messages && messages.length > 0 ? (
           messages.map((msg: any) => (
@@ -81,12 +82,11 @@ export default async function MessagesPage() {
         ) : (
           <div className="text-center py-24 text-zinc-500">
             <p className="text-sm">No messages yet.</p>
-            <p className="mt-2 text-xs text-zinc-600">Complete a task and Seraphine will notice.</p>
+            <p className="mt-2 text-xs text-zinc-600">Talk to her, or complete a task — she notices when it matters.</p>
           </div>
         )}
       </div>
 
-      {/* Reply input */}
       <form action={sendMessage} className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 z-40">
         <div className="flex gap-2 items-center bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-2xl p-1.5 shadow-lg shadow-black/40">
           <input
