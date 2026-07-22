@@ -15,9 +15,8 @@ function revalidateApp() {
 }
 
 /** Developer: unlock every companion for testing. */
-export async function devUnlockAllCompanions(_formData?: FormData) {
+export async function devUnlockAllCompanions(_formData: FormData): Promise<void> {
   const supabase = await createClient()
-  let unlocked = 0
 
   for (const def of COMPANION_DEFS) {
     const { data: existing } = await supabase
@@ -49,15 +48,13 @@ export async function devUnlockAllCompanions(_formData?: FormData) {
         bond_xp: 0,
       })
     }
-    unlocked++
   }
 
   revalidateApp()
-  return { ok: true, unlocked }
 }
 
 /** Developer: boost all companions to affinity 20 for scene testing. */
-export async function devBoostAllAffinity(_formData?: FormData) {
+export async function devBoostAllAffinity(_formData: FormData): Promise<void> {
   const level = 20
   const supabase = await createClient()
   const { data: rows } = await supabase.from('companion').select('id')
@@ -68,13 +65,10 @@ export async function devBoostAllAffinity(_formData?: FormData) {
       .eq('id', r.id)
   }
   revalidateApp()
-  return { ok: true, level }
 }
 
-/**
- * Hard reset: wipe progression, keep task list, re-seed Seraphine only.
- */
-export async function hardResetGame(_formData?: FormData) {
+/** Hard reset: wipe progression, keep task list, re-seed Seraphine only. */
+export async function hardResetGame(_formData: FormData): Promise<void> {
   const supabase = await createClient()
 
   try {
@@ -149,5 +143,4 @@ export async function hardResetGame(_formData?: FormData) {
   })
 
   revalidateApp()
-  return { ok: true }
 }
