@@ -1,6 +1,13 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import {
+  XP_PER_DOMAIN,
+  skillLevelFromXp,
+  parseDomains,
+  type SkillKey,
+} from '@/lib/skills'
+import { COMPANION_DEFS, meetsUnlock, getCompanionDef } from '@/lib/companions'
 
 const USER_NAME = 'Mark'
 
@@ -23,7 +30,6 @@ function getYesterdayYmd(): string {
   }).format(yesterday)
 }
 
-/** Local weekday key: mon, tue, wed, thu, fri, sat, sun */
 function getLocalWeekdayKey(): string {
   return new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Chicago',
@@ -36,7 +42,6 @@ function getLocalWeekdayKey(): string {
 
 export async function updateTaskStreak(taskId: string) {
   const supabase = await createClient()
-
   const { data: task } = await supabase
     .from('tasks')
     .select('id, recurrence, streak_count, last_streak_date')
@@ -44,7 +49,6 @@ export async function updateTaskStreak(taskId: string) {
     .single()
 
   if (!task) return { streak: 0 }
-
   if (task.recurrence !== 'daily' && task.recurrence !== 'weekly') {
     return { streak: task.streak_count || 0 }
   }
@@ -53,7 +57,6 @@ export async function updateTaskStreak(taskId: string) {
   const yesterday = getYesterdayYmd()
   const last = task.last_streak_date as string | null
   const prev = task.streak_count || 0
-
   let next = 1
   if (last === today) next = prev
   else if (last === yesterday) next = prev + 1
@@ -67,105 +70,216 @@ export async function updateTaskStreak(taskId: string) {
   return { streak: next }
 }
 
-function getDialogueStyle(affinity: number): string {
-  if (affinity >= 20) {
-    return `You share an intense, private, and deeply sensual bond with ${USER_NAME}. Speak with quiet heat, soft desire, and intimate tenderness. Use his name naturally. Your words can be openly affectionate, slightly teasing, and carry clear romantic and sensual undertones while remaining elegant and never vulgar.`
+/** Award XP to each domain on a task; returns updated levels map */
+export async function awardSkillXp(domains: string[]) {
+  const supabase = await createClient()
+  const keys = parseDomains(domains.join(','))
+  const levels: Record<string, number> = {}
+
+  for (const skill of keys) {
+    const { data: row } = await supabase
+      .from('player_skills')
+      .select('skill, xp')
+      .eq('skill', skill)
+      .maybeSingle()
+
+    const prevXp = row?.xp || 0
+    const newXp = prevXp + XP_PER_DOMAIN
+    const level = skillLevelFromXp(newXp)
+
+    await supabase.from('player_skills').upsert({
+      skill,
+      xp: newXp,
+      level,
+    })
+
+    levels[skill] = level
   }
-  if (affinity >= 16) {
-    return `You feel a strong, heated intimacy with ${USER_NAME}. Speak with warmth, soft desire, and emotional closeness. Use his name. Gentle teasing and subtle sensuality are natural. Stay elegant even when the mood turns more intimate.`
+
+  // Fill levels for skills we didn't touch (needed for unlock checks)
+  const { data: all } = await supabase.from('player_skills').select('skill, xp, level')
+  const full: Record<string, number> = {}
+  for (const r of all || []) {
+    full[r.skill] = r.level || skillLevelFromXp(r.xp || 0)
+  }
+  for (const [k, v] of Object.entries(levels)) full[k] = v
+
+  const newlyUnlocked = await checkAndUnlockCompanions(full)
+  return { levels: full, newlyUnlocked }
+}
+
+/** Unlock companions whose skill requirements are met */
+export async function checkAndUnlockCompanions(levels?: Record<string, number>) {
+  const supabase = await createClient()
+
+  let levelMap = levels
+  if (!levelMap) {
+    const { data: all } = await supabase.from('player_skills').select('skill, level, xp')
+    levelMap = {}
+    for (const r of all || []) {
+      levelMap[r.skill] = r.level || skillLevelFromXp(r.xp || 0)
+    }
+  }
+
+  const newly: string[] = []
+
+  for (const def of COMPANION_DEFS) {
+    const canUnlock = def.starter || meetsUnlock(def.unlock, levelMap)
+    if (!canUnlock) continue
+
+    const { data: existing } = await supabase
+      .from('companion')
+      .select('id, is_unlocked, slug, name')
+      .or(`slug.eq.${def.slug},name.eq.${def.name}`)
+      .maybeSingle()
+
+    if (existing) {
+      if (existing.is_unlocked === false || existing.is_unlocked == null) {
+        await supabase
+          .from('companion')
+          .update({
+            is_unlocked: true,
+            slug: def.slug,
+            title: def.title,
+            personality: def.personality,
+            affinities: def.affinities.join(','),
+          })
+          .eq('id', existing.id)
+        if (!def.starter) newly.push(def.name)
+      }
+    } else {
+      await supabase.from('companion').insert({
+        name: def.name,
+        slug: def.slug,
+        title: def.title,
+        personality: def.personality,
+        affinities: def.affinities.join(','),
+        is_unlocked: true,
+        affinity_score: 1,
+        bond_xp: 0,
+      })
+      if (!def.starter) newly.push(def.name)
+    }
+  }
+
+  // Ensure Seraphine exists unlocked
+  const { data: sera } = await supabase
+    .from('companion')
+    .select('id')
+    .or('slug.eq.seraphine,name.eq.Seraphine')
+    .maybeSingle()
+
+  if (!sera) {
+    await supabase.from('companion').insert({
+      name: 'Seraphine',
+      slug: 'seraphine',
+      title: 'Quiet Flame',
+      personality: COMPANION_DEFS[0].personality,
+      affinities: 'faith,discipline',
+      is_unlocked: true,
+      affinity_score: 1,
+      bond_xp: 0,
+    })
+  }
+
+  return newly
+}
+
+function getDialogueStyle(affinity: number, name: string): string {
+  if (affinity >= 20) {
+    return `You share an intense, private, and deeply sensual bond with ${name}. Speak with quiet heat and intimate tenderness. Use his name. Remain elegant, never vulgar.`
   }
   if (affinity >= 12) {
-    return `You share a deep, private intimacy with ${USER_NAME}. Speak with quiet tenderness and soft romantic undertones. Use his name. Be personal, vulnerable, and gently sensual while remaining elegant.`
-  }
-  if (affinity >= 9) {
-    return `You feel a strong intimacy with ${USER_NAME}. Speak warmly and tenderly. Use his name. Soft affection and emotional closeness come naturally.`
+    return `You share deep private intimacy with ${name}. Soft romantic undertones are natural. Use his name.`
   }
   if (affinity >= 6) {
-    return `You have grown close to ${USER_NAME}. Speak with genuine warmth and soft affection. Use his name when it feels natural.`
+    return `You have grown close to ${name}. Warmth and soft affection. Use his name when natural.`
   }
-  if (affinity >= 3) {
-    return `You are becoming familiar with ${USER_NAME}. Speak with quiet warmth and supportive presence. You may use his name.`
-  }
-  return `You are a calm, warm, quietly strong companion to ${USER_NAME}. Speak with kindness and quiet respect. You may use his name sparingly.`
+  return `You are a calm companion to ${name}. Kind, clear, quietly respectful.`
 }
 
 export async function getScenePrompt(affinity: number): Promise<string> {
   if (affinity >= 20) {
-    return `Borderline ecchi anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face with flushed cheeks and slightly parted lips, soft sensual expression, wearing elegant revealing lingerie or loosely draped sheer white fabric that clings to her body, intimate bedroom or private chamber setting, warm golden intimate lighting, close three-quarter view, clear soft sensuality, high quality detailed anime art, tasteful but explicitly intimate`
-  }
-  if (affinity >= 16) {
-    return `Intimate anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, soft desirous expression, wearing elegant lingerie or a partially open silver-white outfit that reveals soft skin, warm private lighting, close personal framing, romantic and softly sensual atmosphere, full body or three-quarter view, high quality detailed anime art`
+    return `Borderline ecchi anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, flushed cheeks, slightly parted lips, elegant revealing lingerie or sheer fabric, intimate chamber, warm lighting, tasteful but explicitly intimate, high quality anime art`
   }
   if (affinity >= 12) {
-    return `Intimate anime portrait of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, tender vulnerable expression, wearing elegant white lingerie or loosely draped soft fabric, warm intimate lighting, close framing, quiet romantic atmosphere, full body or three-quarter view, high quality detailed anime art`
-  }
-  if (affinity >= 9) {
-    return `Warm anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, soft affectionate smile, wearing a slightly revealing elegant white and silver outfit with flowing fabric, gentle private lighting, closer framing, calm romantic atmosphere, full body visible, high quality detailed anime art`
+    return `Intimate anime portrait of elegant silver foxkin woman, silver-white hair, white fox ears, ice-blue eyes, tender expression, elegant lingerie or draped fabric, warm intimate lighting, high quality anime art`
   }
   if (affinity >= 6) {
-    return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, gentle warm smile, wearing a soft elegant white and silver dress with flowing lines, soft natural lighting, graceful standing pose, calm affectionate presence, full body visible, high quality detailed anime art`
+    return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, gentle smile, soft white and silver dress, full body, high quality anime art`
   }
-  if (affinity >= 3) {
-    return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, calm confident expression, wearing a simple elegant white and silver outfit, soft lighting, graceful standing pose, serene otherworldly presence, full body visible, high quality detailed anime art`
-  }
-  return `Elegant anime illustration of a silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, reserved calm expression, wearing a simple clean white and silver outfit with flowing lines, soft lighting, graceful standing pose, distant serene presence, full body visible, high quality detailed anime art`
+  return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, reserved calm expression, simple elegant outfit, full body, high quality anime art`
 }
 
-export async function generateSeraphineResponse(
+/** Multi-companion aware dialogue */
+export async function generateCompanionResponse(
   taskTitle: string,
   domain: string = '',
-  options: { force?: boolean; isConversation?: boolean; streak?: number } = {}
+  options: {
+    force?: boolean
+    isConversation?: boolean
+    streak?: number
+    companionSlug?: string
+  } = {}
 ) {
-  const { force = false, isConversation = false, streak = 0 } = options
+  const {
+    force = false,
+    isConversation = false,
+    streak = 0,
+    companionSlug = 'seraphine',
+  } = options
 
   if (!force && !isConversation) {
     if (Math.random() > 0.35) return null
   }
 
   const supabase = await createClient()
+  const def = getCompanionDef(companionSlug)
 
   const { data: companion } = await supabase
     .from('companion')
-    .select('affinity_score, personality, personality_long, title')
-    .single()
+    .select('*')
+    .or(`slug.eq.${companionSlug},name.eq.${def?.name || 'Seraphine'}`)
+    .maybeSingle()
 
   const affinity = companion?.affinity_score || 1
-  const style = getDialogueStyle(affinity)
-
+  const displayName = companion?.name || def?.name || 'Seraphine'
+  const style = getDialogueStyle(affinity, USER_NAME)
   const personalityCore =
     companion?.personality_long ||
     companion?.personality ||
-    `Calm, warm, and quietly strong. Deeply values faithfulness, integrity, and small daily obedience. Notices consistency more than intensity. Will celebrate when ${USER_NAME} shows up in ordinary ways and gently (sometimes firmly) holds him accountable when he drifts. Speaks with kindness and clarity — never nagging, but she doesn't let things slide.`
+    def?.personality ||
+    'Calm, warm companion.'
 
   const streakNote =
     streak >= 3
-      ? ` He is on a ${streak}-day streak for this task — consistency matters to you; acknowledge it naturally if it fits.`
+      ? ` He is on a ${streak}-day streak — acknowledge consistency if it fits.`
       : ''
 
   const contextLine = isConversation
     ? `${USER_NAME} just said to you: "${taskTitle}"`
-    : `${USER_NAME} just completed the task: "${taskTitle}"${domain ? ` (Domain: ${domain})` : ''}.${streakNote}`
+    : `${USER_NAME} just completed: "${taskTitle}"${domain ? ` (Domains: ${domain})` : ''}.${streakNote}`
 
-  const prompt = `You are Seraphine, a silver foxkin companion. Your title is "${companion?.title || 'Quiet Flame'}".
+  const prompt = `You are ${displayName}${def ? `, a ${def.race} ${def.className}` : ''}. Title: "${companion?.title || def?.title || 'Companion'}".
 
-CORE PERSONALITY:
+PERSONALITY:
 ${personalityCore}
 
-RELATIONSHIP DEPTH:
+RELATIONSHIP:
 ${style}
 
-You know the man you are speaking to is named ${USER_NAME}. Always address him as ${USER_NAME} or with natural warmth — never call him "user".
+Always address him as ${USER_NAME} — never "user".
 
 ${contextLine}
 
-Write a short, living reply (2-4 sentences). Sound like a real person with a distinct voice — not a generic motivational bot. Let your personality show: quiet strength, care for consistency, gentle accountability, and the current intimacy of your bond. Do not be cold or formulaic.`
+Write 2-4 sentences in your distinct voice. Not a generic motivational bot.`
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROK_API_KEY}`,
+        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'grok-4',
@@ -178,32 +292,52 @@ Write a short, living reply (2-4 sentences). Sound like a real person with a dis
     const data = await response.json()
     const message =
       data.choices?.[0]?.message?.content ||
-      `I saw that, ${USER_NAME}. The small choices still matter.`
+      `I saw that, ${USER_NAME}.`
 
     await supabase.from('messages').insert({
       role: 'companion',
       content: message,
+      companion_slug: companionSlug,
     })
 
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = `I noticed, ${USER_NAME}. Keep going.`
+    const fallback = `I noticed, ${USER_NAME}.`
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
+      companion_slug: companionSlug,
     })
     return fallback
   }
 }
 
-export async function awardBondProgress(domain: string = '', streak: number = 0) {
+/** @deprecated use generateCompanionResponse */
+export async function generateSeraphineResponse(
+  taskTitle: string,
+  domain: string = '',
+  options: { force?: boolean; isConversation?: boolean; streak?: number } = {}
+) {
+  return generateCompanionResponse(taskTitle, domain, {
+    ...options,
+    companionSlug: 'seraphine',
+  })
+}
+
+export async function awardBondProgress(
+  domain: string = '',
+  streak: number = 0,
+  companionSlug: string = 'seraphine'
+) {
   const supabase = await createClient()
+  const def = getCompanionDef(companionSlug)
 
   const { data: companion } = await supabase
     .from('companion')
     .select('id, bond_xp, affinity_score')
-    .single()
+    .or(`slug.eq.${companionSlug},name.eq.${def?.name || 'Seraphine'}`)
+    .maybeSingle()
 
   if (!companion) return { xpGained: 0, affinityIncreased: false }
 
@@ -214,7 +348,6 @@ export async function awardBondProgress(domain: string = '', streak: number = 0)
 
   const currentXp = companion.bond_xp || 0
   const newXp = currentXp + xpGained
-
   const oldTier = Math.floor(currentXp / 35)
   const newTier = Math.floor(newXp / 35)
   const affinityIncrease = Math.max(0, newTier - oldTier)
@@ -233,6 +366,31 @@ export async function awardBondProgress(domain: string = '', streak: number = 0)
   }
 }
 
+/** Pick which unlocked companion reacts to a task (affinity match preferred) */
+export async function pickReactingCompanion(domains: SkillKey[]): Promise<string> {
+  const supabase = await createClient()
+  const { data: unlocked } = await supabase
+    .from('companion')
+    .select('slug, name, affinities, is_unlocked')
+
+  const list = (unlocked || []).filter((c) => c.is_unlocked !== false)
+  if (list.length === 0) return 'seraphine'
+
+  const scored = list.map((c) => {
+    const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
+    const def = getCompanionDef(slug)
+    const aff = (c.affinities || def?.affinities?.join(',') || '')
+      .split(',')
+      .map((s: string) => s.trim())
+    const overlap = domains.filter((d) => aff.includes(d)).length
+    return { slug: slug || 'seraphine', overlap }
+  })
+
+  scored.sort((a, b) => b.overlap - a.overlap)
+  if (scored[0].overlap > 0) return scored[0].slug
+  return scored[Math.floor(Math.random() * scored.length)]?.slug || 'seraphine'
+}
+
 function getLocalDayStartISO(): string {
   const timeZone = 'America/Chicago'
   const chicagoYmd = new Intl.DateTimeFormat('en-CA', {
@@ -241,7 +399,6 @@ function getLocalDayStartISO(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
-
   const testDate = new Date(`${chicagoYmd}T12:00:00Z`)
   const hourInChicago = parseInt(
     new Intl.DateTimeFormat('en-US', {
@@ -251,7 +408,6 @@ function getLocalDayStartISO(): string {
     }).format(testDate),
     10
   )
-
   const offsetHours = 12 - hourInChicago
   const midnightUTC = new Date(`${chicagoYmd}T00:00:00Z`)
   midnightUTC.setUTCHours(midnightUTC.getUTCHours() + offsetHours)
@@ -264,7 +420,6 @@ export async function ensureRecurringTasks() {
   const todayStart = getLocalDayStartISO()
   const todayWd = getLocalWeekdayKey()
 
-  // ── Daily ───────────────────────────────────────────────────────────────────
   const { data: completedDaily } = await supabase
     .from('tasks')
     .select('id')
@@ -288,7 +443,6 @@ export async function ensureRecurringTasks() {
     .eq('recurrence', 'daily')
     .eq('is_completed', false)
 
-  // ── Weekly with optional weekdays ───────────────────────────────────────────
   const { data: weeklyTasks } = await supabase
     .from('tasks')
     .select('id, weekdays, is_completed, completed_at')
@@ -296,7 +450,6 @@ export async function ensureRecurringTasks() {
 
   if (weeklyTasks && weeklyTasks.length > 0) {
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
-
     for (const task of weeklyTasks) {
       const days =
         task.weekdays && typeof task.weekdays === 'string' && task.weekdays.trim()
@@ -304,15 +457,10 @@ export async function ensureRecurringTasks() {
           : []
 
       if (days.length > 0) {
-        // Specific weekdays (e.g. mon,thu)
         const isScheduledToday = days.includes(todayWd)
-
         if (isScheduledToday) {
           const completedBeforeToday =
-            task.is_completed &&
-            task.completed_at &&
-            task.completed_at < todayStart
-
+            task.is_completed && task.completed_at && task.completed_at < todayStart
           if (completedBeforeToday) {
             await supabase
               .from('tasks')
@@ -322,22 +470,17 @@ export async function ensureRecurringTasks() {
             await supabase.from('tasks').update({ is_today: true }).eq('id', task.id)
           }
         } else {
-          // Not a scheduled day — pull off Today
           await supabase.from('tasks').update({ is_today: false }).eq('id', task.id)
         }
-      } else {
-        // Legacy weekly with no days: reset once every ~7 days
-        if (
-          task.is_completed &&
-          task.completed_at &&
-          task.completed_at < weekAgo
-        ) {
-          await supabase
-            .from('tasks')
-            .update({ is_completed: false, is_today: true })
-            .eq('id', task.id)
-        }
+      } else if (task.is_completed && task.completed_at && task.completed_at < weekAgo) {
+        await supabase
+          .from('tasks')
+          .update({ is_completed: false, is_today: true })
+          .eq('id', task.id)
       }
     }
   }
+
+  // Keep unlocks in sync when opening the app
+  await checkAndUnlockCompanions()
 }
