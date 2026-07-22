@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { checkAndUnlockCompanions } from '../actions'
+import ChatThread from '@/components/ChatThread'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +53,9 @@ export default async function MessagesPage({
 
   const party = (companions || []).map((c) => ({
     ...c,
-    slug: c.slug || (c.name === 'Seraphine' ? 'seraphine' : c.name?.toLowerCase().replace(/\s+/g, '_')),
+    slug:
+      c.slug ||
+      (c.name === 'Seraphine' ? 'seraphine' : c.name?.toLowerCase().replace(/\s+/g, '_')),
   }))
 
   if (!activeSlug) {
@@ -122,6 +125,7 @@ export default async function MessagesPage({
     party.find((c) => c.name === 'Seraphine') ||
     null
   const def = getCompanionDef(activeSlug)
+  const displayName = companion?.name || def?.name || 'Companion'
 
   const { data: messages } = await supabase
     .from('messages')
@@ -136,8 +140,9 @@ export default async function MessagesPage({
   })
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-6 pb-32 min-h-screen">
-      <div className="flex items-center gap-3 mb-8">
+    <main className="max-w-md mx-auto h-[100dvh] flex flex-col pb-20">
+      {/* Header — fixed height */}
+      <div className="shrink-0 flex items-center gap-3 px-4 pt-6 pb-3 border-b border-zinc-900">
         <Link
           href="/messages"
           className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
@@ -148,52 +153,27 @@ export default async function MessagesPage({
           <span className="text-xl">{def?.emoji || '✦'}</span>
           <div className="min-w-0">
             <p className="text-zinc-500 text-xs tracking-wide uppercase">Conversation</p>
-            <h1 className="text-xl font-medium text-white tracking-tight truncate">
-              {companion?.name || def?.name || 'Companion'}
-            </h1>
+            <h1 className="text-xl font-medium text-white tracking-tight truncate">{displayName}</h1>
           </div>
         </div>
       </div>
 
-      <div className="space-y-5">
-        {thread.length > 0 ? (
-          thread.map((msg: { id: string; role: string; content: string }) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[82%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-violet-600 text-white rounded-br-md'
-                    : 'bg-zinc-900/90 border border-zinc-800/80 text-zinc-200 rounded-bl-md'
-                }`}
-              >
-                {msg.role === 'companion' && (
-                  <p className="text-violet-400/90 text-[11px] font-medium mb-1.5 tracking-wide">
-                    {companion?.name || def?.name || 'Companion'}
-                  </p>
-                )}
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="text-center py-24 text-zinc-500">
-            <p className="text-sm">No messages yet.</p>
-            <p className="mt-2 text-xs text-zinc-600">Say something — she is listening.</p>
-          </div>
-        )}
-      </div>
+      {/* Scrollable thread — starts at bottom (latest) */}
+      <ChatThread messages={thread} companionName={displayName} />
 
-      <form action={sendMessage} className="fixed bottom-20 left-0 right-0 max-w-md mx-auto px-4 z-40">
+      {/* Composer above bottom nav */}
+      <form
+        action={sendMessage}
+        className="shrink-0 px-4 pt-2 pb-3 border-t border-zinc-900 bg-zinc-950/95 backdrop-blur-md"
+      >
         <input type="hidden" name="companion_slug" value={activeSlug} />
-        <div className="flex gap-2 items-center bg-zinc-900/95 backdrop-blur-md border border-zinc-800 rounded-2xl p-1.5 shadow-lg shadow-black/40">
+        <div className="flex gap-2 items-center bg-zinc-900 border border-zinc-800 rounded-2xl p-1.5">
           <input
             type="text"
             name="content"
-            placeholder={`Reply to ${companion?.name || 'her'}...`}
+            placeholder={`Reply to ${displayName}...`}
             className="flex-1 bg-transparent px-4 py-3 text-white placeholder:text-zinc-500 text-[15px] focus:outline-none"
+            autoComplete="off"
           />
           <button
             type="submit"
