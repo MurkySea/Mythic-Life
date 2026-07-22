@@ -122,8 +122,9 @@ export async function awardBondProgress(domain: string = '') {
 
 /**
  * Returns an image generation prompt that becomes more intimate as Affinity rises.
+ * Must be async because this file is a Server Actions module.
  */
-export function getScenePrompt(affinity: number): string {
+export async function getScenePrompt(affinity: number): Promise<string> {
   const base = `Elegant anime fantasy woman, long silver-white hair, white fox ears, ice-blue eyes, refined beautiful face, high quality detailed anime art style, soft lighting, beautiful composition`
 
   if (affinity >= 10) {
