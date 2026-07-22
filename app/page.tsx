@@ -12,7 +12,9 @@ import {
 } from './actions'
 import { parseDomains, SKILL_LABELS, xpIntoLevel, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
-import { setFeedback, readAndClearFeedback } from '@/lib/feedback'
+import { setFeedback, readFeedback } from '@/lib/feedback'
+
+export const dynamic = 'force-dynamic'
 
 async function completeTask(formData: FormData) {
   'use server'
@@ -34,7 +36,7 @@ async function completeTask(formData: FormData) {
 
   const domains = parseDomains(domainsStr, domainLegacy)
   const { streak } = await updateTaskStreak(id)
-  const { levels, newlyUnlocked, skillGains } = await awardSkillXp(domains)
+  const { newlyUnlocked, skillGains } = await awardSkillXp(domains)
   const slug = await pickReactingCompanion(domains)
   const bond = await awardBondProgress(domains.join(','), streak, slug)
   await generateCompanionResponse(title, domains.join(', '), { streak, companionSlug: slug })
@@ -43,7 +45,7 @@ async function completeTask(formData: FormData) {
 
   const def = getCompanionDef(slug)
   await setFeedback({
-    skillGains: skillGains.map((g) => ({
+    skillGains: (skillGains || []).map((g) => ({
       skill: g.skill,
       label: SKILL_LABELS[g.skill as SkillKey] || g.skill,
       xp: g.xpAdded,
@@ -55,8 +57,6 @@ async function completeTask(formData: FormData) {
     unlocked: unlockedDetails,
     streak,
   })
-
-  void levels
 
   revalidatePath('/')
   revalidatePath('/messages')
@@ -85,7 +85,7 @@ export default async function TodayPage() {
 
   await ensureRecurringTasks()
 
-  const feedback = await readAndClearFeedback()
+  const feedback = await readFeedback()
   const supabase = await createClient()
 
   const { data: companions } = await supabase
@@ -103,7 +103,7 @@ export default async function TodayPage() {
 
   const incompleteTasks = todayTasks?.filter((t) => !t.is_completed) || []
   const completedTasks = todayTasks?.filter((t) => t.is_completed) || []
-  const bestStreak = Math.max(0, ...(todayTasks || []).map((t: any) => t.streak_count || 0))
+  const bestStreak = Math.max(0, ...(todayTasks || []).map((t: { streak_count?: number }) => t.streak_count || 0))
 
   const skillMap: Record<string, number> = {}
   for (const s of skills || []) skillMap[s.skill] = s.xp || 0
@@ -133,7 +133,7 @@ export default async function TodayPage() {
 
       {feedback && (
         <div className="space-y-2">
-          {feedback.unlocked?.map((u) => (
+          {(feedback.unlocked || []).map((u) => (
             <div
               key={u.slug}
               className="rounded-2xl border border-amber-600/40 bg-amber-950/30 p-4"
@@ -153,7 +153,7 @@ export default async function TodayPage() {
           <div className="rounded-2xl border border-violet-700/40 bg-violet-950/30 p-4">
             <p className="text-[11px] uppercase tracking-wider text-violet-400/80 mb-2">Gains</p>
             <div className="flex flex-wrap gap-2">
-              {feedback.skillGains.map((g) => (
+              {(feedback.skillGains || []).map((g) => (
                 <span
                   key={g.skill}
                   className="text-xs px-2.5 py-1 rounded-full bg-zinc-900 text-violet-200 border border-violet-800/40"
@@ -203,7 +203,7 @@ export default async function TodayPage() {
 
       {unlocked.length > 0 && (
         <div className="flex gap-2 overflow-x-auto pb-1">
-          {unlocked.map((c: any) => {
+          {unlocked.map((c: { id: string; name: string; slug?: string }) => {
             const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
             const def = getCompanionDef(slug)
             return (
@@ -238,49 +238,58 @@ export default async function TodayPage() {
 
         {incompleteTasks.length > 0 ? (
           <div className="space-y-2">
-            {incompleteTasks.map((task: any) => {
-              const domains = parseDomains(task.domains, task.domain)
-              return (
-                <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <form action={completeTask}>
-                      <input type="hidden" name="id" value={task.id} />
-                      <input type="hidden" name="title" value={task.title} />
-                      <input type="hidden" name="domains" value={domains.join(',')} />
-                      <input type="hidden" name="domain" value={task.domain || ''} />
-                      <button
-                        type="submit"
-                        className="mt-0.5 w-6 h-6 rounded-full border-2 border-zinc-600 hover:border-violet-500 hover:bg-violet-600/20 transition"
-                        title="Mark complete"
-                      />
-                    </form>
-                    <div className="flex-1">
-                      <p className="font-medium text-white">{task.title}</p>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {domains.map((d) => (
-                          <span
-                            key={d}
-                            className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
-                          >
-                            {SKILL_LABELS[d] || d}
-                          </span>
-                        ))}
-                        {task.recurrence && task.recurrence !== 'none' && (
-                          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
-                            {task.recurrence}
-                          </span>
-                        )}
-                        {(task.streak_count || 0) >= 2 && (
-                          <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-300">
-                            {task.streak_count} day streak
-                          </span>
-                        )}
+            {incompleteTasks.map(
+              (task: {
+                id: string
+                title: string
+                domains?: string
+                domain?: string
+                recurrence?: string
+                streak_count?: number
+              }) => {
+                const domains = parseDomains(task.domains, task.domain)
+                return (
+                  <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <form action={completeTask}>
+                        <input type="hidden" name="id" value={task.id} />
+                        <input type="hidden" name="title" value={task.title} />
+                        <input type="hidden" name="domains" value={domains.join(',')} />
+                        <input type="hidden" name="domain" value={task.domain || ''} />
+                        <button
+                          type="submit"
+                          className="mt-0.5 w-6 h-6 rounded-full border-2 border-zinc-600 hover:border-violet-500 hover:bg-violet-600/20 transition"
+                          title="Mark complete"
+                        />
+                      </form>
+                      <div className="flex-1">
+                        <p className="font-medium text-white">{task.title}</p>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {domains.map((d) => (
+                            <span
+                              key={d}
+                              className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
+                            >
+                              {SKILL_LABELS[d] || d}
+                            </span>
+                          ))}
+                          {task.recurrence && task.recurrence !== 'none' && (
+                            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
+                              {task.recurrence}
+                            </span>
+                          )}
+                          {(task.streak_count || 0) >= 2 && (
+                            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-900/40 text-amber-300">
+                              {task.streak_count} day streak
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              )
-            })}
+                )
+              }
+            )}
           </div>
         ) : (
           <div className="bg-zinc-900/50 border border-dashed border-zinc-800 rounded-xl p-8 text-center">
@@ -300,7 +309,7 @@ export default async function TodayPage() {
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Completed</h2>
           <div className="space-y-2 opacity-60">
-            {completedTasks.map((task: any) => (
+            {completedTasks.map((task: { id: string; title: string }) => (
               <div
                 key={task.id}
                 className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 flex items-start gap-3"
