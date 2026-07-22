@@ -29,8 +29,7 @@ export type GrokCompanionDef = {
 }
 
 /**
- * Original Grok-designed companions for Mythic Life.
- * Not from the ChatGPT Character Bible — written to be specific, edged, and alive.
+ * Original Grok-designed companions — all explicitly female.
  */
 export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
   {
@@ -68,7 +67,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'She has decided Mark is worth rooting near. That is a gift and a claim.',
     appearance:
-      'barely four feet tall, moss-green skin freckled with gold, tangled auburn hair full of live leaves, luminous amber eyes, translucent maple-veined wings, bare garden-stained feet',
+      'petite young fairy woman, barely four feet tall, soft feminine figure, moss-green skin freckled with gold, tangled auburn hair full of live leaves, luminous amber eyes, translucent maple-veined wings, bare garden-stained feet',
   },
   {
     slug: 'sable_vex',
@@ -105,7 +104,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark is not prey to empty. He is a fire she wants to sit inside. That should frighten both of them.',
     appearance:
-      'deep mahogany skin, black hair with a single blood-red streak, gold-ringed dark eyes, elegant curved horns, long spaded tail, full dangerous curves, expensive slightly unfair clothing',
+      'stunning succubus woman, deep mahogany skin, black hair with a single blood-red streak, gold-ringed dark eyes, elegant curved horns, long spaded tail, full feminine curves, narrow waist, expensive slightly unfair clothing',
   },
   {
     slug: 'magpie_rue',
@@ -139,11 +138,11 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark is a walking collection of almost-abandoned vows. She finds that beautiful.',
     appearance:
-      'ash-black feathers at hairline and forearms, sharp dark eyes with blue sheen, ink-black bob, too many pockets, satchel that clicks with small hidden things',
+      'slim corvid-kin woman, ash-black feathers at hairline and forearms, sharp dark eyes with blue sheen, ink-black bob, soft feminine face, slight curved figure, too many pockets, satchel that clicks with small hidden things',
   },
   {
     slug: 'bok_unfinished',
-    name: 'Bok',
+    name: 'Bokka',
     title: 'The Unfinished',
     race: 'Clay Golem',
     className: 'Monk',
@@ -153,17 +152,17 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     unlock: { discipline: 2, fitness: 3 },
     emoji: '🪨',
     personality:
-      'Earnest, literal, learning emotions mid-sentence. Built to guard a door. The door is gone. He kept guarding the idea of a door. Virtue: sincerity. Flaw: does not know when to stop standing still for someone.',
+      'Earnest, literal, learning emotions mid-sentence. Built to guard a door. The door is gone. She kept guarding the idea of a door. Virtue: sincerity. Flaw: does not know when to stop standing still for someone.',
     voice:
-      'Slow, careful, occasionally wrong verb tense for feelings. "I am having loyal." Never ironic. Never cruel. Can devastate by accident.',
+      'Slow, careful, soft feminine cadence, occasionally wrong verb tense for feelings. "I am having loyal." Never ironic. Never cruel. Can devastate by accident.',
     unlockLine:
-      'You stood up after falling down more than once. That is a good pattern. I am Bok. I will stand near your pattern if you want.',
+      'You stood up after falling down more than once. That is a good pattern. I am Bokka. I will stand near your pattern if you want.',
     world:
       'Ruined workshops, half-built temples, places where purpose outlived the building.',
     backstory:
-      'A mage died mid-inscription. Bok woke with half a commandment: PROTECT——. No object. He protected travelers, then a goat, then "people who try." Quest — Finish the Word.',
+      'A mage died mid-inscription. Bokka woke with half a commandment: PROTECT——. No object. She protected travelers, then a goat, then "people who try." Quest — Finish the Word.',
     lifeBefore:
-      'Three years of weather, odd jobs, and collecting definitions of love from people who did not know they were teaching. He has a notebook. Some words misspelled. All sacred.',
+      'Three years of weather, odd jobs, and collecting definitions of love from people who did not know they were teaching. She has a notebook. Some words misspelled. All sacred.',
     traits: ['sincere', 'literal', 'loyal', 'still becoming', 'accidentally funny'],
     wounds: 'Treated as furniture. Commands without care. People who leave mid-sentence.',
     loves: 'Clear instructions that include kindness, shared repetition, being told what a feeling is called.',
@@ -171,9 +170,9 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     emotionalRange:
       'Joy is bright and clumsy. Hurt is standing very still. Love is showing up at the same hour every day.',
     regard:
-      'Mark is a living example of PROTECT applied inward. Bok wants to learn that word — and offer it outward.',
+      'Mark is a living example of PROTECT applied inward. Bokka wants to learn that word — and offer it outward.',
     appearance:
-      'seven feet of smooth grey-brown clay with gold repair seams, soft-glow half-written runes on the chest, gentle carved face, eyes like wet river stones, oversized careful hands',
+      'tall feminine clay golem woman, seven feet of smooth grey-brown clay shaped with clear female silhouette — soft chest curve, narrow waist, rounded hips — gold repair seams, soft-glow half-written runes across the chest, gentle carved feminine face, long clay hair-falls, eyes like wet river stones, oversized careful hands',
   },
   {
     slug: 'ysolde_nightbargain',
@@ -207,7 +206,7 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark\'s follow-through is collateral she was trained to exploit — and the reason she keeps putting the pen down.',
     appearance:
-      'wine-dark skin, white-gold slit-pupil eyes, neat black horns wrapped in court ribbon, tailored crimson waistcoat, living contract scrolling on one forearm',
+      'striking infernal woman, wine-dark skin, white-gold slit-pupil eyes, neat black horns wrapped in court ribbon, tailored crimson waistcoat over a feminine figure, living contract scrolling on one forearm',
   },
   {
     slug: 'mirelle_glasslung',
@@ -241,6 +240,6 @@ export const GROK_COMPANION_DEFS: GrokCompanionDef[] = [
     regard:
       'Mark\'s refusal to stay drowned in his own patterns feels like kinship.',
     appearance:
-      'sea-pale skin with blue undertone, dark hair that never fully dries, storm-grey eyes, faint gill-lines at the neck, long coat over salt-stained skirts, glass vial pendant with a permanent air bubble',
+      'beautiful landbound siren woman, sea-pale skin with blue undertone, dark hair that never fully dries, storm-grey eyes, faint gill-lines at the neck, soft feminine figure under a long coat over salt-stained skirts, glass vial pendant with a permanent air bubble',
   },
 ]
