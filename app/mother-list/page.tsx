@@ -1,6 +1,8 @@
-import { createClient } from '@/utils/supabase/server'
+import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { SKILLS, SKILL_LABELS } from '@/lib/skills'
+
+export const dynamic = 'force-dynamic'
 
 const WEEKDAY_LABELS: Record<string, string> = {
   mon: 'Mon',
@@ -19,7 +21,6 @@ async function addTask(formData: FormData) {
   const notes = formData.get('notes') as string
   const domainsRaw = formData.getAll('domains') as string[]
   const domains = domainsRaw.length > 0 ? domainsRaw.join(',') : null
-  // Keep legacy single domain as first selected for older UI
   const domain = domainsRaw[0] || null
   const recurrence = (formData.get('recurrence') as string) || 'none'
   const weekdaysRaw = formData.getAll('weekdays') as string[]
@@ -79,6 +80,15 @@ async function deleteTask(formData: FormData) {
 }
 
 export default async function MotherListPage() {
+  if (!hasSupabaseEnv()) {
+    return (
+      <main className="max-w-md mx-auto p-6 pb-24">
+        <h1 className="text-xl text-white pt-8">Mother List</h1>
+        <p className="text-zinc-500 text-sm mt-2">Supabase env vars missing on this deployment.</p>
+      </main>
+    )
+  }
+
   const supabase = await createClient()
   const { data: tasks } = await supabase
     .from('tasks')
@@ -130,9 +140,6 @@ export default async function MotherListPage() {
               </label>
             ))}
           </div>
-          <p className="text-[11px] text-zinc-600">
-            Example: Quiet time → Faith + Discipline
-          </p>
         </div>
 
         <select
@@ -171,75 +178,86 @@ export default async function MotherListPage() {
 
       <div className="space-y-2">
         {tasks && tasks.length > 0 ? (
-          tasks.map((task: any) => {
-            const dayBadges =
-              task.weekdays && typeof task.weekdays === 'string'
-                ? task.weekdays
-                    .split(',')
-                    .map((d: string) => WEEKDAY_LABELS[d.trim()] || d)
-                    .join(' · ')
-                : null
-            const domainList =
-              task.domains || task.domain
-                ? String(task.domains || task.domain)
-                    .split(',')
-                    .map((d: string) => d.trim())
-                    .filter(Boolean)
-                : []
+          tasks.map(
+            (task: {
+              id: string
+              title: string
+              notes?: string
+              weekdays?: string
+              domains?: string
+              domain?: string
+              is_today?: boolean
+              recurrence?: string
+            }) => {
+              const dayBadges =
+                task.weekdays && typeof task.weekdays === 'string'
+                  ? task.weekdays
+                      .split(',')
+                      .map((d: string) => WEEKDAY_LABELS[d.trim()] || d)
+                      .join(' · ')
+                  : null
+              const domainList =
+                task.domains || task.domain
+                  ? String(task.domains || task.domain)
+                      .split(',')
+                      .map((d: string) => d.trim())
+                      .filter(Boolean)
+                  : []
 
-            return (
-              <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-                <p className="font-medium text-white">{task.title}</p>
-                {task.notes && <p className="text-zinc-500 text-sm mt-0.5">{task.notes}</p>}
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {domainList.map((d: string) => (
-                    <span
-                      key={d}
-                      className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
-                    >
-                      {d}
-                    </span>
-                  ))}
-                  {task.is_today && (
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300">
-                      Today
-                    </span>
-                  )}
-                  {task.recurrence && task.recurrence !== 'none' && (
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
-                      {task.recurrence}
-                      {dayBadges ? ` · ${dayBadges}` : ''}
-                    </span>
-                  )}
+              return (
+                <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+                  <p className="font-medium text-white">{task.title}</p>
+                  {task.notes && <p className="text-zinc-500 text-sm mt-0.5">{task.notes}</p>}
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {domainList.map((d: string) => (
+                      <span
+                        key={d}
+                        className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
+                      >
+                        {d}
+                      </span>
+                    ))}
+                    {task.is_today && (
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-900/50 text-violet-300">
+                        Today
+                      </span>
+                    )}
+                    {task.recurrence && task.recurrence !== 'none' && (
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
+                        {task.recurrence}
+                        {dayBadges ? ` · ${dayBadges}` : ''}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2 mt-3">
+                    <form action={toggleToday}>
+                      <input type="hidden" name="id" value={task.id} />
+                      <input type="hidden" name="is_today" value={String(task.is_today)} />
+                      <button
+                        type="submit"
+                        className={`text-xs px-3 py-1.5 rounded-lg border transition ${
+                          task.is_today
+                            ? 'border-violet-600 bg-violet-600/20 text-violet-300'
+                            : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                        }`}
+                      >
+                        {task.is_today ? 'Remove from Today' : 'Add to Today'}
+                      </button>
+                    </form>
+                    <form action={deleteTask}>
+                      <input type="hidden" name="id" value={task.id} />
+                      <button
+                        type="submit"
+                        className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:border-red-900 hover:text-red-400 transition"
+                      >
+                        Delete
+                      </button>
+                    </form>
+                  </div>
                 </div>
-                <div className="flex gap-2 mt-3">
-                  <form action={toggleToday}>
-                    <input type="hidden" name="id" value={task.id} />
-                    <input type="hidden" name="is_today" value={String(task.is_today)} />
-                    <button
-                      type="submit"
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition ${
-                        task.is_today
-                          ? 'border-violet-600 bg-violet-600/20 text-violet-300'
-                          : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
-                      }`}
-                    >
-                      {task.is_today ? 'Remove from Today' : 'Add to Today'}
-                    </button>
-                  </form>
-                  <form action={deleteTask}>
-                    <input type="hidden" name="id" value={task.id} />
-                    <button
-                      type="submit"
-                      className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:border-red-900 hover:text-red-400 transition"
-                    >
-                      Delete
-                    </button>
-                  </form>
-                </div>
-              </div>
-            )
-          })
+              )
+            }
+          )
         ) : (
           <div className="text-center py-12 text-zinc-500 text-sm">
             Your Mother List is empty. Add the first task above.
