@@ -76,7 +76,6 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Developer tools */}
         <div className="bg-amber-950/30 border border-amber-800/40 rounded-2xl p-5 space-y-4">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-amber-500/90">Developer</p>
@@ -95,7 +94,7 @@ export default function SettingsPage() {
             </button>
           </form>
 
-          <form action={devBoostAllAffinity.bind(null, 20)}>
+          <form action={devBoostAllAffinity}>
             <button
               type="submit"
               className="w-full py-3 rounded-xl bg-zinc-900 border border-zinc-700 text-zinc-200 text-sm font-medium hover:border-violet-600/50 active:scale-[0.99] transition"
@@ -106,8 +105,7 @@ export default function SettingsPage() {
 
           <form action={hardResetGame}>
             <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-red-950/60 border border-red-800/50 text-red-200 text-sm font-medium hover:bg-red-900/50 active:scale-[0.99] transition"
+              type="submit"\chapter              className="w-full py-3 rounded-xl bg-red-950/60 border border-red-800/50 text-red-200 text-sm font-medium hover:bg-red-900/50 active:scale-[0.99] transition"
             >
               Hard reset game
             </button>
