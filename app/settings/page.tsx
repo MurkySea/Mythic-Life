@@ -148,13 +148,17 @@ create table if not exists push_log (
   companion_slug text,
   sent_at timestamptz default now()
 );
+
+create table if not exists conversation_reads (
+  companion_slug text primary key,
+  last_read_at timestamptz not null default now()
+);
 `}</pre>
         </div>
 
         <p className="text-xs text-zinc-600 leading-relaxed px-1 pt-2">
-          Skills level from task domains. Companions unlock on skill milestones. Outreach: delayed
-          task reactions, quiet-day and productive-day moments (productive can exceed daily push
-          cap). Push uses Web Push + Home Screen on iPhone.
+          Skills level from task domains. Companions unlock on skill milestones. Outreach + chat
+          replies can push. Inbox shows unread with a blue dot.
         </p>
       </div>
     </main>
