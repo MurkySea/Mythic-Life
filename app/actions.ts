@@ -25,7 +25,12 @@ import {
   continueMood,
   moodForceFromUserText,
 } from '@/lib/mood'
-import { maybeCaptureMemory, loadBestMemories } from '@/lib/memory'
+import {
+  maybeCaptureMemory,
+  loadBestMemories,
+  maybeRecordAbsence,
+  companionPrivateFocus,
+} from '@/lib/memory'
 
 function normalizeAffinities(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String)
@@ -272,11 +277,6 @@ export async function getScenePrompt(affinity: number): Promise<string> {
   return buildScenePrompt(affinity, null, 0)
 }
 
-/**
- * Lightweight observation model of Mark.
- * Turns available data into natural-language notices a companion can use.
- * Never invents. Only reports what the data supports.
- */
 async function buildObservationBlock(companionSlug: string): Promise<string> {
   const supabase = await createClient()
   const lines: string[] = []
@@ -433,14 +433,25 @@ export async function generateCompanionResponse(
   const lastUser = [...thread].reverse().find((m) => m.role === 'user')?.content
   const lastCompanion = [...thread].reverse().find((m) => m.role === 'companion')?.content
 
-  // Dynamic long-term memory: rank by importance + recency so meaningful moments persist
+  // Long-term memory ranked by importance + recency
   const memoryLines = await loadBestMemories(companionSlug, 14)
+
+  // Automatic absence observation (forms private memory when he has been gone)
+  const absenceNote = await maybeRecordAbsence(companionSlug)
+
+  // Companion private focus / agency seed — something she is carrying that is not only about him
+  const privateFocus = companionPrivateFocus(companionSlug)
+
+  const memoryParts: string[] = []
+  if (memoryLines.length > 0) memoryParts.push(...memoryLines)
+  if (absenceNote) memoryParts.push(`(Private) ${absenceNote}`)
+  memoryParts.push(`(Her private focus) ${privateFocus}`)
+
   const memoryBlock =
-    memoryLines.length > 0
-      ? memoryLines.join('\n')
+    memoryParts.length > 0
+      ? memoryParts.map((m, i) => `${i + 1}. ${m}`).join('\n')
       : '(Nothing stored yet — learn him from what he actually says and does.)'
 
-  // Capture meaningful moments from this turn
   if (isConversation) {
     await maybeCaptureMemory(companionSlug, taskTitle)
   }
