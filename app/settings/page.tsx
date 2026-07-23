@@ -122,7 +122,7 @@ export default function SettingsPage() {
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-3">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">Supabase SQL (one-time)</p>
           <p className="text-[11px] text-zinc-500 leading-relaxed">
-            Run in Supabase → SQL Editor if push subscribe fails:
+            Run in Supabase → SQL Editor if tables are missing:
           </p>
           <pre className="text-[10px] text-zinc-400 bg-zinc-950 rounded-xl p-3 overflow-x-auto leading-relaxed">{`create table if not exists push_subscriptions (
   endpoint text primary key,
@@ -130,12 +130,31 @@ export default function SettingsPage() {
   auth text not null,
   updated_at timestamptz default now()
 );
+
+create table if not exists scheduled_outreach (
+  id uuid primary key default gen_random_uuid(),
+  kind text not null,
+  companion_slug text not null,
+  send_after timestamptz not null,
+  payload jsonb default '{}'::jsonb,
+  bypass_cap boolean default false,
+  sent_at timestamptz,
+  created_at timestamptz default now()
+);
+
+create table if not exists push_log (
+  id uuid primary key default gen_random_uuid(),
+  kind text,
+  companion_slug text,
+  sent_at timestamptz default now()
+);
 `}</pre>
         </div>
 
         <p className="text-xs text-zinc-600 leading-relaxed px-1 pt-2">
-          Skills level from task domains. Companions unlock on skill milestones. Push uses Web Push +
-          Home Screen on iPhone.
+          Skills level from task domains. Companions unlock on skill milestones. Outreach: delayed
+          task reactions, quiet-day and productive-day moments (productive can exceed daily push
+          cap). Push uses Web Push + Home Screen on iPhone.
         </p>
       </div>
     </main>
