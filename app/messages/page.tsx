@@ -3,8 +3,12 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
-import { markConversationRead, getReadMap, isUnread } from '@/lib/reads'
-import { sendPushToAll } from '@/lib/push'
+import {
+  markConversationRead,
+  getReadMap,
+  isUnread,
+  pushIfStillUnread,
+} from '@/lib/reads'
 import ChatThread from '@/components/ChatThread'
 import ChatComposer from '@/components/ChatComposer'
 import CompanionAvatar from '@/components/CompanionAvatar'
@@ -50,7 +54,6 @@ async function sendMessage(formData: FormData) {
     companion_slug: companionSlug,
   })
 
-  // User is in the thread — mark read through their send
   await markConversationRead(companionSlug)
 
   revalidatePath('/messages')
@@ -66,21 +69,19 @@ async function sendMessage(formData: FormData) {
       })
       revalidatePath('/messages')
 
-      // Push so it lands even if they left the app while she was writing
       if (reply && typeof reply === 'string') {
         const def = getCompanionDef(companionSlug)
         const name = def?.name || 'Companion'
         const emoji = def?.emoji || '✦'
-        try {
-          await sendPushToAll({
-            title: `${emoji} ${name}`,
-            body: reply.trim().slice(0, 120),
-            url: `/messages?c=${companionSlug}`,
-            tag: `chat-${companionSlug}`,
-          })
-        } catch (e) {
-          console.error('chat reply push', e)
-        }
+        const messageCreatedAt = new Date().toISOString()
+        // Push only if still unread ~5s later (user left the thread)
+        await pushIfStillUnread({
+          companionSlug,
+          messageCreatedAt,
+          title: `${emoji} ${name}`,
+          body: reply.trim().slice(0, 120),
+          tag: `chat-${companionSlug}`,
+        })
       }
     } catch (e) {
       console.error('background chat reply failed', e)
@@ -131,7 +132,6 @@ export default async function MessagesPage({
       return { c, last, unread }
     })
 
-    // Unread first, then by most recent message
     rows.sort((a, b) => {
       if (a.unread !== b.unread) return a.unread ? -1 : 1
       const ta = a.last?.created_at ? new Date(a.last.created_at).getTime() : 0
@@ -210,7 +210,6 @@ export default async function MessagesPage({
     )
   }
 
-  // Opening a thread marks it read
   await markConversationRead(activeSlug)
 
   const [{ data: companions }, { data: messages }] = await Promise.all([
@@ -262,7 +261,11 @@ export default async function MessagesPage({
         </div>
       </div>
 
-      <ChatThread messages={thread} companionName={displayName} />
+      <ChatThread
+        messages={thread}
+        companionName={displayName}
+        companionSlug={activeSlug}
+      />
 
       <ChatComposer
         companionSlug={activeSlug}

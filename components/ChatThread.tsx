@@ -11,16 +11,59 @@ type Msg = {
 export default function ChatThread({
   messages,
   companionName,
+  companionSlug,
 }: {
   messages: Msg[]
   companionName: string
+  companionSlug: string
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Jump to latest on open / new messages (no smooth so it feels like iMessage open)
     bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
   }, [messages.length, messages[messages.length - 1]?.id])
+
+  // While this thread is open, keep marking it read so delayed pushes are suppressed
+  useEffect(() => {
+    let cancelled = false
+
+    async function beat() {
+      if (cancelled || document.visibilityState === 'hidden') return
+      try {
+        await fetch('/api/read', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ companion_slug: companionSlug }),
+        })
+      } catch {
+        // ignore offline / transient errors
+      }
+    }
+
+    beat()
+    const id = setInterval(beat, 4000)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') beat()
+    }
+    document.addEventListener('visibilitychange', onVis)
+
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVis)
+    }
+  }, [companionSlug])
+
+  // Also mark read whenever a new companion message appears while we're here
+  useEffect(() => {
+    const last = messages[messages.length - 1]
+    if (!last || last.role !== 'companion') return
+    fetch('/api/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companion_slug: companionSlug }),
+    }).catch(() => {})
+  }, [messages.length, messages[messages.length - 1]?.id, companionSlug])
 
   if (messages.length === 0) {
     return (
