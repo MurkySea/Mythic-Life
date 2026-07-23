@@ -8,8 +8,14 @@ const QUIET_HOUR_START = 22 // 10pm local
 const QUIET_HOUR_END = 7 // 7am local
 const PRODUCTIVE_THRESHOLD = 4 // completions in a day
 const TASK_REACTION_CHANCE = 0.32
+/** ~10% per cron tick during daytime; max one wandering check-in per calendar day */
+const WANDERING_CHANCE = 0.1
 
-export type OutreachKind = 'task_reaction' | 'quiet_day' | 'productive_day'
+export type OutreachKind =
+  | 'task_reaction'
+  | 'quiet_day'
+  | 'productive_day'
+  | 'wandering'
 
 function localHour(): number {
   return parseInt(
@@ -39,7 +45,6 @@ export function isQuietHours(): boolean {
 
 function dayStartISO(): string {
   const ymd = localYmd()
-  // Approximate America/Chicago offset for midnight
   const probe = new Date(`${ymd}T12:00:00Z`)
   const hourInTz = parseInt(
     new Intl.DateTimeFormat('en-US', {
@@ -89,8 +94,7 @@ export async function maybeScheduleTaskReaction(opts: {
 }): Promise<boolean> {
   if (Math.random() > TASK_REACTION_CHANCE) return false
 
-  const delayMs =
-    (1 + Math.random() * 3) * 60 * 60 * 1000 // 1–4 hours
+  const delayMs = (1 + Math.random() * 3) * 60 * 60 * 1000 // 1–4 hours
   const sendAfter = new Date(Date.now() + delayMs).toISOString()
 
   const supabase = await createClient()
@@ -122,7 +126,6 @@ async function pickUnlockedSlug(): Promise<string> {
   const party = (data || []).filter((c) => c.is_unlocked !== false)
   if (party.length === 0) return 'seraphine'
 
-  // Weight slightly toward higher affinity
   const weighted = party.flatMap((c) => {
     const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : 'seraphine')
     const w = Math.max(1, Math.min(5, Math.floor((c.affinity_score || 1) / 4) + 1))
@@ -141,7 +144,46 @@ async function completionsToday(): Promise<number> {
   return count || 0
 }
 
-/** Evening pass: queue day or productive day (once each per calendar day). */
+/**
+ * Pure presence: a companion reaches out for no reason except that they wanted to.
+ * Daytime only, ~10% per cron tick, at most once per calendar day.
+ */
+export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
+  if (isQuietHours()) return false
+  if (Math.random() > WANDERING_CHANCE) return false
+
+  const supabase = await createClient()
+  const { data: existing } = await supabase
+    .from('scheduled_outreach')
+    .select('id')
+    .eq('kind', 'wandering')
+    .gte('created_at', dayStartISO())
+    .limit(1)
+
+  if (existing && existing.length > 0) return false
+
+  const slug = await pickUnlockedSlug()
+  // Fire soon — 5–40 minutes — so it feels spontaneous, not scheduled
+  const sendAfter = new Date(
+    Date.now() + (5 + Math.random() * 35) * 60 * 1000
+  ).toISOString()
+
+  try {
+    await supabase.from('scheduled_outreach').insert({
+      kind: 'wandering',
+      companion_slug: slug,
+      send_after: sendAfter,
+      bypass_cap: false,
+      payload: { day: localYmd(), reason: 'just_because' },
+    })
+    return true
+  } catch (e) {
+    console.error('schedule wandering', e)
+    return false
+  }
+}
+
+/** Evening pass: quiet day or productive day (once each per calendar day). */
 export async function maybeScheduleDayMoments(): Promise<void> {
   const hour = localHour()
   // Evening window 5pm–9pm local
@@ -150,7 +192,6 @@ export async function maybeScheduleDayMoments(): Promise<void> {
   const supabase = await createClient()
   const ymd = localYmd()
 
-  // Already scheduled these kinds today?
   const { data: existing } = await supabase
     .from('scheduled_outreach')
     .select('kind, payload')
@@ -158,13 +199,13 @@ export async function maybeScheduleDayMoments(): Promise<void> {
     .gte('created_at', dayStartISO())
 
   const kinds = new Set((existing || []).map((r) => r.kind))
-  const done = completionsToday()
-  const count = await done
+  const count = await completionsToday()
   const slug = await pickUnlockedSlug()
 
   if (count >= PRODUCTIVE_THRESHOLD && !kinds.has('productive_day')) {
-    // Send soon (15–45 min), can bypass cap
-    const sendAfter = new Date(Date.now() + (15 + Math.random() * 30) * 60 * 1000).toISOString()
+    const sendAfter = new Date(
+      Date.now() + (15 + Math.random() * 30) * 60 * 1000
+    ).toISOString()
     await supabase.from('scheduled_outreach').insert({
       kind: 'productive_day',
       companion_slug: slug,
@@ -173,7 +214,9 @@ export async function maybeScheduleDayMoments(): Promise<void> {
       payload: { completions: count, day: ymd },
     })
   } else if (count === 0 && !kinds.has('quiet_day')) {
-    const sendAfter = new Date(Date.now() + (20 + Math.random() * 40) * 60 * 1000).toISOString()
+    const sendAfter = new Date(
+      Date.now() + (20 + Math.random() * 40) * 60 * 1000
+    ).toISOString()
     await supabase.from('scheduled_outreach').insert({
       kind: 'quiet_day',
       companion_slug: slug,
@@ -196,6 +239,9 @@ function seedForKind(
   if (kind === 'productive_day') {
     const n = payload.completions || 'several'
     return `${name} noticed Mark carried a heavy, productive day (about ${n} things done). She reaches out in the evening — impressed or teasing in character, never corporate. Celebrate him as a person.`
+  }
+  if (kind === 'wandering') {
+    return `${name} reaches out for no practical reason. Not a task. Not a report. Not because the day was quiet or loud. She simply wanted Mark to feel her presence for a moment — a companion checking on someone she cares about. Brief, in character, emotionally real.`
   }
   return `${name} noticed the day stayed quiet — little motion from Mark. She reaches out with presence, not guilt. Soft check-in from her world to his.`
 }
@@ -231,7 +277,6 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
   let pushed = 0
   const sentToday = await pushesSentToday()
 
-  // Lazy import to avoid circular deps at module load
   const { generateCompanionResponse } = await import('@/app/actions')
 
   for (const row of rows) {
@@ -253,7 +298,6 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
           ? message.trim().slice(0, 120)
           : 'She reached out — open Messages.'
 
-      // Mark sent first so retries don't double-fire
       await supabase
         .from('scheduled_outreach')
         .update({ sent_at: new Date().toISOString() })
@@ -282,7 +326,6 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
       }
     } catch (e) {
       console.error('outreach generate', row.id, e)
-      // Leave unsent for retry next cron, unless repeatedly failing — mark after 24h overdue would need separate cleanup
     }
   }
 

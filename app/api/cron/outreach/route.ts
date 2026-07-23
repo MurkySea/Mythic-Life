@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server'
-import { flushDueOutreach, maybeScheduleDayMoments } from '@/lib/outreach'
+import {
+  flushDueOutreach,
+  maybeScheduleDayMoments,
+  maybeScheduleWanderingCheckIn,
+} from '@/lib/outreach'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 /**
- * Vercel Cron: flush due companion outreach + evening quiet/productive moments.
+ * Vercel Cron: wandering check-ins, quiet/productive day moments, flush due outreach.
  * Secure with CRON_SECRET header when set.
  */
 export async function GET(request: Request) {
@@ -18,9 +22,10 @@ export async function GET(request: Request) {
   }
 
   try {
+    const wandering = await maybeScheduleWanderingCheckIn()
     await maybeScheduleDayMoments()
     const result = await flushDueOutreach()
-    return NextResponse.json({ ok: true, ...result })
+    return NextResponse.json({ ok: true, wanderingScheduled: wandering, ...result })
   } catch (e) {
     console.error('cron outreach', e)
     return NextResponse.json({ error: 'Cron failed' }, { status: 500 })
