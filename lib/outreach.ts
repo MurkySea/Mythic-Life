@@ -4,11 +4,10 @@ import { sendPushToAll } from '@/lib/push'
 
 const TIMEZONE = 'America/Chicago'
 const DAILY_PUSH_CAP = 4
-const QUIET_HOUR_START = 22 // 10pm local
-const QUIET_HOUR_END = 7 // 7am local
-const PRODUCTIVE_THRESHOLD = 4 // completions in a day
+const QUIET_HOUR_START = 22
+const QUIET_HOUR_END = 7
+const PRODUCTIVE_THRESHOLD = 4
 const TASK_REACTION_CHANCE = 0.32
-/** ~10% per cron tick during daytime; max one wandering check-in per calendar day */
 const WANDERING_CHANCE = 0.1
 
 export type OutreachKind =
@@ -37,7 +36,6 @@ function localYmd(): string {
   }).format(new Date())
 }
 
-/** True during local quiet hours (no routine pushes). */
 export function isQuietHours(): boolean {
   const h = localHour()
   return h >= QUIET_HOUR_START || h < QUIET_HOUR_END
@@ -86,7 +84,6 @@ async function logPush(kind: string, companionSlug: string) {
   }
 }
 
-/** Schedule a delayed task reaction (1–4h). Chance-based. */
 export async function maybeScheduleTaskReaction(opts: {
   taskTitle: string
   companionSlug: string
@@ -94,7 +91,7 @@ export async function maybeScheduleTaskReaction(opts: {
 }): Promise<boolean> {
   if (Math.random() > TASK_REACTION_CHANCE) return false
 
-  const delayMs = (1 + Math.random() * 3) * 60 * 60 * 1000 // 1–4 hours
+  const delayMs = (1 + Math.random() * 3) * 60 * 60 * 1000
   const sendAfter = new Date(Date.now() + delayMs).toISOString()
 
   const supabase = await createClient()
@@ -144,10 +141,6 @@ async function completionsToday(): Promise<number> {
   return count || 0
 }
 
-/**
- * Pure presence: a companion reaches out for no reason except that they wanted to.
- * Daytime only, ~10% per cron tick, at most once per calendar day.
- */
 export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
   if (isQuietHours()) return false
   if (Math.random() > WANDERING_CHANCE) return false
@@ -163,7 +156,6 @@ export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
   if (existing && existing.length > 0) return false
 
   const slug = await pickUnlockedSlug()
-  // Fire soon — 5–40 minutes — so it feels spontaneous, not scheduled
   const sendAfter = new Date(
     Date.now() + (5 + Math.random() * 35) * 60 * 1000
   ).toISOString()
@@ -183,10 +175,8 @@ export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
   }
 }
 
-/** Evening pass: quiet day or productive day (once each per calendar day). */
 export async function maybeScheduleDayMoments(): Promise<void> {
   const hour = localHour()
-  // Evening window 5pm–9pm local
   if (hour < 17 || hour >= 22) return
 
   const supabase = await createClient()
@@ -227,26 +217,25 @@ export async function maybeScheduleDayMoments(): Promise<void> {
   }
 }
 
+/** Plain human triggers — the voice engine does the rest. */
 function seedForKind(
   kind: OutreachKind,
   name: string,
   payload: Record<string, unknown>
 ): string {
   if (kind === 'task_reaction') {
-    const title = String(payload.taskTitle || 'something he set himself to')
-    return `${name} noticed Mark finished "${title}" a while ago — not instantly. She reaches out now the way a real person would after the moment has settled. Presence, not a scoreboard.`
+    const title = String(payload.taskTitle || 'something')
+    return `hey — you finished "${title}" a while ago. text him about it like a real person who noticed, not a coach.`
   }
   if (kind === 'productive_day') {
-    const n = payload.completions || 'several'
-    return `${name} noticed Mark carried a heavy, productive day (about ${n} things done). She reaches out in the evening — impressed or teasing in character, never corporate. Celebrate him as a person.`
+    return `he got a lot done today. text him. short. in character. no corporate pride speech.`
   }
   if (kind === 'wandering') {
-    return `${name} reaches out for no practical reason. Not a task. Not a report. Not because the day was quiet or loud. She simply wanted Mark to feel her presence for a moment — a companion checking on someone she cares about. Brief, in character, emotionally real.`
+    return `you just wanted to reach him. no reason. text him something real and small.`
   }
-  return `${name} noticed the day stayed quiet — little motion from Mark. She reaches out with presence, not guilt. Soft check-in from her world to his.`
+  return `day was quiet on his side. check on him without guilt-tripping. be ${name}.`
 }
 
-/** Flush due outreach rows: write message + optional push. */
 export async function flushDueOutreach(): Promise<{ flushed: number; pushed: number }> {
   const supabase = await createClient()
   const now = new Date().toISOString()
@@ -296,7 +285,7 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
       const preview =
         typeof message === 'string' && message.trim()
           ? message.trim().slice(0, 120)
-          : 'She reached out — open Messages.'
+          : 'She reached out.'
 
       await supabase
         .from('scheduled_outreach')
