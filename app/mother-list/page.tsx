@@ -82,11 +82,11 @@ export default async function MotherListPage() {
       </div>
 
       <p className="text-sm text-zinc-500 leading-relaxed">
-        Browse and manage. Create complex tasks in the{' '}
+        Browse and manage. Create in the{' '}
         <Link href="/task-generator" className="text-violet-400 hover:text-violet-300">
           Generator
         </Link>
-        .
+        . Tap <span className="text-zinc-400">Edit</span> to change time, days, domains.
       </p>
 
       <div className="space-y-2">
@@ -156,7 +156,13 @@ export default async function MotherListPage() {
                       </span>
                     )}
                   </div>
-                  <div className="flex gap-2 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <Link
+                      href={`/task-edit?id=${task.id}`}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-300 hover:border-violet-600 hover:text-violet-300 transition"
+                    >
+                      Edit
+                    </Link>
                     <form action={toggleToday}>
                       <input type="hidden" name="id" value={task.id} />
                       <input type="hidden" name="is_today" value={String(task.is_today)} />
