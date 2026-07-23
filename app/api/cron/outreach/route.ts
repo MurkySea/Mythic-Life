@@ -4,6 +4,8 @@ import {
   maybeScheduleDayMoments,
   maybeScheduleTimeAnchors,
   maybeScheduleWanderingCheckIn,
+  maybeScheduleMissingYou,
+  maybeScheduleShareMoment,
 } from '@/lib/outreach'
 
 export const dynamic = 'force-dynamic'
@@ -21,12 +23,16 @@ export async function GET(request: Request) {
   try {
     const timeAnchors = await maybeScheduleTimeAnchors()
     const wandering = await maybeScheduleWanderingCheckIn()
+    const missingYou = await maybeScheduleMissingYou()
+    const shareMoment = await maybeScheduleShareMoment()
     await maybeScheduleDayMoments()
     const result = await flushDueOutreach()
     return NextResponse.json({
       ok: true,
       timeAnchorsScheduled: timeAnchors,
       wanderingScheduled: wandering,
+      missingYouScheduled: missingYou,
+      shareMomentScheduled: shareMoment,
       ...result,
     })
   } catch (e) {
