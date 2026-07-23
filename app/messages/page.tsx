@@ -12,6 +12,7 @@ import {
 import ChatThread from '@/components/ChatThread'
 import ChatComposer from '@/components/ChatComposer'
 import CompanionAvatar from '@/components/CompanionAvatar'
+import MarkReadOnOpen from '@/components/MarkReadOnOpen'
 
 export const dynamic = 'force-dynamic'
 
@@ -210,6 +211,7 @@ export default async function MessagesPage({
     )
   }
 
+  // Server-side mark (best effort)
   await markConversationRead(activeSlug)
 
   const [{ data: companions }, { data: messages }] = await Promise.all([
@@ -240,6 +242,9 @@ export default async function MessagesPage({
 
   return (
     <main className="max-w-md mx-auto h-[100dvh] flex flex-col pb-20">
+      {/* Client-side force mark — this is the reliable path */}
+      <MarkReadOnOpen companionSlug={activeSlug} />
+
       <div className="shrink-0 flex items-center gap-3 px-4 pt-6 pb-3 border-b border-zinc-900">
         <Link
           href="/messages"
