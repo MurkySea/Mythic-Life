@@ -12,6 +12,7 @@ import {
   postUnlockCeremony,
 } from './actions'
 import { maybeCompanionCheckIn } from './check-in-actions'
+import { maybeScheduleTaskReaction } from '@/lib/outreach'
 import { parseDomains, SKILL_LABELS, SKILLS, xpIntoLevel, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
@@ -67,9 +68,15 @@ async function completeTask(formData: FormData) {
 
   after(async () => {
     try {
+      // Immediate in-app reply stays occasional; push is delayed via outreach
       await generateCompanionResponse(title, domains.join(', '), {
         streak,
         companionSlug: slug,
+      })
+      await maybeScheduleTaskReaction({
+        taskTitle: title,
+        companionSlug: slug,
+        domains: domains.join(','),
       })
       revalidatePath('/messages')
       revalidatePath('/')
