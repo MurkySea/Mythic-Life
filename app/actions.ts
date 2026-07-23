@@ -310,6 +310,111 @@ async function loadMemories(companionSlug: string): Promise<string[]> {
   }
 }
 
+/**
+ * Lightweight observation model of Mark.
+ * Turns available data into natural-language notices a companion can use.
+ * Never invents. Only reports what the data supports.
+ */
+async function buildObservationBlock(companionSlug: string): Promise<string> {
+  const supabase = await createClient()
+  const lines: string[] = []
+
+  try {
+    // Recent task activity (last 7 days)
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const { data: recentTasks } = await supabase
+      .from('tasks')
+      .select('title, is_completed, completed_at, streak_count, domains, domain')
+      .gte('completed_at', weekAgo)
+      .eq('is_completed', true)
+      .order('completed_at', { ascending: false })
+      .limit(40)
+
+    const completed = recentTasks || []
+    if (completed.length >= 8) {
+      lines.push('He has been consistently showing up this week — more than usual.')
+    } else if (completed.length >= 4) {
+      lines.push('He has been reasonably consistent the last few days.')
+    } else if (completed.length <= 1) {
+      lines.push('He has been quieter than usual the past few days. Less activity.')
+    }
+
+    // Strong streaks
+    const strongStreaks = completed.filter((t) => (t.streak_count || 0) >= 4)
+    if (strongStreaks.length > 0) {
+      lines.push('He has kept at least one promise for several days running.')
+    }
+
+    // Domain tilt (very rough)
+    const domainCount: Record<string, number> = {}
+    for (const t of completed) {
+      const domains = parseDomains(t.domains, t.domain)
+      for (const d of domains) {
+        domainCount[d] = (domainCount[d] || 0) + 1
+      }
+    }
+    const sorted = Object.entries(domainCount).sort((a, b) => b[1] - a[1])
+    if (sorted.length > 0 && sorted[0][1] >= 4) {
+      const top = sorted[0][0]
+      if (top === 'discipline' || top === 'fitness') {
+        lines.push('He has been pushing hard on structure and effort lately.')
+      } else if (top === 'faith') {
+        lines.push('He has been leaning into faith and quiet practice more than usual.')
+      } else if (top === 'knowledge') {
+        lines.push('He has been feeding his mind — reading, learning, thinking.')
+      } else if (top === 'relations') {
+        lines.push('He has been putting energy into people and relationships.')
+      }
+    }
+
+    // Conversation silence
+    const { data: lastMsgs } = await supabase
+      .from('messages')
+      .select('created_at, role, companion_slug')
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    const thread = (lastMsgs || []).filter((m) => {
+      if (companionSlug === 'seraphine') {
+        return !m.companion_slug || m.companion_slug === 'seraphine'
+      }
+      return m.companion_slug === companionSlug
+    })
+
+    if (thread.length > 0) {
+      const last = new Date(thread[0].created_at).getTime()
+      const hoursSilent = (Date.now() - last) / (1000 * 60 * 60)
+      if (hoursSilent > 36) {
+        lines.push('He has been quieter with her than usual. A noticeable gap.')
+      } else if (hoursSilent > 18) {
+        lines.push('It has been a while since they last spoke.')
+      }
+    }
+
+    // Affinity context (soft)
+    const { data: comp } = await supabase
+      .from('companion')
+      .select('affinity_score, bond_xp')
+      .or(`slug.eq.${companionSlug},name.eq.Seraphine`)
+      .maybeSingle()
+
+    const aff = comp?.affinity_score || 1
+    if (aff >= 12) {
+      lines.push('The bond between them is no longer new. There is real history now.')
+    } else if (aff >= 6) {
+      lines.push('Trust is forming. They are past the early careful stage.')
+    }
+  } catch (e) {
+    console.error('observation build failed', e)
+  }
+
+  if (lines.length === 0) {
+    return '(Nothing strong to notice yet. Learn him from what he actually says and does.)'
+  }
+
+  return lines.map((l, i) => `${i + 1}. ${l}`).join('\n')
+}
+
 export async function generateCompanionResponse(
   taskTitle: string,
   domain: string = '',
@@ -381,6 +486,8 @@ export async function generateCompanionResponse(
     await maybeStoreMemory(companionSlug, taskTitle, true)
   }
 
+  const observationBlock = await buildObservationBlock(companionSlug)
+
   const userText = isConversation ? taskTitle : lastUser || ''
   const candidate = pickMood({
     affinity,
@@ -403,6 +510,7 @@ export async function generateCompanionResponse(
     mood,
     memoryBlock,
     historyBlock,
+    observationBlock,
     depthMode,
   })
 
@@ -415,7 +523,7 @@ export async function generateCompanionResponse(
     depthMode,
   })
 
-  const temperature = 0.92 + Math.random() * 0.12
+  const temperature = 0.88 + Math.random() * 0.12
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
