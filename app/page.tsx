@@ -20,6 +20,24 @@ import { PendingCircleButton } from '@/components/PendingSubmit'
 
 export const dynamic = 'force-dynamic'
 
+function formatAnchor(time: string | null | undefined): string | null {
+  if (!time || typeof time !== 'string') return null
+  const m = time.trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return time
+  let h = parseInt(m[1], 10)
+  const min = m[2]
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12 || 12
+  return `${h}:${min} ${ampm}`
+}
+
+function anchorMinutes(time: string | null | undefined): number {
+  if (!time) return 9999
+  const m = String(time).trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return 9999
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+}
+
 async function completeTask(formData: FormData) {
   'use server'
 
@@ -68,7 +86,6 @@ async function completeTask(formData: FormData) {
 
   after(async () => {
     try {
-      // Immediate in-app reply stays occasional; push is delayed via outreach
       await generateCompanionResponse(title, domains.join(', '), {
         streak,
         companionSlug: slug,
@@ -131,7 +148,12 @@ export default async function TodayPage() {
     .eq('is_today', true)
     .order('created_at', { ascending: true })
 
-  const incompleteTasks = todayTasks?.filter((t) => !t.is_completed) || []
+  const incompleteTasks = (todayTasks?.filter((t) => !t.is_completed) || []).slice().sort((a, b) => {
+    const ta = anchorMinutes(a.anchor_time)
+    const tb = anchorMinutes(b.anchor_time)
+    if (ta !== tb) return ta - tb
+    return 0
+  })
   const completedTasks = todayTasks?.filter((t) => t.is_completed) || []
   const bestStreak = Math.max(
     0,
@@ -288,8 +310,10 @@ export default async function TodayPage() {
                 domain?: string
                 recurrence?: string
                 streak_count?: number
+                anchor_time?: string
               }) => {
                 const domains = parseDomains(task.domains, task.domain)
+                const timeLabel = formatAnchor(task.anchor_time)
                 return (
                   <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
                     <div className="flex items-start gap-3">
@@ -300,8 +324,15 @@ export default async function TodayPage() {
                         <input type="hidden" name="domain" value={task.domain || ''} />
                         <PendingCircleButton />
                       </form>
-                      <div className="flex-1">
-                        <p className="font-medium text-white">{task.title}</p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="font-medium text-white">{task.title}</p>
+                          {timeLabel && (
+                            <span className="shrink-0 text-xs font-medium text-sky-300 tabular-nums">
+                              {timeLabel}
+                            </span>
+                          )}
+                        </div>
                         <div className="flex flex-wrap gap-2 mt-2">
                           {domains.map((d) => (
                             <span
@@ -314,6 +345,11 @@ export default async function TodayPage() {
                           {task.recurrence && task.recurrence !== 'none' && (
                             <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
                               {task.recurrence}
+                            </span>
+                          )}
+                          {timeLabel && (
+                            <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-900/40 text-sky-300">
+                              {timeLabel}
                             </span>
                           )}
                           {(task.streak_count || 0) >= 2 && (
@@ -349,17 +385,27 @@ export default async function TodayPage() {
         <div className="space-y-3">
           <h2 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Completed</h2>
           <div className="space-y-2 opacity-60">
-            {completedTasks.map((task: { id: string; title: string }) => (
-              <div
-                key={task.id}
-                className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 flex items-start gap-3"
-              >
-                <div className="mt-0.5 w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center">
-                  <span className="text-white text-xs">✓</span>
-                </div>
-                <p className="font-medium line-through text-zinc-500">{task.title}</p>
-              </div>
-            ))}
+            {completedTasks.map(
+              (task: { id: string; title: string; anchor_time?: string }) => {
+                const timeLabel = formatAnchor(task.anchor_time)
+                return (
+                  <div
+                    key={task.id}
+                    className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 flex items-start gap-3"
+                  >
+                    <div className="mt-0.5 w-6 h-6 rounded-full bg-violet-600 flex items-center justify-center">
+                      <span className="text-white text-xs">✓</span>
+                    </div>
+                    <div className="flex-1 flex items-start justify-between gap-2">
+                      <p className="font-medium line-through text-zinc-500">{task.title}</p>
+                      {timeLabel && (
+                        <span className="shrink-0 text-xs text-zinc-600 tabular-nums">{timeLabel}</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              }
+            )}
           </div>
         </div>
       )}
