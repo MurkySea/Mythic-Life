@@ -9,7 +9,6 @@ const QUIET_HOUR_END = 7
 const PRODUCTIVE_THRESHOLD = 4
 const TASK_REACTION_CHANCE = 0.32
 const WANDERING_CHANCE = 0.1
-/** Minutes after anchor_time before a companion may ping */
 const ANCHOR_PING_MIN = 5
 const ANCHOR_PING_MAX = 25
 
@@ -40,7 +39,6 @@ function localYmd(): string {
   }).format(new Date())
 }
 
-/** Local minutes since midnight (Chicago). */
 function localMinutesNow(): number {
   const parts = new Intl.DateTimeFormat('en-US', {
     timeZone: TIMEZONE,
@@ -84,6 +82,7 @@ function dayStartISO(): string {
   return midnight.toISOString()
 }
 
+/** Daily cap only counts non-anchor pushes. Time anchors are unlimited vs the cap. */
 async function pushesSentToday(): Promise<number> {
   const supabase = await createClient()
   try {
@@ -91,6 +90,7 @@ async function pushesSentToday(): Promise<number> {
       .from('push_log')
       .select('*', { count: 'exact', head: true })
       .gte('sent_at', dayStartISO())
+      .neq('kind', 'time_anchor')
     return count || 0
   } catch {
     return 0
@@ -202,12 +202,10 @@ export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
 }
 
 /**
- * Tasks with anchor_time: if local time is 5–25 min after the anchor,
- * task is for today / open, schedule one soft companion ping (once per task per day).
+ * Time-anchored pings: no daily-cap cost, not blocked by quiet hours,
+ * still one per task per calendar day so cron doesn't spam the window.
  */
 export async function maybeScheduleTimeAnchors(): Promise<number> {
-  if (isQuietHours()) return 0
-
   const supabase = await createClient()
   const nowMin = localMinutesNow()
   const ymd = localYmd()
@@ -226,9 +224,7 @@ export async function maybeScheduleTimeAnchors(): Promise<number> {
     .eq('kind', 'time_anchor')
     .gte('created_at', dayStartISO())
 
-  const doneTaskIds = new Set<
-    string
-  >()
+  const doneTaskIds = new Set<string>()
   for (const row of already || []) {
     const id = (row.payload as { taskId?: string } | null)?.taskId
     if (id) doneTaskIds.add(id)
@@ -238,7 +234,6 @@ export async function maybeScheduleTimeAnchors(): Promise<number> {
 
   for (const task of tasks) {
     if (!task.anchor_time || doneTaskIds.has(task.id)) continue
-    // Prefer is_today; daily without is_today still counts if recurrence daily
     const eligible =
       task.is_today === true || task.recurrence === 'daily' || task.recurrence === 'weekly'
     if (!eligible) continue
@@ -250,7 +245,6 @@ export async function maybeScheduleTimeAnchors(): Promise<number> {
     if (delta < ANCHOR_PING_MIN || delta > ANCHOR_PING_MAX) continue
 
     const slug = await pickUnlockedSlug()
-    // Fire soon (1–8 min) so it doesn't feel like a timer beep at exact minute
     const sendAfter = new Date(
       Date.now() + (1 + Math.random() * 7) * 60 * 1000
     ).toISOString()
@@ -260,7 +254,7 @@ export async function maybeScheduleTimeAnchors(): Promise<number> {
         kind: 'time_anchor',
         companion_slug: slug,
         send_after: sendAfter,
-        bypass_cap: false,
+        bypass_cap: true, // never blocked by daily cap or quiet hours
         payload: {
           taskId: task.id,
           taskTitle: task.title,
@@ -402,8 +396,11 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
 
       flushed++
 
+      const isTimeAnchor = row.kind === 'time_anchor'
       const underCap = sentToday + pushed < DAILY_PUSH_CAP
-      const allowPush = row.bypass_cap || (underCap && !isQuietHours())
+      // Time anchors: always allowed (no cap, no quiet-hour block)
+      const allowPush =
+        isTimeAnchor || row.bypass_cap || (underCap && !isQuietHours())
 
       if (allowPush) {
         const result = await pushIfStillUnread({
@@ -414,7 +411,8 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
           tag: `outreach-${row.kind}-${row.companion_slug}`,
         })
         if (result.pushed) {
-          pushed++
+          // Only non-anchor pushes inflate the "pushed" counter used for cap this run
+          if (!isTimeAnchor) pushed++
           await logPush(row.kind, row.companion_slug)
         }
       }
