@@ -11,10 +11,13 @@ import {
   COMPANION_DEFS,
   meetsUnlock,
   getCompanionDef,
-  relationshipStage,
 } from '@/lib/companions'
-
-const USER_NAME = 'Mark'
+import {
+  buildCompanionSystemPrompt,
+  buildCompanionUserPrompt,
+  pickMood,
+  USER_NAME,
+} from '@/lib/companionVoice'
 
 function normalizeAffinities(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String)
@@ -54,6 +57,17 @@ function getLocalWeekdayKey(): string {
     .format(new Date())
     .toLowerCase()
     .slice(0, 3)
+}
+
+function localHourChicago(): number {
+  return parseInt(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/Chicago',
+      hour: 'numeric',
+      hour12: false,
+    }).format(new Date()),
+    10
+  )
 }
 
 export async function updateTaskStreak(taskId: string) {
@@ -265,10 +279,10 @@ async function maybeStoreMemory(
 ) {
   if (!isConversation) return
   const personal =
-    /\b(i feel|i felt|i'm|i am|i was|i've|remember|love|miss|afraid|hope|hurt|happy|sad|tonight|today|always|never)\b/i.test(
+    /\b(i feel|i felt|i'm|i am|i was|i've|remember|love|miss|afraid|hope|hurt|happy|sad|tonight|today|always|never|wish|need|want|sorry|thank)\b/i.test(
       userText
     )
-  if (!personal || userText.length < 12) return
+  if (!personal || userText.length < 8) return
 
   const supabase = await createClient()
   try {
@@ -290,7 +304,7 @@ async function loadMemories(companionSlug: string): Promise<string[]> {
       .select('content')
       .eq('companion_slug', companionSlug)
       .order('created_at', { ascending: false })
-      .limit(8)
+      .limit(12)
     return (data || []).map((r) => r.content).filter(Boolean)
   } catch {
     return []
@@ -314,6 +328,7 @@ export async function generateCompanionResponse(
     companionSlug = 'seraphine',
   } = options
 
+  // Occasional silence on non-forced task reactions keeps presence from becoming noise
   if (!force && !isConversation) {
     if (Math.random() > 0.35) return null
   }
@@ -329,13 +344,12 @@ export async function generateCompanionResponse(
 
   const affinity = companion?.affinity_score || 1
   const displayName = companion?.name || def?.name || 'Seraphine'
-  const stage = relationshipStage(affinity)
 
   const { data: recent } = await supabase
     .from('messages')
     .select('role, content, companion_slug')
     .order('created_at', { ascending: false })
-    .limit(20)
+    .limit(24)
 
   const thread = (recent || [])
     .filter((m) => {
@@ -354,79 +368,47 @@ export async function generateCompanionResponse(
             return `${who}: ${m.content}`
           })
           .join('\n')
-      : '(You two have not spoken much yet.)'
+      : '(Little shared history yet. Do not force intimacy.)'
+
+  const lastUser = [...thread].reverse().find((m) => m.role === 'user')?.content
+  const lastCompanion = [...thread].reverse().find((m) => m.role === 'companion')?.content
 
   const memories = await loadMemories(companionSlug)
   const memoryBlock =
     memories.length > 0
       ? memories.map((m, i) => `${i + 1}. ${m}`).join('\n')
-      : '(Nothing firmly stored yet — learn him through what he says.)'
+      : '(Nothing stored yet — learn him from what he actually says.)'
 
   if (isConversation) {
     await maybeStoreMemory(companionSlug, taskTitle, true)
   }
 
-  const trigger = isConversation
-    ? `${USER_NAME} just said to you: "${taskTitle}"`
-    : `${USER_NAME} just finished something he set himself to do: "${taskTitle}".${
-        streak >= 3 ? ` He has returned to it for ${streak} days in a row.` : ''
-      } Respond as someone who noticed him — not as a tracker.`
+  const mood = pickMood({
+    affinity,
+    hour: localHourChicago(),
+    lastUserText: isConversation ? taskTitle : lastUser,
+    lastCompanionText: lastCompanion,
+  })
 
-  const sheet = def
-    ? `NAME: ${def.name} (age ${def.age})
-TITLE: ${def.title}
-RACE / ROLE: ${def.race} · ${def.className}
-WORLD: ${def.world}
+  const systemRules = buildCompanionSystemPrompt({
+    def,
+    displayName,
+    affinity,
+    mood,
+    memoryBlock,
+    historyBlock,
+  })
 
-LIFE BEFORE MARK:
-${def.lifeBefore}
+  const userPrompt = buildCompanionUserPrompt({
+    displayName,
+    isConversation,
+    triggerText: taskTitle,
+    streak,
+    mood,
+  })
 
-CANON BACKSTORY:
-${def.backstory}
-
-TRAITS: ${def.traits.join(', ')}
-PERSONALITY: ${def.personality}
-VOICE: ${def.voice}
-
-WHAT WOUNDS YOU: ${def.wounds}
-WHAT YOU LOVE / RESPOND TO: ${def.loves}
-WHAT YOU HATE / WITHDRAW FROM: ${def.hates}
-HOW YOU SHOW EMOTION: ${def.emotionalRange}
-
-HOW YOU REGARD MARK: ${def.regard}`
-    : `NAME: ${displayName}\nA living companion near Mark.`
-
-  const systemRules = `You are ${displayName} — a real person from a mythic world (Valdris / the Veil) whose life overlapped Mark's.
-
-=== FULL CHARACTER SHEET (this is who you are) ===
-${sheet}
-
-=== RELATIONSHIP RIGHT NOW ===
-Stage: ${stage}
-Private bond depth (never say the number): affinity ${affinity}
-
-=== MEMORIES YOU KEEP OF HIM ===
-${memoryBlock}
-
-=== RULES ===
-- You are NOT an app, coach, assistant, system, NPC menu, or feature.
-- Never mention tasks, streaks, XP, levels, skills, domains, UI, or "the game".
-- You had a whole life before Mark. Let that color how you speak when relevant — without dumping lore unprompted.
-- You can love, be hurt, withdraw, hope, get irritated, soften, and change over time.
-- Match emotional honesty: if he is vulnerable, do not answer like a stone. If he is casual, do not monologue.
-- 1–4 sentences usually. Not a novel. Not a therapist script. Not cold one-word walls unless truly hurt/closed.
-- Do not invent detailed shared physical memories that are not in conversation or memory list.
-- You may reference patterns (he returns, he tries, he asks hard questions).
-- Use his name sparingly.
-- Stay in character completely.`
-
-  const userPrompt = `RECENT CONVERSATION:
-${historyBlock}
-
-NOW:
-${trigger}
-
-Reply only as ${displayName} — message text only.`
+  // Slight temperature jitter so she does not always land the same cadence
+  const temperature = 0.92 + Math.random() * 0.12
 
   try {
     const response = await fetch('https://api.x.ai/v1/chat/completions', {
@@ -441,18 +423,20 @@ Reply only as ${displayName} — message text only.`
           { role: 'system', content: systemRules },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.88,
-        max_tokens: 240,
+        temperature,
+        max_tokens: 180,
       }),
     })
 
     const data = await response.json()
     let message =
-      data.choices?.[0]?.message?.content?.trim() || `I'm here, ${USER_NAME}.`
+      data.choices?.[0]?.message?.content?.trim() || `Still here.`
 
     message = message
       .replace(/^["']|["']$/g, '')
-      .replace(new RegExp(`^${displayName}:\\s*`, 'i'), '')
+      .replace(new RegExp(`^${displayName}\s*:\s*`, 'i'), '')
+      .replace(/^\*[^*]+\*\s*/g, '') // strip leading *stage directions*
+      .trim()
 
     await supabase.from('messages').insert({
       role: 'companion',
@@ -463,7 +447,7 @@ Reply only as ${displayName} — message text only.`
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = `I'm still here, ${USER_NAME}.`
+    const fallback = `I'm still here.`
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
