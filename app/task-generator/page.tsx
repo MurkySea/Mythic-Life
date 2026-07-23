@@ -57,22 +57,41 @@ async function addTask(formData: FormData) {
     isToday = weekdays.split(',').includes(todayKey) || addToToday
   }
 
-  const { error } = await supabase.from('tasks').insert({
-    title: title.trim(),
-    notes: notes?.trim() || null,
-    domain,
-    domains,
-    recurrence,
-    weekdays,
-    anchor_time,
-    is_today: isToday,
-    is_completed: false,
-  })
+  const { data, error } = await supabase
+    .from('tasks')
+    .insert({
+      title: title.trim(),
+      notes: notes?.trim() || null,
+      domain,
+      domains,
+      recurrence,
+      weekdays,
+      anchor_time,
+      is_today: isToday,
+      is_completed: false,
+    })
+    .select('id')
+    .single()
 
   if (error) {
-    console.error('task insert failed', error)
-    // Soft fail — still revalidate so the user can see current state.
-    // A hard throw would surface a Next error page; for MVP we prefer the list.
+    // Make the real failure visible instead of silent success.
+    // Common cause: RLS policy blocking INSERT for the anon role.
+    console.error('task insert failed', {
+      message: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+    throw new Error(
+      `Task insert failed: ${error.message}` +
+        (error.code ? ` [${error.code}]` : '') +
+        (error.hint ? ` — ${error.hint}` : '') +
+        `. Check Supabase RLS policies on the tasks table (anon INSERT).`
+    )
+  }
+
+  if (!data?.id) {
+    throw new Error('Task insert returned no row. Check RLS or table schema.')
   }
 
   revalidatePath('/mother-list')
@@ -81,7 +100,6 @@ async function addTask(formData: FormData) {
   revalidatePath('/tasks')
 
   // Always land the user on Master List after create so the new task is visible.
-  // This closes the "I generated it and it disappeared" loop.
   redirect('/mother-list')
 }
 
