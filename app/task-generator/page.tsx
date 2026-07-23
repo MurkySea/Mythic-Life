@@ -1,5 +1,6 @@
 import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { SKILLS, SKILL_LABELS } from '@/lib/skills'
 
@@ -35,6 +36,13 @@ async function addTask(formData: FormData) {
 
   const supabase = await createClient()
 
+  // Surface mapping rules:
+  // - Master List always receives every task (no filter).
+  // - Today only receives tasks where is_today = true.
+  // - Daily tasks always land on Today.
+  // - Weekly tasks land on Today when today matches their weekdays, or when the
+  //   user explicitly checks "Add to Today".
+  // - One-off tasks land on Today only when the checkbox is checked.
   let isToday = addToToday
   if (recurrence === 'daily') {
     isToday = true
@@ -49,7 +57,7 @@ async function addTask(formData: FormData) {
     isToday = weekdays.split(',').includes(todayKey) || addToToday
   }
 
-  await supabase.from('tasks').insert({
+  const { error } = await supabase.from('tasks').insert({
     title: title.trim(),
     notes: notes?.trim() || null,
     domain,
@@ -61,10 +69,20 @@ async function addTask(formData: FormData) {
     is_completed: false,
   })
 
+  if (error) {
+    console.error('task insert failed', error)
+    // Soft fail — still revalidate so the user can see current state.
+    // A hard throw would surface a Next error page; for MVP we prefer the list.
+  }
+
   revalidatePath('/mother-list')
   revalidatePath('/task-generator')
   revalidatePath('/')
   revalidatePath('/tasks')
+
+  // Always land the user on Master List after create so the new task is visible.
+  // This closes the "I generated it and it disappeared" loop.
+  redirect('/mother-list')
 }
 
 export default async function TaskGeneratorPage() {
@@ -93,7 +111,8 @@ export default async function TaskGeneratorPage() {
       </div>
 
       <p className="text-sm text-zinc-500 leading-relaxed px-0.5">
-        Domains, recurrence, weekdays, and time live here — not on the Master List.
+        Complexity lives here. Every task is written to the Master List. Check
+        "Add to Today" (on by default) if you also want it on the Today surface.
       </p>
 
       <form action={addTask} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4">
@@ -182,9 +201,10 @@ export default async function TaskGeneratorPage() {
           <input
             type="checkbox"
             name="add_to_today"
+            defaultChecked
             className="rounded border-zinc-600 bg-zinc-950 text-violet-600 focus:ring-violet-500"
           />
-          <span className="text-sm text-zinc-300">Also add to Today</span>
+          <span className="text-sm text-zinc-300">Add to Today</span>
         </label>
 
         <button
