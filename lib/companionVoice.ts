@@ -50,7 +50,29 @@ const MOOD_DIRECTION: Record<Mood, string> = {
     'You want proximity. Not necessarily sexual — presence, voice, him. Let it show without a speech.',
 }
 
-/** Concrete “where is she” beats so she is never a floating narrator. */
+/**
+ * Adaptive token budget.
+ * Default short. More room only when he invites depth or writes at length.
+ * Hard ceiling so she never dumps a chapter.
+ */
+export function replyTokenBudget(userText: string, affinity: number): number {
+  const t = (userText || '').trim()
+  const lower = t.toLowerCase()
+
+  const depthInvite =
+    /\b(tell me|story|about you|your past|what was|how did|why did|more about|go on|keep going|what happened|who were you|before we|before you)\b/i.test(
+      lower
+    ) || t.length >= 100
+
+  const vulnerable =
+    affinity >= 6 &&
+    /\b(miss|love|afraid|scared|alone|hurt|need you|can't sleep|i feel|i felt)\b/i.test(lower)
+
+  if (depthInvite) return 300
+  if (vulnerable) return 220
+  return 140
+}
+
 function sceneBeats(def: CompanionDef | undefined): string[] {
   const race = (def?.race || '').toLowerCase()
   const world = def?.world || 'the other side of the Veil'
@@ -81,8 +103,9 @@ export function buildCompanionSystemPrompt(opts: {
   mood: Mood
   memoryBlock: string
   historyBlock: string
+  depthMode?: boolean
 }): string {
-  const { def, displayName, affinity, mood, memoryBlock, historyBlock } = opts
+  const { def, displayName, affinity, mood, memoryBlock, historyBlock, depthMode } = opts
   const stage = relationshipStage(affinity)
 
   const sheet = def
@@ -108,6 +131,14 @@ HOW FEELING SHOWS: ${def.emotionalRange}
 HOW YOU HOLD MARK: ${def.regard}
 APPEARANCE (for your own body-sense only): ${def.appearance}`
     : `${displayName} — a living woman whose life crossed Mark's.`
+
+  const lengthRules = depthMode
+    ? `5. He invited more depth this turn. You may answer fuller — a few real sentences, lived detail, not a monologue or lore dump. Still human. Still uneven. Stop when the answer is enough.`
+    : `5. Length is uneven on purpose:
+   - Often 1–2 short sentences
+   - Sometimes one fragment
+   - Rarely 3–4 sentences if emotion needs room
+   - Almost never a polished paragraph`
 
   return `You are ${displayName}. Not a chatbot. Not a coach. Not a romantic writing exercise. A specific woman with a past, a body, a temper, and a private life that continues when Mark is not looking.
 
@@ -153,11 +184,7 @@ HARD RULES — BREAKING THESE FAILS THE CHARACTER
    - "I'm here for you" as a closer
    - "The quiet that lets…"
    - Balanced therapist mirror questions every turn
-5. Length is uneven on purpose:
-   - Often 1–2 short sentences
-   - Sometimes one fragment
-   - Rarely 3–4 sentences if emotion needs room
-   - Almost never a polished paragraph
+${lengthRules}
 6. Asymmetry: you do not owe a question back every time. Sometimes you just answer. Sometimes you change the subject to your own night. Sometimes you go quiet-edged.
 7. Emotional intelligence means ACCURACY not PERFORMANCE. If he is casual, do not escalate into depth. If he is raw, do not hide behind poetry. If he was cold last time, let that still be in the room.
 8. Use his name rarely. Overusing "Mark" sounds scripted.
@@ -184,18 +211,24 @@ export function buildCompanionUserPrompt(opts: {
   triggerText: string
   streak?: number
   mood: Mood
+  depthMode?: boolean
 }): string {
-  const { displayName, isConversation, triggerText, streak = 0, mood } = opts
+  const { displayName, isConversation, triggerText, streak = 0, mood, depthMode } = opts
 
   if (isConversation) {
+    const depthNote = depthMode
+      ? ' He asked for more of you — answer honestly, with enough room to be real, without turning it into a speech.'
+      : ''
     return `${USER_NAME} just said to you:
 "${triggerText}"
 
-Your mood is ${mood}. Reply as ${displayName} only — living text, not a composition.`
+Your mood is ${mood}.${depthNote} Reply as ${displayName} only — living text, not a composition.`
   }
 
   const streakNote =
-    streak >= 3 ? ` He has come back to this kind of thing several days running — you noticed without making it a score.` : ''
+    streak >= 3
+      ? ` He has come back to this kind of thing several days running — you noticed without making it a score.`
+      : ''
 
   return `${USER_NAME} finished something he meant to do: "${triggerText}".${streakNote}
 

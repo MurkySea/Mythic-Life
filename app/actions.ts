@@ -16,6 +16,7 @@ import {
   buildCompanionSystemPrompt,
   buildCompanionUserPrompt,
   pickMood,
+  replyTokenBudget,
   USER_NAME,
 } from '@/lib/companionVoice'
 
@@ -328,7 +329,6 @@ export async function generateCompanionResponse(
     companionSlug = 'seraphine',
   } = options
 
-  // Occasional silence on non-forced task reactions keeps presence from becoming noise
   if (!force && !isConversation) {
     if (Math.random() > 0.35) return null
   }
@@ -390,6 +390,9 @@ export async function generateCompanionResponse(
     lastCompanionText: lastCompanion,
   })
 
+  const maxTokens = replyTokenBudget(taskTitle, affinity)
+  const depthMode = maxTokens >= 220
+
   const systemRules = buildCompanionSystemPrompt({
     def,
     displayName,
@@ -397,6 +400,7 @@ export async function generateCompanionResponse(
     mood,
     memoryBlock,
     historyBlock,
+    depthMode,
   })
 
   const userPrompt = buildCompanionUserPrompt({
@@ -405,9 +409,9 @@ export async function generateCompanionResponse(
     triggerText: taskTitle,
     streak,
     mood,
+    depthMode,
   })
 
-  // Slight temperature jitter so she does not always land the same cadence
   const temperature = 0.92 + Math.random() * 0.12
 
   try {
@@ -424,7 +428,7 @@ export async function generateCompanionResponse(
           { role: 'user', content: userPrompt },
         ],
         temperature,
-        max_tokens: 180,
+        max_tokens: maxTokens,
       }),
     })
 
@@ -435,7 +439,7 @@ export async function generateCompanionResponse(
     message = message
       .replace(/^["']|["']$/g, '')
       .replace(new RegExp(`^${displayName}\s*:\s*`, 'i'), '')
-      .replace(/^\*[^*]+\*\s*/g, '') // strip leading *stage directions*
+      .replace(/^\*[^*]+\*\s*/g, '')
       .trim()
 
     await supabase.from('messages').insert({
