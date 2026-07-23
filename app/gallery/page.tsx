@@ -1,6 +1,7 @@
 import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { getIntimacyLabel } from '@/lib/scenes'
+import GalleryGrid, { type GalleryImage } from '@/components/GalleryGrid'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,26 @@ export default async function GalleryPage({
     .eq('character_name', activeCharacter)
     .order('created_at', { ascending: false })
 
+  const prepared: GalleryImage[] = (images || []).map(
+    (img: {
+      id: string
+      image_url: string
+      character_name: string
+      affinity_at_generation?: number | null
+      created_at: string
+    }) => ({
+      id: img.id,
+      image_url: img.image_url,
+      character_name: img.character_name,
+      affinity_at_generation: img.affinity_at_generation,
+      created_at: img.created_at,
+      intimacyLabel:
+        img.affinity_at_generation != null
+          ? getIntimacyLabel(img.affinity_at_generation)
+          : undefined,
+    })
+  )
+
   return (
     <main className="max-w-md mx-auto p-4 space-y-6 pb-24">
       <div className="pt-4 flex items-center justify-between gap-3">
@@ -72,40 +93,8 @@ export default async function GalleryPage({
         </div>
       )}
 
-      {images && images.length > 0 ? (
-        <div className="grid grid-cols-2 gap-3">
-          {images.map(
-            (img: {
-              id: string
-              image_url: string
-              character_name: string
-              affinity_at_generation?: number
-              created_at: string
-            }) => (
-              <div
-                key={img.id}
-                className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img.image_url}
-                  alt={`${img.character_name} scene`}
-                  className="w-full aspect-[3/4] object-cover"
-                />
-                <div className="p-2.5">
-                  {img.affinity_at_generation != null && (
-                    <p className="text-[10px] text-violet-400/80 uppercase tracking-wider">
-                      {getIntimacyLabel(img.affinity_at_generation)}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-zinc-600 mt-0.5">
-                    {new Date(img.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-              </div>
-            )
-          )}
-        </div>
+      {prepared.length > 0 ? (
+        <GalleryGrid images={prepared} />
       ) : characters.length > 0 ? (
         <div className="text-center py-16 text-zinc-500 text-sm">
           No scenes for {activeCharacter} yet.
