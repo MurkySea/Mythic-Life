@@ -54,9 +54,9 @@ export default function RootLayout({
                 <span className="text-xl leading-none">⚔</span>
                 <span className="text-[10px] font-medium tracking-wide">Today</span>
               </Link>
-              <Link href="/mother-list" className="flex flex-col items-center gap-1 min-w-[52px] text-zinc-500 hover:text-violet-400 transition-colors">
+              <Link href="/tasks" className="flex flex-col items-center gap-1 min-w-[52px] text-zinc-500 hover:text-violet-400 transition-colors">
                 <span className="text-xl leading-none">📜</span>
-                <span className="text-[10px] font-medium tracking-wide">List</span>
+                <span className="text-[10px] font-medium tracking-wide">Tasks</span>
               </Link>
               <Link href="/messages" className="flex flex-col items-center gap-1 min-w-[52px] text-zinc-500 hover:text-violet-400 transition-colors">
                 <span className="text-xl leading-none">💬</span>
