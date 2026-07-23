@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { COMPANION_DEFS } from '@/lib/companions'
+import { sendPushToAll } from '@/lib/push'
 
 function revalidateApp() {
   revalidatePath('/companions')
@@ -77,6 +78,16 @@ export async function devBoostAllAffinity(_formData: FormData): Promise<void> {
       .eq('id', r.id)
   }
   revalidateApp()
+}
+
+/** Developer: send a test web-push to all stored subscriptions. */
+export async function sendTestPush(_formData: FormData): Promise<void> {
+  await sendPushToAll({
+    title: 'Seraphine',
+    body: 'Just checking you are still with me… did the notification work?',
+    url: '/messages',
+    tag: 'mythic-test-push',
+  })
 }
 
 /** Hard reset: wipe progression, keep task list, re-seed Seraphine only. */

@@ -3,6 +3,7 @@ import {
   devUnlockAllCompanions,
   devBoostAllAffinity,
   hardResetGame,
+  sendTestPush,
 } from '../dev-actions'
 import { COMPANION_DEFS } from '@/lib/companions'
 import PushEnable from '@/components/PushEnable'
@@ -56,6 +57,19 @@ export default function SettingsPage() {
               Boost all affinity → 20
             </button>
           </form>
+
+          <form action={sendTestPush}>
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-violet-900/80 border border-violet-600/60 text-violet-100 text-sm font-medium hover:border-violet-400 active:scale-[0.99] transition"
+            >
+              Send test push notification
+            </button>
+          </form>
+          <p className="text-[10px] text-zinc-600 leading-relaxed">
+            Requires Enable companion notifications first + VAPID keys on Vercel. On iPhone use the
+            Home Screen app icon.
+          </p>
 
           <form action={hardResetGame}>
             <button
