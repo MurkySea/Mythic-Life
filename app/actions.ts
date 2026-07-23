@@ -25,6 +25,7 @@ import {
   continueMood,
   moodForceFromUserText,
 } from '@/lib/mood'
+import { maybeCaptureMemory, loadBestMemories } from '@/lib/memory'
 
 function normalizeAffinities(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String)
@@ -271,45 +272,6 @@ export async function getScenePrompt(affinity: number): Promise<string> {
   return buildScenePrompt(affinity, null, 0)
 }
 
-async function maybeStoreMemory(
-  companionSlug: string,
-  userText: string,
-  isConversation: boolean
-) {
-  if (!isConversation) return
-  const personal =
-    /\b(i feel|i felt|i'm|i am|i was|i've|remember|love|miss|afraid|hope|hurt|happy|sad|tonight|today|always|never|wish|need|want|sorry|thank)\b/i.test(
-      userText
-    )
-  if (!personal || userText.length < 8) return
-
-  const supabase = await createClient()
-  try {
-    await supabase.from('companion_memories').insert({
-      companion_slug: companionSlug,
-      content: userText.slice(0, 280),
-      source: 'conversation',
-    })
-  } catch {
-    // table optional
-  }
-}
-
-async function loadMemories(companionSlug: string): Promise<string[]> {
-  const supabase = await createClient()
-  try {
-    const { data } = await supabase
-      .from('companion_memories')
-      .select('content')
-      .eq('companion_slug', companionSlug)
-      .order('created_at', { ascending: false })
-      .limit(12)
-    return (data || []).map((r) => r.content).filter(Boolean)
-  } catch {
-    return []
-  }
-}
-
 /**
  * Lightweight observation model of Mark.
  * Turns available data into natural-language notices a companion can use.
@@ -320,7 +282,6 @@ async function buildObservationBlock(companionSlug: string): Promise<string> {
   const lines: string[] = []
 
   try {
-    // Recent task activity (last 7 days)
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const { data: recentTasks } = await supabase
       .from('tasks')
@@ -339,13 +300,11 @@ async function buildObservationBlock(companionSlug: string): Promise<string> {
       lines.push('He has been quieter than usual the past few days. Less activity.')
     }
 
-    // Strong streaks
     const strongStreaks = completed.filter((t) => (t.streak_count || 0) >= 4)
     if (strongStreaks.length > 0) {
       lines.push('He has kept at least one promise for several days running.')
     }
 
-    // Domain tilt (very rough)
     const domainCount: Record<string, number> = {}
     for (const t of completed) {
       const domains = parseDomains(t.domains, t.domain)
@@ -367,7 +326,6 @@ async function buildObservationBlock(companionSlug: string): Promise<string> {
       }
     }
 
-    // Conversation silence
     const { data: lastMsgs } = await supabase
       .from('messages')
       .select('created_at, role, companion_slug')
@@ -391,7 +349,6 @@ async function buildObservationBlock(companionSlug: string): Promise<string> {
       }
     }
 
-    // Affinity context (soft)
     const { data: comp } = await supabase
       .from('companion')
       .select('affinity_score, bond_xp')
@@ -476,14 +433,16 @@ export async function generateCompanionResponse(
   const lastUser = [...thread].reverse().find((m) => m.role === 'user')?.content
   const lastCompanion = [...thread].reverse().find((m) => m.role === 'companion')?.content
 
-  const memories = await loadMemories(companionSlug)
+  // Dynamic long-term memory: rank by importance + recency so meaningful moments persist
+  const memoryLines = await loadBestMemories(companionSlug, 14)
   const memoryBlock =
-    memories.length > 0
-      ? memories.map((m, i) => `${i + 1}. ${m}`).join('\n')
-      : '(Nothing stored yet — learn him from what he actually says.)'
+    memoryLines.length > 0
+      ? memoryLines.join('\n')
+      : '(Nothing stored yet — learn him from what he actually says and does.)'
 
+  // Capture meaningful moments from this turn
   if (isConversation) {
-    await maybeStoreMemory(companionSlug, taskTitle, true)
+    await maybeCaptureMemory(companionSlug, taskTitle)
   }
 
   const observationBlock = await buildObservationBlock(companionSlug)
