@@ -32,7 +32,9 @@ async function addTask(formData: FormData) {
   const anchor_time = /^\d{1,2}:\d{2}$/.test(anchorRaw.trim()) ? anchorRaw.trim() : null
   const addToToday = formData.get('add_to_today') === 'on'
 
-  if (!title?.trim()) return
+  if (!title?.trim()) {
+    redirect('/task-generator?error=' + encodeURIComponent('Title is required.'))
+  }
 
   const supabase = await createClient()
 
@@ -74,24 +76,27 @@ async function addTask(formData: FormData) {
     .single()
 
   if (error) {
-    // Make the real failure visible instead of silent success.
-    // Common cause: RLS policy blocking INSERT for the anon role.
     console.error('task insert failed', {
       message: error.message,
       code: error.code,
       details: error.details,
       hint: error.hint,
     })
-    throw new Error(
-      `Task insert failed: ${error.message}` +
-        (error.code ? ` [${error.code}]` : '') +
-        (error.hint ? ` — ${error.hint}` : '') +
-        `. Check Supabase RLS policies on the tasks table (anon INSERT).`
-    )
+
+    const msg =
+      `Insert failed: ${error.message}` +
+      (error.code ? ` [${error.code}]` : '') +
+      (error.hint ? ` — ${error.hint}` : '') +
+      '. Most common cause: RLS blocking anon INSERT on the tasks table.'
+
+    redirect('/task-generator?error=' + encodeURIComponent(msg))
   }
 
   if (!data?.id) {
-    throw new Error('Task insert returned no row. Check RLS or table schema.')
+    redirect(
+      '/task-generator?error=' +
+        encodeURIComponent('Insert returned no row. Check RLS or table schema.')
+    )
   }
 
   revalidatePath('/mother-list')
@@ -99,11 +104,14 @@ async function addTask(formData: FormData) {
   revalidatePath('/')
   revalidatePath('/tasks')
 
-  // Always land the user on Master List after create so the new task is visible.
   redirect('/mother-list')
 }
 
-export default async function TaskGeneratorPage() {
+export default async function TaskGeneratorPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
   if (!hasSupabaseEnv()) {
     return (
       <main className="max-w-md mx-auto p-6 pb-24">
@@ -112,6 +120,9 @@ export default async function TaskGeneratorPage() {
       </main>
     )
   }
+
+  const params = await searchParams
+  const errorMessage = params.error ? decodeURIComponent(params.error) : null
 
   return (
     <main className="max-w-md mx-auto p-4 space-y-6 pb-28">
@@ -127,6 +138,13 @@ export default async function TaskGeneratorPage() {
           <h1 className="text-2xl font-medium text-white">Generator</h1>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="rounded-2xl border border-red-800/60 bg-red-950/40 p-4">
+          <p className="text-[11px] uppercase tracking-wider text-red-400 mb-1">Create failed</p>
+          <p className="text-sm text-red-100 leading-relaxed break-words">{errorMessage}</p>
+        </div>
+      )}
 
       <p className="text-sm text-zinc-500 leading-relaxed px-0.5">
         Complexity lives here. Every task is written to the Master List. Check
