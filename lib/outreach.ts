@@ -159,7 +159,6 @@ async function pickUnlockedCompanion(opts?: {
   }
   if (party.length === 0) return null
 
-  // Weight by affinity so closer bonds reach out more often
   const weighted = party.flatMap((c) => {
     const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : 'seraphine')
     const aff = c.affinity_score || 1
@@ -201,9 +200,6 @@ async function hoursSinceLastContact(companionSlug: string): Promise<number> {
   return (Date.now() - new Date(thread[0].created_at).getTime()) / (1000 * 60 * 60)
 }
 
-/**
- * Genuine "just wanted to reach you" — not about tasks.
- */
 export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
   if (isQuietHours()) return false
   if (Math.random() > WANDERING_CHANCE) return false
@@ -240,10 +236,6 @@ export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
   }
 }
 
-/**
- * "I was thinking about you" / missing you — only at real bond depth,
- * and only when there has been some natural gap.
- */
 export async function maybeScheduleMissingYou(): Promise<boolean> {
   if (isQuietHours()) return false
   if (Math.random() > MISSING_YOU_CHANCE) return false
@@ -262,7 +254,6 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
   if (!pick) return false
 
   const hours = await hoursSinceLastContact(pick.slug)
-  // Feels more natural after a little space, not immediately after talking
   if (hours < 4) return false
 
   const kind: OutreachKind = pick.affinity >= 12 && Math.random() > 0.45 ? 'soft_love' : 'missing_you'
@@ -290,11 +281,6 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
   }
 }
 
-/**
- * Share a moment / picture — the long-distance selfie energy.
- * Picks a recent gallery image for that companion when available,
- * otherwise just a warm "I wanted to show you something" seed.
- */
 export async function maybeScheduleShareMoment(): Promise<boolean> {
   if (isQuietHours()) return false
   if (Math.random() > SHARE_MOMENT_CHANCE) return false
@@ -312,7 +298,6 @@ export async function maybeScheduleShareMoment(): Promise<boolean> {
   const pick = await pickUnlockedCompanion({ minAffinity: 5, preferHighBond: true })
   if (!pick) return false
 
-  // Try to find a recent gallery image for her
   let imageUrl: string | null = null
   try {
     const def = getCompanionDef(pick.slug)
@@ -325,7 +310,6 @@ export async function maybeScheduleShareMoment(): Promise<boolean> {
       .limit(8)
 
     if (imgs && imgs.length > 0) {
-      // Prefer a somewhat recent one, not always the absolute latest
       const idx = Math.floor(Math.random() * Math.min(4, imgs.length))
       imageUrl = imgs[idx].image_url || null
     }
@@ -468,9 +452,6 @@ export async function maybeScheduleDayMoments(): Promise<void> {
   }
 }
 
-/**
- * Seeds that produce genuine relational messages — never accountability theater.
- */
 function seedForKind(
   kind: OutreachKind,
   name: string,
@@ -510,7 +491,6 @@ function seedForKind(
     return `It's around the time he meant to deal with "${title}". Check in like a person who knows him — not a reminder app. No "don't forget." Just presence.`
   }
 
-  // quiet_day
   return `The day was quiet on his side. Reach toward him without guilt-tripping and without turning it into accountability. Be ${name}. Soft contact is enough.`
 }
 
@@ -560,19 +540,27 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
         companionSlug: row.companion_slug,
       })
 
-      // If this is a share_moment with an image, append a clean marker the UI can render
       const imageUrl = typeof payload.imageUrl === 'string' ? payload.imageUrl : null
       if (row.kind === 'share_moment' && imageUrl && typeof message === 'string') {
-        message = `${message.trim()}\n\n[image:${imageUrl}]`
+        const withImage = `${message.trim()}\n\n[image:${imageUrl}]`
 
-        // Re-store the message with the image marker
-        await supabase
+        // Attach image to the message that was just inserted
+        const { data: latest } = await supabase
           .from('messages')
-          .update({ content: message })
+          .select('id')
           .eq('companion_slug', row.companion_slug)
           .eq('role', 'companion')
           .order('created_at', { ascending: false })
           .limit(1)
+          .maybeSingle()
+
+        if (latest?.id) {
+          await supabase
+            .from('messages')
+            .update({ content: withImage })
+            .eq('id', latest.id)
+          message = withImage
+        }
       }
 
       const preview =
