@@ -19,6 +19,12 @@ import {
   replyTokenBudget,
   USER_NAME,
 } from '@/lib/companionVoice'
+import {
+  loadPersistedMood,
+  savePersistedMood,
+  continueMood,
+  moodForceFromUserText,
+} from '@/lib/mood'
 
 function normalizeAffinities(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String)
@@ -261,16 +267,8 @@ export async function postUnlockCeremony(slugs: string[]) {
 }
 
 export async function getScenePrompt(affinity: number): Promise<string> {
-  if (affinity >= 20) {
-    return `Borderline ecchi anime illustration of an elegant silver foxkin woman, long silver-white hair, white fox ears, ice-blue eyes, flushed cheeks, slightly parted lips, elegant revealing lingerie or sheer fabric, intimate chamber, warm lighting, tasteful but explicitly intimate, high quality anime art`
-  }
-  if (affinity >= 12) {
-    return `Intimate anime portrait of elegant silver foxkin woman, silver-white hair, white fox ears, ice-blue eyes, tender expression, elegant lingerie or draped fabric, warm intimate lighting, high quality anime art`
-  }
-  if (affinity >= 6) {
-    return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, gentle smile, soft white and silver dress, full body, high quality anime art`
-  }
-  return `Elegant anime illustration of silver foxkin woman, silver-white hair, white fox ears, reserved calm expression, simple elegant outfit, full body, high quality anime art`
+  const { buildScenePrompt } = await import('@/lib/scenes')
+  return buildScenePrompt(affinity, null, 0)
 }
 
 async function maybeStoreMemory(
@@ -383,12 +381,17 @@ export async function generateCompanionResponse(
     await maybeStoreMemory(companionSlug, taskTitle, true)
   }
 
-  const mood = pickMood({
+  const userText = isConversation ? taskTitle : lastUser || ''
+  const candidate = pickMood({
     affinity,
     hour: localHourChicago(),
-    lastUserText: isConversation ? taskTitle : lastUser,
+    lastUserText: userText,
     lastCompanionText: lastCompanion,
   })
+
+  const persisted = await loadPersistedMood(companion?.id)
+  const forceMood = moodForceFromUserText(userText)
+  const mood = continueMood(persisted?.mood, candidate, forceMood)
 
   const maxTokens = replyTokenBudget(taskTitle, affinity)
   const depthMode = maxTokens >= 220
@@ -447,6 +450,8 @@ export async function generateCompanionResponse(
       content: message,
       companion_slug: companionSlug,
     })
+
+    await savePersistedMood(companion?.id, mood)
 
     return message
   } catch (error) {
