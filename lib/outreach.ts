@@ -9,12 +9,16 @@ const QUIET_HOUR_END = 7
 const PRODUCTIVE_THRESHOLD = 4
 const TASK_REACTION_CHANCE = 0.32
 const WANDERING_CHANCE = 0.1
+/** Minutes after anchor_time before a companion may ping */
+const ANCHOR_PING_MIN = 5
+const ANCHOR_PING_MAX = 25
 
 export type OutreachKind =
   | 'task_reaction'
   | 'quiet_day'
   | 'productive_day'
   | 'wandering'
+  | 'time_anchor'
 
 function localHour(): number {
   return parseInt(
@@ -34,6 +38,28 @@ function localYmd(): string {
     month: '2-digit',
     day: '2-digit',
   }).format(new Date())
+}
+
+/** Local minutes since midnight (Chicago). */
+function localMinutesNow(): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TIMEZONE,
+    hour: 'numeric',
+    minute: 'numeric',
+    hour12: false,
+  }).formatToParts(new Date())
+  const h = parseInt(parts.find((p) => p.type === 'hour')?.value || '0', 10)
+  const m = parseInt(parts.find((p) => p.type === 'minute')?.value || '0', 10)
+  return h * 60 + m
+}
+
+function parseAnchorMinutes(anchor: string): number | null {
+  const m = anchor.trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return null
+  const h = parseInt(m[1], 10)
+  const min = parseInt(m[2], 10)
+  if (h > 23 || min > 59) return null
+  return h * 60 + min
 }
 
 export function isQuietHours(): boolean {
@@ -175,6 +201,83 @@ export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
   }
 }
 
+/**
+ * Tasks with anchor_time: if local time is 5–25 min after the anchor,
+ * task is for today / open, schedule one soft companion ping (once per task per day).
+ */
+export async function maybeScheduleTimeAnchors(): Promise<number> {
+  if (isQuietHours()) return 0
+
+  const supabase = await createClient()
+  const nowMin = localMinutesNow()
+  const ymd = localYmd()
+
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('id, title, anchor_time, is_today, is_completed, recurrence')
+    .not('anchor_time', 'is', null)
+    .eq('is_completed', false)
+
+  if (!tasks?.length) return 0
+
+  const { data: already } = await supabase
+    .from('scheduled_outreach')
+    .select('payload')
+    .eq('kind', 'time_anchor')
+    .gte('created_at', dayStartISO())
+
+  const doneTaskIds = new Set<
+    string
+  >()
+  for (const row of already || []) {
+    const id = (row.payload as { taskId?: string } | null)?.taskId
+    if (id) doneTaskIds.add(id)
+  }
+
+  let scheduled = 0
+
+  for (const task of tasks) {
+    if (!task.anchor_time || doneTaskIds.has(task.id)) continue
+    // Prefer is_today; daily without is_today still counts if recurrence daily
+    const eligible =
+      task.is_today === true || task.recurrence === 'daily' || task.recurrence === 'weekly'
+    if (!eligible) continue
+
+    const anchorMin = parseAnchorMinutes(String(task.anchor_time))
+    if (anchorMin == null) continue
+
+    const delta = nowMin - anchorMin
+    if (delta < ANCHOR_PING_MIN || delta > ANCHOR_PING_MAX) continue
+
+    const slug = await pickUnlockedSlug()
+    // Fire soon (1–8 min) so it doesn't feel like a timer beep at exact minute
+    const sendAfter = new Date(
+      Date.now() + (1 + Math.random() * 7) * 60 * 1000
+    ).toISOString()
+
+    try {
+      await supabase.from('scheduled_outreach').insert({
+        kind: 'time_anchor',
+        companion_slug: slug,
+        send_after: sendAfter,
+        bypass_cap: false,
+        payload: {
+          taskId: task.id,
+          taskTitle: task.title,
+          anchor: task.anchor_time,
+          day: ymd,
+        },
+      })
+      scheduled++
+      doneTaskIds.add(task.id)
+    } catch (e) {
+      console.error('schedule time anchor', e)
+    }
+  }
+
+  return scheduled
+}
+
 export async function maybeScheduleDayMoments(): Promise<void> {
   const hour = localHour()
   if (hour < 17 || hour >= 22) return
@@ -231,6 +334,10 @@ function seedForKind(
   }
   if (kind === 'wandering') {
     return `you just wanted to reach him. no reason. text him something real and small.`
+  }
+  if (kind === 'time_anchor') {
+    const title = String(payload.taskTitle || 'that thing he set for this hour')
+    return `it's around the time he meant to deal with "${title}". check in like a person — not a reminder app. no "don't forget". just presence.`
   }
   return `day was quiet on his side. check on him without guilt-tripping. be ${name}.`
 }

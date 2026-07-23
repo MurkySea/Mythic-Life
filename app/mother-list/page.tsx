@@ -14,6 +14,17 @@ const WEEKDAY_LABELS: Record<string, string> = {
   sun: 'Sun',
 }
 
+function formatAnchor(time: string | null | undefined): string | null {
+  if (!time || typeof time !== 'string') return null
+  const m = time.trim().match(/^(\d{1,2}):(\d{2})$/)
+  if (!m) return time
+  let h = parseInt(m[1], 10)
+  const min = m[2]
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12 || 12
+  return `${h}:${min} ${ampm}`
+}
+
 async function addTask(formData: FormData) {
   'use server'
 
@@ -26,6 +37,8 @@ async function addTask(formData: FormData) {
   const weekdaysRaw = formData.getAll('weekdays') as string[]
   const weekdays =
     recurrence === 'weekly' && weekdaysRaw.length > 0 ? weekdaysRaw.join(',') : null
+  const anchorRaw = (formData.get('anchor_time') as string) || ''
+  const anchor_time = /^\d{1,2}:\d{2}$/.test(anchorRaw.trim()) ? anchorRaw.trim() : null
 
   if (!title?.trim()) return
 
@@ -52,6 +65,7 @@ async function addTask(formData: FormData) {
     domains,
     recurrence,
     weekdays,
+    anchor_time,
     is_today: isToday,
     is_completed: false,
   })
@@ -168,6 +182,20 @@ export default async function MotherListPage() {
           </div>
         </div>
 
+        <div className="space-y-1.5">
+          <p className="text-[11px] uppercase tracking-wider text-zinc-500">
+            Time <span className="text-zinc-600 normal-case">(optional · Chicago)</span>
+          </p>
+          <input
+            type="time"
+            name="anchor_time"
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-2.5 text-sm text-zinc-300 focus:outline-none focus:border-violet-500"
+          />
+          <p className="text-[10px] text-zinc-600 leading-relaxed">
+            Companions may check in a few minutes after this time if the task is still open.
+          </p>
+        </div>
+
         <button
           type="submit"
           className="w-full bg-violet-600 hover:bg-violet-500 text-white font-medium py-3 rounded-xl transition"
@@ -188,6 +216,7 @@ export default async function MotherListPage() {
               domain?: string
               is_today?: boolean
               recurrence?: string
+              anchor_time?: string
             }) => {
               const dayBadges =
                 task.weekdays && typeof task.weekdays === 'string'
@@ -203,6 +232,7 @@ export default async function MotherListPage() {
                       .map((d: string) => d.trim())
                       .filter(Boolean)
                   : []
+              const timeLabel = formatAnchor(task.anchor_time)
 
               return (
                 <div key={task.id} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
@@ -226,6 +256,11 @@ export default async function MotherListPage() {
                       <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-300">
                         {task.recurrence}
                         {dayBadges ? ` · ${dayBadges}` : ''}
+                      </span>
+                    )}
+                    {timeLabel && (
+                      <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-900/40 text-sky-300">
+                        {timeLabel}
                       </span>
                     )}
                   </div>
