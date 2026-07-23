@@ -77,7 +77,7 @@ async function generateCompanionImage(formData: FormData) {
       redirect(`/companion-profile?c=${slug}&scene=${blocked ? 'blocked' : 'error'}`)
     }
 
-    await supabase.from('companion').update({ image_url: imageUrl }).eq('id', companion.id)
+    // Scenes live in the gallery only — do not overwrite base profile portrait
     await supabase.from('gallery_images').insert({
       character_name: characterName,
       image_url: imageUrl,
@@ -99,7 +99,7 @@ function SceneBanner({ status }: { status?: string }) {
   if (!status) return null
   const map: Record<string, { text: string; className: string }> = {
     ok: {
-      text: 'Scene claimed — it is in her gallery and on her profile.',
+      text: 'Scene claimed — open Gallery to view it. Profile portrait stays her base look.',
       className: 'border-emerald-700/50 bg-emerald-950/40 text-emerald-200',
     },
     limit: {
@@ -215,8 +215,8 @@ export default async function CompanionProfilePage({
   const affinity = companion?.affinity_score || 1
   const earned = scenesEarned(affinity)
   const nextAt = nextSceneMilestone(affinity)
-  // Prefer claimed scene photo on profile; fall back to locked base avatar
-  const portraitSrc = companion?.image_url || resolveHeadshot(slug, null)
+  // Base portrait only — scenes stay in Gallery
+  const portraitSrc = resolveHeadshot(slug, companion?.image_url)
 
   const [{ data: memories }, { count: sceneCount }] = await Promise.all([
     supabase
@@ -340,6 +340,12 @@ export default async function CompanionProfilePage({
                   Deepen the bond through tasks and conversation to unlock the next scene.
                 </p>
               )}
+              <Link
+                href={`/gallery?character=${encodeURIComponent(characterName)}`}
+                className="mt-3 text-xs text-violet-400 hover:text-violet-300"
+              >
+                Open her gallery →
+              </Link>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
