@@ -1,18 +1,32 @@
 import { createClient } from '@/utils/supabase/server'
 
-/** Mark a conversation as read up to now. */
-export async function markConversationRead(companionSlug: string) {
+/**
+ * Mark a conversation as fully read up to now.
+ * This is the single source of truth for clearing the blue dot.
+ *
+ * Rules encoded:
+ * - Opening a conversation marks everything current as read
+ * - New messages that arrive while the chat is open are instantly treated as read
+ *   (the client heartbeat + the effect in ChatThread keep calling this)
+ */
+export async function markConversationRead(companionSlug: string): Promise<boolean> {
   const supabase = await createClient()
   try {
-    await supabase.from('conversation_reads').upsert(
+    const { error } = await supabase.from('conversation_reads').upsert(
       {
         companion_slug: companionSlug,
         last_read_at: new Date().toISOString(),
       },
       { onConflict: 'companion_slug' }
     )
+    if (error) {
+      console.error('markConversationRead upsert error', companionSlug, error)
+      return false
+    }
+    return true
   } catch (e) {
-    console.error('mark read', e)
+    console.error('markConversationRead failed', companionSlug, e)
+    return false
   }
 }
 
@@ -20,7 +34,15 @@ export async function markConversationRead(companionSlug: string) {
 export async function getReadMap(): Promise<Record<string, string>> {
   const supabase = await createClient()
   try {
-    const { data } = await supabase.from('conversation_reads').select('companion_slug, last_read_at')
+    const { data, error } = await supabase
+      .from('conversation_reads')
+      .select('companion_slug, last_read_at')
+
+    if (error) {
+      console.error('getReadMap error', error)
+      return {}
+    }
+
     const map: Record<string, string> = {}
     for (const row of data || []) {
       if (row.companion_slug && row.last_read_at) {
@@ -33,6 +55,10 @@ export async function getReadMap(): Promise<Record<string, string>> {
   }
 }
 
+/**
+ * A conversation is unread only when the last message is from the companion
+ * and it is newer than the last time the player marked the thread read.
+ */
 export function isUnread(
   lastMessage: { role: string; created_at: string } | null | undefined,
   lastReadAt: string | undefined
@@ -55,6 +81,7 @@ export async function wasReadSince(
       .select('last_read_at')
       .eq('companion_slug', companionSlug)
       .maybeSingle()
+
     if (!data?.last_read_at) return false
     return new Date(data.last_read_at).getTime() >= new Date(sinceISO).getTime()
   } catch {
@@ -66,7 +93,7 @@ const PUSH_UNREAD_DELAY_MS = 5000
 
 /**
  * Wait briefly, then push only if the conversation is still unread.
- * If the user is on the chat screen, mark-read will fire and suppress the push.
+ * If the user is on the chat screen, the heartbeat / open mark will suppress the push.
  */
 export async function pushIfStillUnread(opts: {
   companionSlug: string
