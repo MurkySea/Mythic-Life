@@ -8,6 +8,42 @@ type Msg = {
   content: string
 }
 
+function MessageBody({ content, isUser }: { content: string; isUser: boolean }) {
+  // Support [image:url] markers from proactive share_moment messages
+  const parts = content.split(/(\[image:[^\]]+\])/g)
+
+  return (
+    <div className="space-y-2">
+      {parts.map((part, i) => {
+        const match = part.match(/^\[image:(.+)\]$/)
+        if (match) {
+          const src = match[1]
+          return (
+            <div key={i} className="mt-1">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={src}
+                alt="Shared moment"
+                className="rounded-xl max-w-full max-h-72 object-cover border border-zinc-700/60"
+                loading="lazy"
+              />
+            </div>
+          )
+        }
+        if (!part.trim()) return null
+        return (
+          <p
+            key={i}
+            className={`whitespace-pre-wrap ${isUser ? 'text-white' : 'text-zinc-200'}`}
+          >
+            {part.trim()}
+          </p>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function ChatThread({
   messages,
   companionName,
@@ -95,7 +131,7 @@ export default function ChatThread({
                 {companionName}
               </p>
             )}
-            <p className="whitespace-pre-wrap">{msg.content}</p>
+            <MessageBody content={msg.content} isUser={msg.role === 'user'} />
           </div>
         </div>
       ))}
