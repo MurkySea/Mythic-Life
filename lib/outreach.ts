@@ -1,6 +1,6 @@
 import { createClient } from '@/utils/supabase/server'
 import { getCompanionDef } from '@/lib/companions'
-import { sendPushToAll } from '@/lib/push'
+import { pushIfStillUnread } from '@/lib/reads'
 
 const TIMEZONE = 'America/Chicago'
 const DAILY_PUSH_CAP = 4
@@ -217,7 +217,6 @@ export async function maybeScheduleDayMoments(): Promise<void> {
   }
 }
 
-/** Plain human triggers — the voice engine does the rest. */
 function seedForKind(
   kind: OutreachKind,
   name: string,
@@ -287,6 +286,8 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
           ? message.trim().slice(0, 120)
           : 'She reached out.'
 
+      const messageCreatedAt = new Date().toISOString()
+
       await supabase
         .from('scheduled_outreach')
         .update({ sent_at: new Date().toISOString() })
@@ -298,19 +299,16 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
       const allowPush = row.bypass_cap || (underCap && !isQuietHours())
 
       if (allowPush) {
-        try {
-          const result = await sendPushToAll({
-            title: `${emoji} ${name}`,
-            body: preview,
-            url: `/messages?c=${row.companion_slug}`,
-            tag: `outreach-${row.kind}-${row.companion_slug}`,
-          })
-          if (result.sent > 0) {
-            pushed++
-            await logPush(row.kind, row.companion_slug)
-          }
-        } catch (e) {
-          console.error('outreach push', e)
+        const result = await pushIfStillUnread({
+          companionSlug: row.companion_slug,
+          messageCreatedAt,
+          title: `${emoji} ${name}`,
+          body: preview,
+          tag: `outreach-${row.kind}-${row.companion_slug}`,
+        })
+        if (result.pushed) {
+          pushed++
+          await logPush(row.kind, row.companion_slug)
         }
       }
     } catch (e) {
