@@ -167,7 +167,12 @@ export default async function HubPage() {
     { href: '/messages', label: 'Messages', sub: 'Chat', icon: '💬' },
     { href: '/companion-profile', label: 'Profile', sub: 'You & them', icon: '🪞' },
     { href: '/settings', label: 'Settings', sub: 'More', icon: '⚙️' },
-    { href: '#', label: 'Standing', sub: rhythm ? tier.label : 'Soon', icon: '📊', disabled: !rhythm },
+    {
+      href: '/standing',
+      label: 'Standing',
+      sub: rhythm ? tier.label : 'Rhythm',
+      icon: '📊',
+    },
     { href: '#', label: 'Map', sub: 'Soon', icon: '🗺️', disabled: true },
     { href: '#', label: 'Goals', sub: 'Soon', icon: '🎯', disabled: true },
   ]
@@ -320,8 +325,11 @@ export default async function HubPage() {
         )}
       </section>
 
-      {/* ── Standing (live Rhythm when available) ── */}
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
+      {/* ── Standing teaser → full page ── */}
+      <Link
+        href="/standing"
+        className="block rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 hover:border-violet-700/50 transition-colors"
+      >
         <div className="flex items-center justify-between">
           <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-wider text-zinc-500">Standing</p>
@@ -353,16 +361,16 @@ export default async function HubPage() {
               </p>
             )}
           </div>
-          <span className="text-zinc-600 text-lg shrink-0">📊</span>
+          <span className="text-zinc-500 text-lg shrink-0">›</span>
         </div>
-      </div>
+      </Link>
 
       {/* ── Module grid ── */}
       <section>
         <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2.5">World</p>
         <div className="grid grid-cols-3 gap-2.5">
           {modules.map((m) =>
-            m.disabled ? (
+            (m as { disabled?: boolean }).disabled ? (
               <div
                 key={m.label}
                 className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-3.5 flex flex-col items-start gap-1 opacity-50"
