@@ -3,10 +3,13 @@
 :root {
   --background: #09090b;
   --foreground: #fafafa;
-  --card: #18181b;
+  --card: #121214;
+  --card-elevated: #18181b;
   --card-border: #27272a;
+  --card-border-soft: #1f1f23;
   --accent: #8b5cf6;
-  --accent-soft: #7c3aed33;
+  --accent-soft: rgba(124, 58, 237, 0.18);
+  --muted: #71717a;
 }
 
 @theme inline {
@@ -24,6 +27,7 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.011em;
 }
 
 main {
@@ -31,25 +35,76 @@ main {
   background-image: none !important;
 }
 
-/* Better form inputs */
-input, select, textarea {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+/* Inputs */
+input,
+select,
+textarea {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus,
+select:focus,
+textarea:focus {
   outline: none;
   border-color: #8b5cf6 !important;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
 }
 
-/* Smooth buttons */
+/* Buttons */
 button {
   transition: all 0.15s ease;
 }
 
-/* Soft card style utility */
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+/* Card system */
 .card {
-  background: #18181b;
-  border: 1px solid #27272a;
+  background: var(--card-elevated);
+  border: 1px solid var(--card-border);
   border-radius: 1rem;
+}
+
+.card-soft {
+  background: rgba(24, 24, 27, 0.72);
+  border: 1px solid rgba(39, 39, 42, 0.85);
+  border-radius: 1rem;
+}
+
+/* Module tiles */
+.module-tile {
+  background: linear-gradient(180deg, rgba(28, 28, 31, 0.95) 0%, rgba(18, 18, 20, 0.98) 100%);
+  border: 1px solid rgba(39, 39, 42, 0.9);
+  border-radius: 1rem;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.module-tile:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: linear-gradient(180deg, rgba(32, 32, 36, 0.98) 0%, rgba(20, 20, 22, 1) 100%);
+}
+
+.module-tile:active {
+  transform: scale(0.98);
+}
+
+/* Section labels */
+.section-label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #71717a;
+}
+
+/* Subtle divider */
+.hairline {
+  border-color: rgba(39, 39, 42, 0.8);
+}
+
+/* Safe area for notched phones */
+.safe-bottom {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
 }
