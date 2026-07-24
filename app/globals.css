@@ -1,14 +1,13 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
+  --background: #07070a;
   --foreground: #fafafa;
-  --card: #121214;
-  --card-elevated: #18181b;
-  --card-border: #27272a;
-  --card-border-soft: #1f1f23;
-  --accent: #8b5cf6;
-  --accent-soft: rgba(124, 58, 237, 0.18);
+  --card: #141417;
+  --card-elevated: #1c1c21;
+  --card-border: #2e2e35;
+  --accent: #a78bfa;
+  --accent-deep: #7c3aed;
   --muted: #71717a;
 }
 
@@ -21,13 +20,12 @@
 
 html,
 body {
-  background: #09090b !important;
+  background: #07070a !important;
   background-image: none !important;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.011em;
 }
 
 main {
@@ -35,11 +33,10 @@ main {
   background-image: none !important;
 }
 
-/* Inputs */
 input,
 select,
 textarea {
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 input:focus,
@@ -47,64 +44,75 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: #8b5cf6 !important;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
 }
 
-/* Buttons */
 button {
   transition: all 0.15s ease;
 }
 
 button:active:not(:disabled) {
-  transform: scale(0.98);
+  transform: scale(0.97);
 }
 
-/* Card system */
-.card {
-  background: var(--card-elevated);
-  border: 1px solid var(--card-border);
-  border-radius: 1rem;
+/* Elevated surface */
+.surface {
+  background: #141417;
+  border: 1px solid #2a2a31;
+  border-radius: 1.1rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
-.card-soft {
-  background: rgba(24, 24, 27, 0.72);
-  border: 1px solid rgba(39, 39, 42, 0.85);
-  border-radius: 1rem;
-}
-
-/* Module tiles */
-.module-tile {
-  background: linear-gradient(180deg, rgba(28, 28, 31, 0.95) 0%, rgba(18, 18, 20, 0.98) 100%);
-  border: 1px solid rgba(39, 39, 42, 0.9);
-  border-radius: 1rem;
+.surface-soft {
+  background: #121215;
+  border: 1px solid #25252c;
+  border-radius: 1.1rem;
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
-  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+/* World module tiles */
+.module-tile {
+  background: #16161b;
+  border: 1px solid #2c2c34;
+  border-radius: 1.1rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.05) inset,
+    0 6px 16px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .module-tile:hover {
-  border-color: rgba(139, 92, 246, 0.45);
-  background: linear-gradient(180deg, rgba(32, 32, 36, 0.98) 0%, rgba(20, 20, 22, 1) 100%);
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px rgba(139, 92, 246, 0.12),
+    0 10px 24px rgba(0, 0, 0, 0.4);
+  transform: translateY(-1px);
 }
 
 .module-tile:active {
   transform: scale(0.98);
 }
 
-/* Section labels */
 .section-label {
   font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #71717a;
+  color: #8b8b96;
 }
 
-/* Subtle divider */
-.hairline {
-  border-color: rgba(39, 39, 42, 0.8);
-}
-
-/* Safe area for notched phones */
 .safe-bottom {
-  padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
+}
+
+/* Accent left rail on important cards */
+.rail-violet {
+  box-shadow: inset 3px 0 0 0 #8b5cf6;
+}
+
+.rail-amber {
+  box-shadow: inset 3px 0 0 0 #f59e0b;
 }
