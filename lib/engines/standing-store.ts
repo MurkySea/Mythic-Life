@@ -1,7 +1,7 @@
 /**
  * Persistent player standing
  *
- * Table (run once in Supabase SQL Editor):
+ * Supabase SQL (run once):
  *
  * create table if not exists player_standing (
  *   id text primary key default 'solo',
@@ -10,9 +10,12 @@
  *   total_xp numeric not null default 0,
  *   total_gold numeric not null default 0,
  *   last_rhythm_tier text,
+ *   last_rhythm_date text,
  *   last_self_neglect text,
  *   updated_at timestamptz default now()
  * );
+ *
+ * alter table player_standing add column if not exists last_rhythm_date text;
  *
  * insert into player_standing (id) values ('solo') on conflict do nothing;
  */
@@ -26,6 +29,7 @@ export interface PlayerStandingRow {
   total_xp: number
   total_gold: number
   last_rhythm_tier: string | null
+  last_rhythm_date: string | null
   last_self_neglect: string | null
   updated_at?: string
 }
@@ -37,6 +41,7 @@ const DEFAULT: PlayerStandingRow = {
   total_xp: 0,
   total_gold: 0,
   last_rhythm_tier: null,
+  last_rhythm_date: null,
   last_self_neglect: null,
 }
 
@@ -57,6 +62,7 @@ export async function loadStanding(): Promise<PlayerStandingRow> {
       total_xp: Number(data.total_xp) || 0,
       total_gold: Number(data.total_gold) || 0,
       last_rhythm_tier: data.last_rhythm_tier ?? null,
+      last_rhythm_date: data.last_rhythm_date ?? null,
       last_self_neglect: data.last_self_neglect ?? null,
       updated_at: data.updated_at,
     }
@@ -86,6 +92,7 @@ export async function saveStanding(
         total_xp: next.total_xp,
         total_gold: next.total_gold,
         last_rhythm_tier: next.last_rhythm_tier,
+        last_rhythm_date: next.last_rhythm_date,
         last_self_neglect: next.last_self_neglect,
         updated_at: next.updated_at,
       },
@@ -100,20 +107,21 @@ export async function saveStanding(
 
 /**
  * Apply a completed task into standing.
- * XP/Gold are immediate; Tokens are scarce and gated by multipliers.
+ * XP/Gold immediate. Tokens scarce.
+ * Rhythm debt applies AT MOST ONCE per scored sleep date.
  */
 export async function applyTaskToStanding(opts: {
   domainCount: number
   rhythmRewardEfficiency: number
   rhythmTokenMultiplier: number
   rhythmDebtDelta: number
+  rhythmDate: string | null
   selfMultiplier: number
   selfNeglectSeverity: string
   rhythmTier: string | null
 }): Promise<PlayerStandingRow> {
   const current = await loadStanding()
 
-  // Combined multiplier never blocks — only dampens
   const debtMul = Math.max(0.6, 1 - current.shadow_debt * 0.004)
   const combined = Math.max(
     0.55,
@@ -126,16 +134,20 @@ export async function applyTaskToStanding(opts: {
   const xpGain = Math.round(baseXp * combined)
   const goldGain = Math.round(baseGold * combined)
 
-  // Tokens only when token multiplier > 0 and combined is healthy
   let tokenGain = 0
   if (opts.rhythmTokenMultiplier > 0 && combined >= 0.85) {
     tokenGain = Number((0.35 * opts.rhythmTokenMultiplier * opts.selfMultiplier).toFixed(2))
   }
 
-  const nextDebt = Math.max(
-    0,
-    Number((current.shadow_debt + opts.rhythmDebtDelta).toFixed(1))
-  )
+  // Debt only once per sleep-scored date
+  let debtDelta = 0
+  let nextRhythmDate = current.last_rhythm_date
+  if (opts.rhythmDate && opts.rhythmDate !== current.last_rhythm_date) {
+    debtDelta = opts.rhythmDebtDelta
+    nextRhythmDate = opts.rhythmDate
+  }
+
+  const nextDebt = Math.max(0, Number((current.shadow_debt + debtDelta).toFixed(1)))
 
   return saveStanding({
     shadow_debt: nextDebt,
@@ -143,6 +155,18 @@ export async function applyTaskToStanding(opts: {
     total_xp: current.total_xp + xpGain,
     total_gold: current.total_gold + goldGain,
     last_rhythm_tier: opts.rhythmTier,
+    last_rhythm_date: nextRhythmDate,
     last_self_neglect: opts.selfNeglectSeverity,
   })
+}
+
+/** Spend tokens on an extra (never gates core loops). Returns false if insufficient. */
+export async function spendTokens(amount: number): Promise<boolean> {
+  if (amount <= 0) return false
+  const current = await loadStanding()
+  if (current.consistency_tokens < amount) return false
+  await saveStanding({
+    consistency_tokens: Number((current.consistency_tokens - amount).toFixed(2)),
+  })
+  return true
 }
