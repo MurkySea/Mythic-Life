@@ -25,8 +25,14 @@ const ITEMS = [
 
 export default function TasksHubPage() {
   return (
-    <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-      <div className="mb-8">
+    <main className="max-w-md mx-auto px-4 pt-6 pb-10 min-h-screen">
+      <div className="mb-6">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-violet-400 transition-colors mb-3"
+        >
+          ← Home
+        </Link>
         <p className="text-zinc-500 text-xs tracking-wide uppercase">Tasks</p>
         <h1 className="text-2xl font-medium text-white tracking-tight">Menu</h1>
         <p className="text-zinc-500 text-sm mt-2 leading-relaxed">
