@@ -3,6 +3,8 @@ import { createClient } from '@/utils/supabase/server'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { aggregateDomains, detectSelfNeglect, debtToMultiplier } from '@/lib/engines/ontology'
 import { loadStanding } from '@/lib/engines/standing-store'
+import { TOKEN_SINKS } from '@/lib/engines/sinks'
+import { buySink } from './actions'
 import type { LifeDomain } from '@/lib/engines/types'
 import { getCompanionDef } from '@/lib/companions'
 import { parseDomains } from '@/lib/skills'
@@ -50,16 +52,18 @@ export default async function StandingPage() {
   since.setDate(since.getDate() - 3)
   const { data: recentTasks } = await supabase
     .from('tasks')
-    .select('domains, domain, is_completed, completed_at')
+    .select('title, domains, domain, is_completed, completed_at')
     .eq('is_completed', true)
     .gte('completed_at', since.toISOString())
     .limit(80)
 
   const tags: string[] = []
+  const titles: string[] = []
   for (const t of recentTasks || []) {
     tags.push(...parseDomains(t.domains, t.domain))
+    if (t.title) titles.push(t.title)
   }
-  const aggregates = aggregateDomains(tags)
+  const aggregates = aggregateDomains(tags, { titles })
   const neglect = detectSelfNeglect(aggregates)
   const maxDomain = Math.max(1, ...Object.values(aggregates))
 
@@ -83,8 +87,7 @@ export default async function StandingPage() {
     }
   })
 
-  // Prefer persisted debt for the dampener; fall back to last rhythm delta
-  const debtForMul = Math.max(0, persisted.shadow_debt || rhythm?.shadowDebtDelta || 0)
+  const debtForMul = Math.max(0, persisted.shadow_debt || 0)
   const rhythmMul = rhythm?.rewardEfficiency ?? 1
   const debtMul = debtToMultiplier(debtForMul)
   const selfMul = neglect.selfMultiplier
@@ -104,7 +107,6 @@ export default async function StandingPage() {
       </div>
 
       <div className="space-y-4">
-        {/* Persistent currencies */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
@@ -138,7 +140,6 @@ export default async function StandingPage() {
           </div>
         </section>
 
-        {/* Combined multiplier */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5">
           <div className="flex items-end justify-between">
             <div>
@@ -153,7 +154,6 @@ export default async function StandingPage() {
           </div>
         </section>
 
-        {/* Rhythm */}
         {rhythm ? (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-3">
             <div className="flex items-start justify-between">
@@ -169,29 +169,6 @@ export default async function StandingPage() {
                 </p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                <p className="text-[10px] text-zinc-500">Token mult</p>
-                <p className="text-sm font-medium text-sky-300 tabular-nums">
-                  {rhythm.consistencyTokenMultiplier.toFixed(2)}×
-                </p>
-              </div>
-              <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                <p className="text-[10px] text-zinc-500">Debt Δ</p>
-                <p
-                  className={`text-sm font-medium tabular-nums ${
-                    rhythm.shadowDebtDelta > 0
-                      ? 'text-amber-400'
-                      : rhythm.shadowDebtDelta < 0
-                        ? 'text-emerald-400'
-                        : 'text-zinc-300'
-                  }`}
-                >
-                  {rhythm.shadowDebtDelta > 0 ? '+' : ''}
-                  {rhythm.shadowDebtDelta}
-                </p>
-              </div>
-            </div>
             {sleep && (
               <p className="text-xs text-zinc-500">
                 {sleep.bedtimeDisplay || '—'} → {sleep.wakeDisplay || '—'}
@@ -201,11 +178,10 @@ export default async function StandingPage() {
           </section>
         ) : (
           <section className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/40 px-5 py-6 text-center">
-            <p className="text-zinc-500 text-sm">No rhythm data yet — waiting on health export.</p>
+            <p className="text-zinc-500 text-sm">No rhythm data yet.</p>
           </section>
         )}
 
-        {/* Self-Neglect */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-2">
           <div className="flex items-center justify-between">
             <p className="text-[11px] uppercase tracking-wider text-zinc-500">Self health</p>
@@ -226,13 +202,9 @@ export default async function StandingPage() {
           <p className="text-xs text-zinc-500">
             Self {neglect.selfScore} / total {neglect.totalScore} · ratio{' '}
             {(neglect.ratio * 100).toFixed(0)}%
-            {neglect.selfMultiplier < 1 && (
-              <span className="text-zinc-400"> · ×{neglect.selfMultiplier}</span>
-            )}
           </p>
         </section>
 
-        {/* Domain bars */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-3">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">Domains (3-day)</p>
           <div className="space-y-2.5">
@@ -257,7 +229,39 @@ export default async function StandingPage() {
           </div>
         </section>
 
-        {/* Party trust */}
+        {/* Token sinks — extras only */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-3">
+          <div>
+            <p className="text-[11px] uppercase tracking-wider text-zinc-500">Token sinks</p>
+            <p className="text-[11px] text-zinc-600 mt-0.5">Extras only. Never required for core play.</p>
+          </div>
+          <div className="space-y-2">
+            {TOKEN_SINKS.map((s) => {
+              const canAfford = persisted.consistency_tokens >= s.cost
+              return (
+                <form key={s.id} action={buySink} className="flex items-center justify-between gap-3">
+                  <input type="hidden" name="sink_id" value={s.id} />
+                  <div className="min-w-0">
+                    <p className="text-sm text-zinc-200">{s.label}</p>
+                    <p className="text-[11px] text-zinc-500 truncate">{s.blurb}</p>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!canAfford}
+                    className={`shrink-0 text-xs px-2.5 py-1.5 rounded-lg border transition ${
+                      canAfford
+                        ? 'border-sky-700/50 bg-sky-950/40 text-sky-300 hover:border-sky-500'
+                        : 'border-zinc-800 text-zinc-600 cursor-not-allowed'
+                    }`}
+                  >
+                    {s.cost} tok
+                  </button>
+                </form>
+              )
+            })}
+          </div>
+        </section>
+
         {party.length > 0 && (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-3">
             <p className="text-[11px] uppercase tracking-wider text-zinc-500">Party trust</p>
@@ -278,7 +282,6 @@ export default async function StandingPage() {
           </section>
         )}
 
-        {/* Body signals */}
         {signals && (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-3">
             <p className="text-[11px] uppercase tracking-wider text-zinc-500">Body signals</p>
@@ -291,26 +294,12 @@ export default async function StandingPage() {
                 <p className="text-[10px] text-zinc-500">Recovery</p>
                 <p className="font-medium text-zinc-200 capitalize">{signals.recoveryProxy}</p>
               </div>
-              {signals.hrv != null && (
-                <div>
-                  <p className="text-[10px] text-zinc-500">HRV</p>
-                  <p className="font-medium text-zinc-200 tabular-nums">{signals.hrv}</p>
-                </div>
-              )}
-              {signals.restingHeartRate != null && (
-                <div>
-                  <p className="text-[10px] text-zinc-500">Resting HR</p>
-                  <p className="font-medium text-zinc-200 tabular-nums">
-                    {signals.restingHeartRate}
-                  </p>
-                </div>
-              )}
             </div>
           </section>
         )}
 
         <p className="text-center text-[11px] text-zinc-600 pt-1">
-          {health?.date ? `Rhythm scored for ${health.date}` : 'Domains from last 3 days of tasks'}
+          {health?.date ? `Rhythm scored for ${health.date}` : 'Domains from last 3 days'}
         </p>
       </div>
     </main>
