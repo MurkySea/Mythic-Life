@@ -159,7 +159,6 @@ export default async function HubPage() {
   const rhythm = standing?.rhythm
   const tier = tierStyle(rhythm?.tier)
 
-  // What's Next / Daily Quest = first incomplete by anchor, else first incomplete
   const nextTask = incompleteTasks[0] || null
   const nextTime = nextTask ? formatAnchor(nextTask.anchor_time) : null
 
@@ -181,22 +180,25 @@ export default async function HubPage() {
   ]
 
   return (
-    <main className="max-w-md mx-auto p-4 space-y-5 pb-10">
-      <div className="pt-3 flex items-end justify-between">
+    <main className="max-w-md mx-auto px-4 pt-5 space-y-5 safe-bottom">
+      {/* Identity */}
+      <div className="flex items-end justify-between pt-1">
         <div>
-          <p className="text-zinc-500 text-xs tracking-wide">The Unconventional Advisor</p>
-          <h1 className="text-xl font-medium text-white leading-tight">Mark Zito</h1>
+          <p className="text-[11px] tracking-[0.06em] text-zinc-500 uppercase">
+            The Unconventional Advisor
+          </p>
+          <h1 className="text-[22px] font-semibold text-white tracking-tight mt-0.5">Mark Zito</h1>
         </div>
-        <div className="flex items-center gap-3 text-right">
+        <div className="flex items-center gap-4 text-right">
           {bestStreak > 0 && (
             <div>
-              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Streak</p>
-              <p className="text-base font-medium text-amber-400">{bestStreak}🔥</p>
+              <p className="section-label">Streak</p>
+              <p className="text-[15px] font-semibold text-amber-400 mt-0.5">{bestStreak}🔥</p>
             </div>
           )}
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-zinc-500">Today</p>
-            <p className="text-base font-medium text-violet-300">
+            <p className="section-label">Today</p>
+            <p className="text-[15px] font-semibold text-violet-300 mt-0.5 tabular-nums">
               {doneToday}/{totalToday || '—'}
             </p>
           </div>
@@ -205,33 +207,34 @@ export default async function HubPage() {
 
       {feedback && <FeedbackBanners feedback={feedback} />}
 
-      {/* What's Next / Daily Quest */}
+      {/* What's Next */}
       {nextTask && (
-        <section className="rounded-2xl border border-violet-800/40 bg-violet-950/20 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
+        <section className="rounded-2xl border border-violet-700/30 bg-gradient-to-br from-violet-950/35 to-zinc-900/40 px-4 py-3.5">
+          <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
-              <p className="text-[10px] uppercase tracking-wider text-violet-400/80">What's next</p>
-              <p className="text-sm font-medium text-white truncate mt-0.5">{nextTask.title}</p>
+              <p className="text-[10px] uppercase tracking-[0.08em] text-violet-400/90">What's next</p>
+              <p className="text-[15px] font-medium text-white truncate mt-1">{nextTask.title}</p>
             </div>
             {nextTime && (
-              <span className="shrink-0 text-xs font-medium text-sky-300 tabular-nums">{nextTime}</span>
+              <span className="shrink-0 text-xs font-semibold text-sky-300/90 tabular-nums bg-sky-950/40 border border-sky-800/30 rounded-full px-2.5 py-1">
+                {nextTime}
+              </span>
             )}
           </div>
         </section>
       )}
 
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
-            Today's Focus
-          </h2>
-          <Link href="/mother-list" className="text-xs text-violet-400 hover:text-violet-300">
+      {/* Today's Focus */}
+      <section className="space-y-2.5">
+        <div className="flex items-center justify-between px-0.5">
+          <h2 className="section-label">Today's Focus</h2>
+          <Link href="/mother-list" className="text-xs text-violet-400/90 hover:text-violet-300">
             + Mother List
           </Link>
         </div>
 
         {incompleteTasks.length > 0 ? (
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             {incompleteTasks.slice(0, 4).map(
               (task: {
                 id: string
@@ -246,7 +249,7 @@ export default async function HubPage() {
                 return (
                   <div
                     key={task.id}
-                    className="bg-zinc-900/90 border border-zinc-800 rounded-xl px-3 py-2.5 flex items-center gap-3"
+                    className="bg-zinc-900/70 border border-zinc-800/90 rounded-2xl px-3.5 py-3 flex items-center gap-3 shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]"
                   >
                     <form action={completeTask} className="shrink-0">
                       <input type="hidden" name="id" value={task.id} />
@@ -257,9 +260,9 @@ export default async function HubPage() {
                     </form>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm font-medium text-white truncate">{task.title}</p>
+                        <p className="text-[15px] font-medium text-white truncate">{task.title}</p>
                         {timeLabel && (
-                          <span className="shrink-0 text-[11px] font-medium text-sky-300 tabular-nums">
+                          <span className="shrink-0 text-[11px] font-medium text-sky-300/90 tabular-nums">
                             {timeLabel}
                           </span>
                         )}
@@ -277,14 +280,14 @@ export default async function HubPage() {
             {incompleteTasks.length > 4 && (
               <Link
                 href="/tasks"
-                className="block text-center text-xs text-violet-400 py-1 hover:text-violet-300"
+                className="block text-center text-xs text-violet-400/90 py-1 hover:text-violet-300"
               >
                 +{incompleteTasks.length - 4} more →
               </Link>
             )}
           </div>
         ) : (
-          <div className="bg-zinc-900/40 border border-dashed border-zinc-800 rounded-xl px-4 py-5 text-center">
+          <div className="border border-dashed border-zinc-800 rounded-2xl px-4 py-6 text-center bg-zinc-900/30">
             <p className="text-zinc-500 text-sm">
               {completedTasks.length > 0 ? 'All clear for today.' : 'No tasks yet.'}
             </p>
@@ -297,20 +300,21 @@ export default async function HubPage() {
         )}
       </section>
 
+      {/* Standing teaser */}
       <Link
         href="/standing"
-        className="block rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 hover:border-violet-700/50 transition-colors"
+        className="block rounded-2xl border border-zinc-800/90 bg-zinc-900/50 px-4 py-3.5 hover:border-violet-700/40 transition-colors shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]"
       >
         <div className="flex items-center justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] uppercase tracking-wider text-zinc-500">Standing</p>
+            <p className="section-label">Standing</p>
             {rhythm ? (
               <div className="mt-1 space-y-0.5">
-                <p className={`text-sm font-medium ${tier.color}`}>
+                <p className={`text-[15px] font-medium ${tier.color}`}>
                   Rhythm · {tier.label}
                   {rhythm.rewardEfficiency !== 1 && (
-                    <span className="text-zinc-400 font-normal">
-                      {' '}· {rhythm.rewardEfficiency.toFixed(2)}× rewards
+                    <span className="text-zinc-500 font-normal">
+                      {' '}· {rhythm.rewardEfficiency.toFixed(2)}×
                     </span>
                   )}
                 </p>
@@ -321,36 +325,31 @@ export default async function HubPage() {
                 </p>
               </div>
             ) : (
-              <p className="text-sm text-zinc-400 mt-0.5">
-                Self · Consistency · Debt — waiting for health data
-              </p>
+              <p className="text-sm text-zinc-400 mt-1">Self · Consistency · Debt</p>
             )}
           </div>
-          <span className="text-zinc-500 text-lg shrink-0">›</span>
+          <span className="text-zinc-600 text-lg shrink-0">›</span>
         </div>
       </Link>
 
+      {/* World grid */}
       <section>
-        <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2.5">World</p>
+        <p className="section-label mb-2.5 px-0.5">World</p>
         <div className="grid grid-cols-3 gap-2.5">
           {modules.map((m) =>
             (m as { disabled?: boolean }).disabled ? (
               <div
                 key={m.label}
-                className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-3.5 flex flex-col items-start gap-1 opacity-50"
+                className="rounded-2xl border border-zinc-800/60 bg-zinc-900/30 p-3.5 flex flex-col items-start gap-1.5 opacity-40"
               >
-                <span className="text-xl leading-none">{m.icon}</span>
-                <span className="text-sm font-medium text-zinc-400">{m.label}</span>
+                <span className="text-[22px] leading-none">{m.icon}</span>
+                <span className="text-[13px] font-medium text-zinc-400">{m.label}</span>
                 <span className="text-[10px] text-zinc-600">{m.sub}</span>
               </div>
             ) : (
-              <Link
-                key={m.label}
-                href={m.href}
-                className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-3.5 flex flex-col items-start gap-1 hover:border-violet-600/50 hover:bg-zinc-900 transition-colors"
-              >
-                <span className="text-xl leading-none">{m.icon}</span>
-                <span className="text-sm font-medium text-white">{m.label}</span>
+              <Link key={m.label} href={m.href} className="module-tile p-3.5 flex flex-col items-start gap-1.5">
+                <span className="text-[22px] leading-none">{m.icon}</span>
+                <span className="text-[13px] font-medium text-white">{m.label}</span>
                 <span className="text-[10px] text-zinc-500">{m.sub}</span>
               </Link>
             )
