@@ -16,14 +16,30 @@ import {
 /** Map existing skill keys → LifeDomain */
 export function skillToDomain(skill: string): LifeDomain {
   const s = skill.toLowerCase()
-  if (['faith', 'discipline', 'fitness', 'rest', 'recovery', 'piano', 'fishing'].includes(s))
+
+  // Self — regenerative / body / mind care
+  if (
+    ['faith', 'discipline', 'fitness', 'rest', 'recovery', 'piano', 'fishing', 'wisdom'].includes(s)
+  ) {
     return 'self'
-  if (['relationship', 'marriage', 'family', 'community'].includes(s))
+  }
+
+  // Relationship
+  if (['relations', 'relationship', 'marriage', 'family', 'community'].includes(s)) {
     return 'relationship'
-  if (['stewardship', 'clients', 'work', 'office', 'finance'].includes(s))
+  }
+
+  // Stewardship — clients, money, office
+  if (['stewardship', 'business', 'clients', 'work', 'office', 'finance'].includes(s)) {
     return 'stewardship'
-  if (['legacy', 'writing', 'vision', 'ministry', 'teaching'].includes(s))
+  }
+
+  // Legacy
+  if (['legacy', 'writing', 'vision', 'ministry', 'teaching'].includes(s)) {
     return 'legacy'
+  }
+
+  // Knowledge / general craft falls into domain for now
   return 'domain'
 }
 
@@ -101,7 +117,7 @@ export function detectSelfNeglect(
   }
 }
 
-/** Map Rhythm debt delta + current neglect into a 0.60–1.00 multiplier */
+/** Map current debt into a 0.60–1.00 multiplier */
 export function debtToMultiplier(currentDebt: number): number {
   return Math.max(0.6, Number((1 - currentDebt * 0.004).toFixed(3)))
 }
