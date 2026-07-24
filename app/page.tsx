@@ -17,6 +17,7 @@ import { parseDomains, SKILL_LABELS, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
+import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,6 +134,7 @@ export default async function HubPage() {
   })
 
   const feedback = await readFeedback()
+  const standing = await fetchLatestStanding()
   const supabase = await createClient()
 
   const { data: todayTasks } = await supabase
@@ -155,6 +157,9 @@ export default async function HubPage() {
     ...(todayTasks || []).map((t: { streak_count?: number }) => t.streak_count || 0)
   )
 
+  const rhythm = standing?.rhythm
+  const tier = tierStyle(rhythm?.tier)
+
   const modules = [
     { href: '/tasks', label: 'Tasks', sub: 'Full list', icon: '📜' },
     { href: '/skills', label: 'Skills', sub: 'Level up', icon: '💪' },
@@ -162,8 +167,7 @@ export default async function HubPage() {
     { href: '/messages', label: 'Messages', sub: 'Chat', icon: '💬' },
     { href: '/companion-profile', label: 'Profile', sub: 'You & them', icon: '🪞' },
     { href: '/settings', label: 'Settings', sub: 'More', icon: '⚙️' },
-    // Future slots — already reserved so the grid grows cleanly
-    { href: '#', label: 'Standing', sub: 'Soon', icon: '📊', disabled: true },
+    { href: '#', label: 'Standing', sub: rhythm ? tier.label : 'Soon', icon: '📊', disabled: !rhythm },
     { href: '#', label: 'Map', sub: 'Soon', icon: '🗺️', disabled: true },
     { href: '#', label: 'Goals', sub: 'Soon', icon: '🎯', disabled: true },
   ]
@@ -218,7 +222,7 @@ export default async function HubPage() {
               {(feedback.skillGains || []).map((g) => (
                 <span
                   key={g.skill}
-                  className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-fuchsia-200 border border-fuchsia-800/40"
+                  className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-violet-200 border border-violet-800/40"
                 >
                   +{g.xp} {g.label} · Lv {g.level}
                 </span>
@@ -316,21 +320,42 @@ export default async function HubPage() {
         )}
       </section>
 
-      {/* ── Standing teaser ── */}
-      <Link
-        href="#"
-        className="block rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 hover:border-violet-700/50 transition-colors"
-      >
+      {/* ── Standing (live Rhythm when available) ── */}
+      <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3">
         <div className="flex items-center justify-between">
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] uppercase tracking-wider text-zinc-500">Standing</p>
-            <p className="text-sm text-zinc-300 mt-0.5">
-              Self · Consistency · Debt — coming online
-            </p>
+            {rhythm ? (
+              <div className="mt-1 space-y-0.5">
+                <p className={`text-sm font-medium ${tier.color}`}>
+                  Rhythm · {tier.label}
+                  {rhythm.rewardEfficiency !== 1 && (
+                    <span className="text-zinc-400 font-normal">
+                      {' '}· {rhythm.rewardEfficiency.toFixed(2)}× rewards
+                    </span>
+                  )}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  {standing?.sleep?.bedtimeDisplay && standing?.sleep?.wakeDisplay
+                    ? `${standing.sleep.bedtimeDisplay} → ${standing.sleep.wakeDisplay}`
+                    : 'Sleep window scored'}
+                  {rhythm.shadowDebtDelta !== 0 && (
+                    <span>
+                      {' '}· Debt {rhythm.shadowDebtDelta > 0 ? '+' : ''}
+                      {rhythm.shadowDebtDelta}
+                    </span>
+                  )}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-400 mt-0.5">
+                Self · Consistency · Debt — waiting for health data
+              </p>
+            )}
           </div>
-          <span className="text-zinc-600 text-lg">📊</span>
+          <span className="text-zinc-600 text-lg shrink-0">📊</span>
         </div>
-      </Link>
+      </div>
 
       {/* ── Module grid ── */}
       <section>
