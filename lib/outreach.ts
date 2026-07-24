@@ -205,6 +205,7 @@ export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
   if (Math.random() > WANDERING_CHANCE) return false
 
   const supabase = await createClient()
+
   const { data: existing } = await supabase
     .from('scheduled_outreach')
     .select('id')
@@ -227,7 +228,11 @@ export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
       companion_slug: pick.slug,
       send_after: sendAfter,
       bypass_cap: false,
-      payload: { day: localYmd(), reason: 'just_because', affinity: pick.affinity },
+      payload: {
+        day: localYmd(),
+        reason: 'just_because',
+        affinity: pick.affinity,
+      },
     })
     return true
   } catch (e) {
@@ -241,6 +246,7 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
   if (Math.random() > MISSING_YOU_CHANCE) return false
 
   const supabase = await createClient()
+
   const { data: existing } = await supabase
     .from('scheduled_outreach')
     .select('id')
@@ -250,13 +256,17 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
 
   if (existing && existing.length > 0) return false
 
-  const pick = await pickUnlockedCompanion({ minAffinity: 6, preferHighBond: true })
+  const pick = await pickUnlockedCompanion({
+    minAffinity: 6,
+    preferHighBond: true,
+  })
   if (!pick) return false
 
   const hours = await hoursSinceLastContact(pick.slug)
   if (hours < 4) return false
 
-  const kind: OutreachKind = pick.affinity >= 12 && Math.random() > 0.45 ? 'soft_love' : 'missing_you'
+  const kind: OutreachKind =
+    pick.affinity >= 12 && Math.random() > 0.45 ? 'soft_love' : 'missing_you'
 
   const sendAfter = new Date(
     Date.now() + (10 + Math.random() * 50) * 60 * 1000
@@ -286,6 +296,7 @@ export async function maybeScheduleShareMoment(): Promise<boolean> {
   if (Math.random() > SHARE_MOMENT_CHANCE) return false
 
   const supabase = await createClient()
+
   const { data: existing } = await supabase
     .from('scheduled_outreach')
     .select('id')
@@ -295,13 +306,18 @@ export async function maybeScheduleShareMoment(): Promise<boolean> {
 
   if (existing && existing.length > 0) return false
 
-  const pick = await pickUnlockedCompanion({ minAffinity: 5, preferHighBond: true })
+  const pick = await pickUnlockedCompanion({
+    minAffinity: 5,
+    preferHighBond: true,
+  })
   if (!pick) return false
 
   let imageUrl: string | null = null
+
   try {
     const def = getCompanionDef(pick.slug)
     const characterName = def?.name || pick.name
+
     const { data: imgs } = await supabase
       .from('gallery_images')
       .select('image_url, created_at')
@@ -314,7 +330,7 @@ export async function maybeScheduleShareMoment(): Promise<boolean> {
       imageUrl = imgs[idx].image_url || null
     }
   } catch {
-    // gallery optional
+    // gallery is optional
   }
 
   const sendAfter = new Date(
@@ -369,8 +385,11 @@ export async function maybeScheduleTimeAnchors(): Promise<number> {
 
   for (const task of tasks) {
     if (!task.anchor_time || doneTaskIds.has(task.id)) continue
+
     const eligible =
-      task.is_today === true || task.recurrence === 'daily' || task.recurrence === 'weekly'
+      task.is_today === true ||
+      task.recurrence === 'daily' ||
+      task.recurrence === 'weekly'
     if (!eligible) continue
 
     const anchorMin = parseAnchorMinutes(String(task.anchor_time))
@@ -540,11 +559,14 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
         companionSlug: row.companion_slug,
       })
 
-      const imageUrl = typeof payload.imageUrl === 'string' ? payload.imageUrl : null
+      const imageUrl =
+        typeof payload.imageUrl === 'string' ? payload.imageUrl : null
+
+      // Prefer embedding the image marker so the UI can still render
+      // even if the subsequent update races.
       if (row.kind === 'share_moment' && imageUrl && typeof message === 'string') {
         const withImage = `${message.trim()}\n\n[image:${imageUrl}]`
 
-        // Attach image to the message that was just inserted
         const { data: latest } = await supabase
           .from('messages')
           .select('id')
@@ -559,8 +581,9 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
             .from('messages')
             .update({ content: withImage })
             .eq('id', latest.id)
-          message = withImage
         }
+
+        message = withImage
       }
 
       const preview =
