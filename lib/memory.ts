@@ -115,7 +115,8 @@ export async function storeMemory(opts: {
 }
 
 function parseEncoded(raw: string): { type: MemoryType; importance: number; text: string } {
-  const match = raw.match(/^\[(\w+):(\d+)\]\s*(.*)$/s)
+  // Use [\s\S] instead of the /s flag so TypeScript target < ES2018 still compiles
+  const match = raw.match(/^\[(\w+):(\d+)\]\s*([\s\S]*)$/)
   if (match) {
     const type = (['episodic', 'pattern', 'relational', 'private'].includes(match[1])
       ? match[1]
