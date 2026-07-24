@@ -1,31 +1,43 @@
 @import "tailwindcss";
 
 :root {
-  --background: #07070a;
-  --foreground: #fafafa;
-  --card: #141417;
-  --card-elevated: #1c1c21;
-  --card-border: #2e2e35;
-  --accent: #a78bfa;
-  --accent-deep: #7c3aed;
-  --muted: #71717a;
+  --bg: #050508;
+  --bg-elevated: #0c0c10;
+  --surface: #121218;
+  --surface-2: #1a1a22;
+  --border: #2a2a35;
+  --border-soft: #1e1e28;
+  --text: #f4f4f7;
+  --text-muted: #8b8b9a;
+  --text-dim: #5c5c6b;
+  --violet: #9b7dff;
+  --violet-deep: #6d4aff;
+  --amber: #f0b429;
+  --sky: #5eb8ff;
+  --emerald: #34d399;
+  --rose: #fb7185;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+* {
+  box-sizing: border-box;
+}
+
 html,
 body {
-  background: #07070a !important;
+  background: var(--bg) !important;
   background-image: none !important;
-  color: var(--foreground);
-  font-family: var(--font-geist-sans), system-ui, sans-serif;
+  color: var(--text);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.015em;
 }
 
 main {
@@ -33,6 +45,125 @@ main {
   background-image: none !important;
 }
 
+/* ── Typography ── */
+.ml-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.ml-title {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.15;
+}
+
+.ml-body {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.ml-meta {
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+/* ── Surfaces ── */
+.ml-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.ml-panel-flat {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  border-radius: 1.15rem;
+}
+
+.ml-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
+    0 8px 20px rgba(0, 0, 0, 0.35);
+  transition:
+    border-color 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.ml-tile:hover {
+  border-color: rgba(155, 125, 255, 0.55);
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 0 1px rgba(155, 125, 255, 0.12),
+    0 14px 28px rgba(0, 0, 0, 0.5);
+}
+
+.ml-tile:active {
+  transform: scale(0.98);
+}
+
+/* Accent rails */
+.ml-rail-violet {
+  box-shadow:
+    inset 3px 0 0 0 var(--violet),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.ml-rail-amber {
+  box-shadow:
+    inset 3px 0 0 0 var(--amber),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+/* Status chips */
+.ml-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.25rem;
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid;
+  line-height: 1.1;
+}
+
+.ml-chip-amber {
+  background: rgba(240, 180, 41, 0.12);
+  border-color: rgba(240, 180, 41, 0.35);
+  color: #fbbf24;
+}
+
+.ml-chip-violet {
+  background: rgba(155, 125, 255, 0.14);
+  border-color: rgba(155, 125, 255, 0.4);
+  color: #c4b5fd;
+}
+
+.ml-chip-sky {
+  background: rgba(94, 184, 255, 0.12);
+  border-color: rgba(94, 184, 255, 0.35);
+  color: #7dd3fc;
+}
+
+/* Forms */
 input,
 select,
 textarea {
@@ -43,8 +174,8 @@ input:focus,
 select:focus,
 textarea:focus {
   outline: none;
-  border-color: #8b5cf6 !important;
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+  border-color: var(--violet) !important;
+  box-shadow: 0 0 0 3px rgba(155, 125, 255, 0.2);
 }
 
 button {
@@ -55,64 +186,45 @@ button:active:not(:disabled) {
   transform: scale(0.97);
 }
 
-/* Elevated surface */
-.surface {
-  background: #141417;
-  border: 1px solid #2a2a31;
-  border-radius: 1.1rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
-.surface-soft {
-  background: #121215;
-  border: 1px solid #25252c;
-  border-radius: 1.1rem;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
-}
-
-/* World module tiles */
-.module-tile {
-  background: #16161b;
-  border: 1px solid #2c2c34;
-  border-radius: 1.1rem;
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.05) inset,
-    0 6px 16px rgba(0, 0, 0, 0.28);
-  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.module-tile:hover {
-  border-color: rgba(167, 139, 250, 0.55);
-  box-shadow:
-    0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 0 0 1px rgba(139, 92, 246, 0.12),
-    0 10px 24px rgba(0, 0, 0, 0.4);
-  transform: translateY(-1px);
-}
-
-.module-tile:active {
-  transform: scale(0.98);
-}
-
-.section-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #8b8b96;
-}
-
 .safe-bottom {
   padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
 }
 
-/* Accent left rail on important cards */
-.rail-violet {
-  box-shadow: inset 3px 0 0 0 #8b5cf6;
+/* Legacy helpers still used on older pages */
+.section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
 
-.rail-amber {
-  box-shadow: inset 3px 0 0 0 #f59e0b;
+.module-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.15rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.045) inset,
+    0 8px 20px rgba(0, 0, 0, 0.35);
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.module-tile:hover {
+  border-color: rgba(155, 125, 255, 0.55);
+  transform: translateY(-2px);
+}
+
+.surface {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.surface-soft {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  border-radius: 1.15rem;
 }
