@@ -114,7 +114,9 @@ export default async function HubPage() {
     return (
       <main className="max-w-md mx-auto p-6 space-y-4">
         <h1 className="ml-title pt-8">Configuration needed</h1>
-        <p className="text-zinc-400 text-sm">Supabase environment variables are missing.</p>
+        <p className="text-sm" style={{ color: 'var(--ink-muted)' }}>
+          Supabase environment variables are missing.
+        </p>
       </main>
     )
   }
@@ -161,44 +163,47 @@ export default async function HubPage() {
   const nextTime = nextTask ? formatAnchor(nextTask.anchor_time) : null
 
   const modules = [
-    { href: '/tasks', label: 'Tasks', sub: 'Full list', icon: '📜' },
-    { href: '/skills', label: 'Skills', sub: 'Level up', icon: '💪' },
-    { href: '/companions', label: 'Companions', sub: 'Party', icon: '🦊' },
-    { href: '/messages', label: 'Messages', sub: 'Chat', icon: '💬' },
-    { href: '/companion-profile', label: 'Profile', sub: 'You & them', icon: '🪞' },
-    { href: '/settings', label: 'Settings', sub: 'More', icon: '⚙️' },
+    { href: '/tasks', label: 'Quests', sub: 'Task log', icon: '📜' },
+    { href: '/skills', label: 'Skills', sub: 'Growth', icon: '⚔️' },
+    { href: '/companions', label: 'Party', sub: 'Allies', icon: '🦊' },
+    { href: '/messages', label: 'Letters', sub: 'Messages', icon: '✉️' },
+    { href: '/companion-profile', label: 'Mirror', sub: 'Profile', icon: '🪞' },
+    { href: '/settings', label: 'Codex', sub: 'Settings', icon: '📖' },
     {
       href: '/standing',
       label: 'Standing',
-      sub: rhythm ? tier.label : 'Rhythm',
-      icon: '📊',
+      sub: rhythm ? tier.label : 'Status',
+      icon: '⚖️',
     },
     { href: '#', label: 'Map', sub: 'Soon', icon: '🗺️', disabled: true },
     { href: '#', label: 'Goals', sub: 'Soon', icon: '🎯', disabled: true },
   ]
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-5 space-y-6 safe-bottom">
-      {/* Hero identity */}
-      <header className="ml-panel px-5 py-4">
+    <main className="max-w-md mx-auto px-4 pt-5 space-y-5 safe-bottom">
+      {/* Character plate */}
+      <header className="plate plate-gold px-5 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="ml-kicker text-[var(--violet)]" style={{ color: '#9b7dff' }}>
-              Mythic Life
-            </p>
+            <p className="ml-kicker">Mythic Life</p>
             <h1 className="ml-title mt-1">Mark Zito</h1>
-            <p className="ml-meta mt-1.5">The Unconventional Advisor</p>
+            <p className="mt-1.5 text-[12px] font-medium" style={{ color: 'var(--ink-muted)' }}>
+              The Unconventional Advisor
+            </p>
+            <p className="mt-0.5 text-[11px]" style={{ color: 'var(--ink-dim)' }}>
+              Knight of Purpose · Private realm
+            </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0 pt-0.5">
+          <div className="flex items-center gap-2.5 shrink-0 pt-1">
             {bestStreak > 0 && (
-              <div className="ml-chip ml-chip-amber">
-                <span className="text-[8px] font-bold tracking-[0.12em] uppercase opacity-80">Streak</span>
-                <span className="text-sm font-bold mt-0.5">{bestStreak}🔥</span>
+              <div className="orb orb-gold">
+                <span className="text-[8px] font-bold tracking-wider uppercase opacity-70">Streak</span>
+                <span className="text-sm font-bold font-display">{bestStreak}</span>
               </div>
             )}
-            <div className="ml-chip ml-chip-violet">
-              <span className="text-[8px] font-bold tracking-[0.12em] uppercase opacity-80">Today</span>
-              <span className="text-sm font-bold mt-0.5 tabular-nums">
+            <div className="orb orb-violet">
+              <span className="text-[8px] font-bold tracking-wider uppercase opacity-70">Today</span>
+              <span className="text-sm font-bold font-display tabular-nums">
                 {doneToday}/{totalToday || '—'}
               </span>
             </div>
@@ -208,20 +213,27 @@ export default async function HubPage() {
 
       {feedback && <FeedbackBanners feedback={feedback} />}
 
-      {/* What's Next */}
+      {/* Active quest */}
       {nextTask && (
-        <section className="ml-panel ml-rail-violet px-5 py-4">
-          <div className="flex items-center justify-between gap-3 pl-1.5">
+        <section className="plate rail-violet px-5 py-4">
+          <div className="flex items-center justify-between gap-3 pl-1">
             <div className="min-w-0">
-              <p className="ml-kicker" style={{ color: '#9b7dff' }}>
-                What's next
+              <p className="ml-kicker" style={{ color: 'var(--violet)' }}>
+                Active quest
               </p>
-              <p className="text-[17px] font-bold text-white truncate mt-1.5 tracking-tight">
+              <p className="font-display text-[17px] font-semibold text-[var(--ink)] truncate mt-1.5">
                 {nextTask.title}
               </p>
             </div>
             {nextTime && (
-              <span className="ml-chip ml-chip-sky shrink-0 !flex-row !min-w-0 gap-0 px-3 py-1.5 text-xs font-bold tabular-nums">
+              <span
+                className="shrink-0 text-xs font-bold tabular-nums px-3 py-1.5 rounded-full border"
+                style={{
+                  color: 'var(--sky)',
+                  borderColor: 'rgba(125, 211, 252, 0.35)',
+                  background: 'rgba(14, 30, 48, 0.7)',
+                }}
+              >
                 {nextTime}
               </span>
             )}
@@ -229,14 +241,16 @@ export default async function HubPage() {
         </section>
       )}
 
-      {/* Today's Focus */}
+      {/* Quest log */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <h2 className="ml-kicker">Today's Focus</h2>
+          <h2 className="ml-kicker" style={{ color: 'var(--ink-dim)' }}>
+            Today's quests
+          </h2>
           <Link
             href="/mother-list"
             className="text-xs font-semibold hover:opacity-80"
-            style={{ color: '#9b7dff' }}
+            style={{ color: 'var(--gold)' }}
           >
             + Mother List
           </Link>
@@ -256,7 +270,7 @@ export default async function HubPage() {
                 const domains = parseDomains(task.domains, task.domain)
                 const timeLabel = formatAnchor(task.anchor_time)
                 return (
-                  <div key={task.id} className="ml-panel-flat px-4 py-3.5 flex items-center gap-3.5">
+                  <div key={task.id} className="quest-card px-4 py-3.5 flex items-center gap-3.5">
                     <form action={completeTask} className="shrink-0">
                       <input type="hidden" name="id" value={task.id} />
                       <input type="hidden" name="title" value={task.title} />
@@ -266,17 +280,20 @@ export default async function HubPage() {
                     </form>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[15px] font-semibold text-white truncate tracking-tight">
+                        <p className="text-[15px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
                           {task.title}
                         </p>
                         {timeLabel && (
-                          <span className="shrink-0 text-[11px] font-bold tabular-nums" style={{ color: '#5eb8ff' }}>
+                          <span
+                            className="shrink-0 text-[11px] font-bold tabular-nums"
+                            style={{ color: 'var(--sky)' }}
+                          >
                             {timeLabel}
                           </span>
                         )}
                       </div>
                       {(task.streak_count || 0) >= 2 && (
-                        <p className="text-[10px] font-semibold mt-1" style={{ color: '#f0b429' }}>
+                        <p className="text-[10px] font-semibold mt-1" style={{ color: 'var(--gold)' }}>
                           {task.streak_count} day streak
                         </p>
                       )}
@@ -289,88 +306,90 @@ export default async function HubPage() {
               <Link
                 href="/tasks"
                 className="block text-center text-xs font-semibold py-1.5 hover:opacity-80"
-                style={{ color: '#9b7dff' }}
+                style={{ color: 'var(--gold)' }}
               >
-                +{incompleteTasks.length - 4} more →
+                +{incompleteTasks.length - 4} more in the log →
               </Link>
             )}
           </div>
         ) : (
-          <div className="ml-panel-flat px-5 py-8 text-center">
-            <p className="text-sm font-medium" style={{ color: '#8b8b9a' }}>
-              {completedTasks.length > 0 ? 'All clear for today.' : 'No tasks yet.'}
+          <div className="quest-card px-5 py-8 text-center">
+            <p className="text-sm font-medium" style={{ color: 'var(--ink-muted)' }}>
+              {completedTasks.length > 0 ? 'All quests complete for today.' : 'No quests on the board.'}
             </p>
             {completedTasks.length === 0 && (
               <Link
                 href="/mother-list"
                 className="inline-block mt-3 text-sm font-semibold"
-                style={{ color: '#9b7dff' }}
+                style={{ color: 'var(--gold)' }}
               >
-                Choose from Mother List →
+                Draw from the Mother List →
               </Link>
             )}
           </div>
         )}
       </section>
 
-      {/* Standing */}
-      <Link href="/standing" className="block ml-panel ml-rail-amber px-5 py-4 transition-opacity hover:opacity-95">
-        <div className="flex items-center justify-between pl-1.5">
+      {/* Standing scroll */}
+      <Link href="/standing" className="block plate rail-gold px-5 py-4 hover:opacity-95 transition-opacity">
+        <div className="flex items-center justify-between pl-1">
           <div className="min-w-0">
-            <p className="ml-kicker" style={{ color: '#f0b429' }}>
-              Standing
-            </p>
+            <p className="ml-kicker">Standing</p>
             {rhythm ? (
               <div className="mt-1.5 space-y-0.5">
-                <p className={`text-[15px] font-bold tracking-tight ${tier.color}`}>
+                <p className={`font-display text-[15px] font-semibold ${tier.color}`}>
                   Rhythm · {tier.label}
                   {rhythm.rewardEfficiency !== 1 && (
-                    <span className="font-medium" style={{ color: '#8b8b9a' }}>
+                    <span className="font-medium" style={{ color: 'var(--ink-muted)' }}>
                       {' '}· {rhythm.rewardEfficiency.toFixed(2)}×
                     </span>
                   )}
                 </p>
-                <p className="text-xs font-medium" style={{ color: '#5c5c6b' }}>
+                <p className="text-xs" style={{ color: 'var(--ink-dim)' }}>
                   {standing?.sleep?.bedtimeDisplay && standing?.sleep?.wakeDisplay
                     ? `${standing.sleep.bedtimeDisplay} → ${standing.sleep.wakeDisplay}`
                     : 'Sleep window scored'}
                 </p>
               </div>
             ) : (
-              <p className="text-sm font-medium mt-1.5" style={{ color: '#8b8b9a' }}>
-                Self · Consistency · Debt
+              <p className="text-sm font-medium mt-1.5" style={{ color: 'var(--ink-muted)' }}>
+                Self · Consistency · Shadow Debt
               </p>
             )}
           </div>
-          <span className="text-2xl font-light shrink-0" style={{ color: '#5c5c6b' }}>
-            ›
+          <span className="text-xl shrink-0" style={{ color: 'var(--gold)' }}>
+            ⚖️
           </span>
         </div>
       </Link>
 
-      {/* World */}
+      {/* Grimoire */}
       <section>
-        <p className="ml-kicker mb-3 px-1">World</p>
-        <div className="grid grid-cols-3 gap-3">
+        <p className="ml-kicker mb-3 px-1" style={{ color: 'var(--ink-dim)' }}>
+          Grimoire
+        </p>
+        <div className="grid grid-cols-3 gap-2.5">
           {modules.map((m) =>
             (m as { disabled?: boolean }).disabled ? (
               <div
                 key={m.label}
-                className="rounded-[1.15rem] border border-[var(--border-soft)] bg-[var(--bg-elevated)] p-3.5 flex flex-col items-start gap-1.5 opacity-30"
+                className="rounded-[1.05rem] border border-[#2a2440] bg-[#0e0c16] p-3.5 flex flex-col items-start gap-1.5 opacity-35"
               >
-                <span className="text-[26px] leading-none">{m.icon}</span>
-                <span className="text-[13px] font-bold" style={{ color: '#8b8b9a' }}>
+                <span className="text-[24px] leading-none">{m.icon}</span>
+                <span className="text-[12px] font-bold font-display" style={{ color: 'var(--ink-muted)' }}>
                   {m.label}
                 </span>
-                <span className="text-[10px] font-medium" style={{ color: '#5c5c6b' }}>
+                <span className="text-[10px]" style={{ color: 'var(--ink-dim)' }}>
                   {m.sub}
                 </span>
               </div>
             ) : (
-              <Link key={m.label} href={m.href} className="ml-tile p-3.5 flex flex-col items-start gap-1.5">
-                <span className="text-[26px] leading-none">{m.icon}</span>
-                <span className="text-[13px] font-bold text-white">{m.label}</span>
-                <span className="text-[10px] font-medium" style={{ color: '#8b8b9a' }}>
+              <Link key={m.label} href={m.href} className="grimoire-tile p-3.5 flex flex-col items-start gap-1.5">
+                <span className="text-[24px] leading-none">{m.icon}</span>
+                <span className="text-[12px] font-bold font-display" style={{ color: 'var(--ink)' }}>
+                  {m.label}
+                </span>
+                <span className="text-[10px]" style={{ color: 'var(--ink-muted)' }}>
                   {m.sub}
                 </span>
               </Link>
