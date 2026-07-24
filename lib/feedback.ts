@@ -16,7 +16,7 @@ export async function setFeedback(payload: FeedbackPayload) {
   const store = await cookies()
   store.set(COOKIE, JSON.stringify(payload), {
     path: '/',
-    maxAge: 120,
+    maxAge: 8, // short-lived; client also auto-dismisses
     httpOnly: false,
     sameSite: 'lax',
   })
