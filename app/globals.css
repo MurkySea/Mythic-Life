@@ -24,11 +24,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle page gradient */
-main {
-  background: radial-gradient(ellipse 80% 50% at 50% -20%, rgba(124, 58, 237, 0.12), transparent);
-}
-
 /* Better form inputs */
 input, select, textarea {
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
@@ -50,9 +45,4 @@ button {
   background: #18181b;
   border: 1px solid #27272a;
   border-radius: 1rem;
-}
-
-/* Hide scrollbar on mobile nav */
-.safe-area-bottom {
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
