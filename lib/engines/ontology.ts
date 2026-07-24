@@ -1,8 +1,5 @@
 /**
  * Weighted Task Ontology + Self-Neglect
- *
- * Maps existing skill domains onto LifeDomain and detects
- * when regenerative Self work is too thin relative to output.
  */
 
 import {
@@ -13,43 +10,65 @@ import {
   type SelfNeglectSeverity,
 } from './types'
 
-/** Map existing skill keys → LifeDomain */
+const SELF_SKILLS = new Set([
+  'faith',
+  'discipline',
+  'fitness',
+  'rest',
+  'recovery',
+  'piano',
+  'fishing',
+  'wisdom',
+  'self',
+])
+
+const RELATIONSHIP_SKILLS = new Set([
+  'relations',
+  'relationship',
+  'marriage',
+  'family',
+  'community',
+])
+
+const STEWARDSHIP_SKILLS = new Set([
+  'stewardship',
+  'business',
+  'clients',
+  'work',
+  'office',
+  'finance',
+])
+
+const LEGACY_SKILLS = new Set([
+  'legacy',
+  'writing',
+  'vision',
+  'ministry',
+  'teaching',
+])
+
+/** Title keywords that count as Self even without a domain tag */
+const SELF_TITLE_RE =
+  /\b(fish|fishing|piano|practice|recover|recovery|rest|sleep|nap|walk|run|workout|gym|stretch|sabbath|quiet time|devotion|journal|hobby)\b/i
+
 export function skillToDomain(skill: string): LifeDomain {
-  const s = skill.toLowerCase()
-
-  // Self — regenerative / body / mind care
-  if (
-    ['faith', 'discipline', 'fitness', 'rest', 'recovery', 'piano', 'fishing', 'wisdom'].includes(s)
-  ) {
-    return 'self'
-  }
-
-  // Relationship
-  if (['relations', 'relationship', 'marriage', 'family', 'community'].includes(s)) {
-    return 'relationship'
-  }
-
-  // Stewardship — clients, money, office
-  if (['stewardship', 'business', 'clients', 'work', 'office', 'finance'].includes(s)) {
-    return 'stewardship'
-  }
-
-  // Legacy
-  if (['legacy', 'writing', 'vision', 'ministry', 'teaching'].includes(s)) {
-    return 'legacy'
-  }
-
-  // Knowledge / general craft falls into domain for now
+  const s = skill.toLowerCase().trim()
+  if (SELF_SKILLS.has(s)) return 'self'
+  if (RELATIONSHIP_SKILLS.has(s)) return 'relationship'
+  if (STEWARDSHIP_SKILLS.has(s)) return 'stewardship'
+  if (LEGACY_SKILLS.has(s)) return 'legacy'
   return 'domain'
 }
 
-/**
- * Aggregate domain scores from a list of completed task domain tags.
- * Each tag contributes base weight × simple effort proxy.
- */
+/** Infer an extra Self tag from the task title when domains are thin */
+export function selfTagFromTitle(title: string | null | undefined): string | null {
+  if (!title) return null
+  return SELF_TITLE_RE.test(title) ? 'self' : null
+}
+
 export function aggregateDomains(
   domainTags: string[],
-  opts?: { basePointsPerTask?: number }
+  opts?: { basePointsPerTask?: number; titles?: string[] }
 ): Record<LifeDomain, number> {
   const base = opts?.basePointsPerTask ?? 30
   const out: Record<LifeDomain, number> = {
@@ -65,6 +84,13 @@ export function aggregateDomains(
     out[d] += base * DOMAIN_BASE_WEIGHTS[d]
   }
 
+  // Title-based Self credit when the word appears but no Self domain was tagged
+  for (const title of opts?.titles || []) {
+    if (selfTagFromTitle(title)) {
+      out.self += base * DOMAIN_BASE_WEIGHTS.self * 0.6
+    }
+  }
+
   return out
 }
 
@@ -76,10 +102,6 @@ export function domainList(aggregates: Record<LifeDomain, number>): DomainAggreg
   }))
 }
 
-/**
- * Self-Neglect: Self score too thin relative to total output.
- * Only ever produces a multiplier dampener (never a hard block).
- */
 export function detectSelfNeglect(
   aggregates: Record<LifeDomain, number>
 ): SelfNeglectResult {
@@ -117,7 +139,6 @@ export function detectSelfNeglect(
   }
 }
 
-/** Map current debt into a 0.60–1.00 multiplier */
 export function debtToMultiplier(currentDebt: number): number {
   return Math.max(0.6, Number((1 - currentDebt * 0.004).toFixed(3)))
 }
