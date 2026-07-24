@@ -1,5 +1,6 @@
 import type { SkillKey } from './skills'
 import { GROK_COMPANION_DEFS } from './grokCompanions'
+import { getRelationshipStage, type RelationshipStage } from './engines/relationship'
 
 export type CompanionDef = {
   slug: string
@@ -494,10 +495,25 @@ export function meetsUnlock(
   return entries.every(([skill, min]) => (levels[skill] || 1) >= (min || 1))
 }
 
+/**
+ * Legacy affinity-only stage label (1–24 scale).
+ * Prefer dual-axis when Trust + Intimacy are available.
+ */
 export function relationshipStage(affinity: number): string {
   if (affinity >= 20) return 'deep private bond — intimate, trusted, chosen'
   if (affinity >= 12) return 'close — real affection and ease'
   if (affinity >= 6) return 'warming — trust is forming'
   if (affinity >= 3) return 'familiar — no longer strangers'
   return 'early — still learning each other'
+}
+
+/**
+ * Dual-axis stage (Trust + Intimacy, 0–100 each).
+ * Returns the canonical RelationshipStage from the engine.
+ */
+export function dualRelationshipStage(
+  trust: number,
+  intimacy: number
+): RelationshipStage {
+  return getRelationshipStage(trust, intimacy)
 }
