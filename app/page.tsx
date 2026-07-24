@@ -19,8 +19,7 @@ import { setFeedback, readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
 import FeedbackBanners from '@/components/FeedbackBanners'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
-import { applyTaskToStanding } from '@/lib/engines/standing-store'
-import { aggregateDomains, detectSelfNeglect } from '@/lib/engines/ontology'
+import { runStandingForCompletedTask } from '@/lib/engines/apply-task'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,38 +67,7 @@ async function completeTask(formData: FormData) {
   const bond = await awardBondProgress(domains.join(','), streak, slug)
   const unlockedDetails = await postUnlockCeremony(newlyUnlocked)
 
-  try {
-    const health = await fetchLatestStanding()
-    const rhythm = health?.rhythm
-
-    const since = new Date()
-    since.setDate(since.getDate() - 3)
-    const { data: recent } = await supabase
-      .from('tasks')
-      .select('domains, domain, is_completed, completed_at')
-      .eq('is_completed', true)
-      .gte('completed_at', since.toISOString())
-      .limit(80)
-
-    const tags: string[] = [...domains]
-    for (const t of recent || []) {
-      tags.push(...parseDomains(t.domains, t.domain))
-    }
-    const aggregates = aggregateDomains(tags)
-    const neglect = detectSelfNeglect(aggregates)
-
-    await applyTaskToStanding({
-      domainCount: Math.max(1, domains.length),
-      rhythmRewardEfficiency: rhythm?.rewardEfficiency ?? 1,
-      rhythmTokenMultiplier: rhythm?.consistencyTokenMultiplier ?? 0.5,
-      rhythmDebtDelta: rhythm?.shadowDebtDelta ?? 0,
-      selfMultiplier: neglect.selfMultiplier,
-      selfNeglectSeverity: neglect.severity,
-      rhythmTier: rhythm?.tier ?? null,
-    })
-  } catch (e) {
-    console.error('standing update failed', e)
-  }
+  await runStandingForCompletedTask({ title, domains })
 
   const def = getCompanionDef(slug)
   await setFeedback({
@@ -147,14 +115,8 @@ export default async function HubPage() {
       <main className="max-w-md mx-auto p-6 space-y-4">
         <h1 className="text-xl font-medium text-white pt-8">Configuration needed</h1>
         <p className="text-zinc-400 text-sm leading-relaxed">
-          Supabase environment variables are missing on this deployment. In Vercel → Settings →
-          Environment Variables, set:
+          Supabase environment variables are missing on this deployment.
         </p>
-        <ul className="text-sm text-violet-300 space-y-1 font-mono">
-          <li>NEXT_PUBLIC_SUPABASE_URL</li>
-          <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
-        </ul>
-        <p className="text-zinc-500 text-xs">Then Redeploy Production from the Deployments tab.</p>
       </main>
     )
   }
@@ -197,6 +159,10 @@ export default async function HubPage() {
   const rhythm = standing?.rhythm
   const tier = tierStyle(rhythm?.tier)
 
+  // What's Next / Daily Quest = first incomplete by anchor, else first incomplete
+  const nextTask = incompleteTasks[0] || null
+  const nextTime = nextTask ? formatAnchor(nextTask.anchor_time) : null
+
   const modules = [
     { href: '/tasks', label: 'Tasks', sub: 'Full list', icon: '📜' },
     { href: '/skills', label: 'Skills', sub: 'Level up', icon: '💪' },
@@ -238,6 +204,21 @@ export default async function HubPage() {
       </div>
 
       {feedback && <FeedbackBanners feedback={feedback} />}
+
+      {/* What's Next / Daily Quest */}
+      {nextTask && (
+        <section className="rounded-2xl border border-violet-800/40 bg-violet-950/20 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[10px] uppercase tracking-wider text-violet-400/80">What's next</p>
+              <p className="text-sm font-medium text-white truncate mt-0.5">{nextTask.title}</p>
+            </div>
+            {nextTime && (
+              <span className="shrink-0 text-xs font-medium text-sky-300 tabular-nums">{nextTime}</span>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
@@ -337,12 +318,6 @@ export default async function HubPage() {
                   {standing?.sleep?.bedtimeDisplay && standing?.sleep?.wakeDisplay
                     ? `${standing.sleep.bedtimeDisplay} → ${standing.sleep.wakeDisplay}`
                     : 'Sleep window scored'}
-                  {rhythm.shadowDebtDelta !== 0 && (
-                    <span>
-                      {' '}· Debt {rhythm.shadowDebtDelta > 0 ? '+' : ''}
-                      {rhythm.shadowDebtDelta}
-                    </span>
-                  )}
                 </p>
               </div>
             ) : (
