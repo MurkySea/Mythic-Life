@@ -106,7 +106,7 @@ async function completeTask(formData: FormData) {
 export default async function HubPage() {
   if (!hasSupabaseEnv()) {
     return (
-      <main className="max-w-md mx-auto p-6 pb-24 space-y-4">
+      <main className="max-w-md mx-auto p-6 space-y-4">
         <h1 className="text-xl font-medium text-white pt-8">Configuration needed</h1>
         <p className="text-zinc-400 text-sm leading-relaxed">
           Supabase environment variables are missing on this deployment. In Vercel → Settings →
@@ -169,7 +169,7 @@ export default async function HubPage() {
   ]
 
   return (
-    <main className="max-w-md mx-auto p-4 space-y-5 pb-24">
+    <main className="max-w-md mx-auto p-4 space-y-5 pb-10">
       {/* ── Identity + status ── */}
       <div className="pt-3 flex items-end justify-between">
         <div>
@@ -218,7 +218,7 @@ export default async function HubPage() {
               {(feedback.skillGains || []).map((g) => (
                 <span
                   key={g.skill}
-                  className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-violet-200 border border-violet-800/40"
+                  className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-fuchsia-200 border border-fuchsia-800/40"
                 >
                   +{g.xp} {g.label} · Lv {g.level}
                 </span>
