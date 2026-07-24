@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { createClient } from '@/utils/supabase/server'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { aggregateDomains, detectSelfNeglect, debtToMultiplier } from '@/lib/engines/ontology'
+import { loadStanding } from '@/lib/engines/standing-store'
 import type { LifeDomain } from '@/lib/engines/types'
 import { getCompanionDef } from '@/lib/companions'
 import { parseDomains } from '@/lib/skills'
@@ -33,15 +34,18 @@ function moodFromAffinity(aff: number): string {
 }
 
 export default async function StandingPage() {
-  const standing = await fetchLatestStanding()
-  const rhythm = standing?.rhythm
-  const sleep = standing?.sleep
-  const signals = standing?.signals
+  const [health, persisted] = await Promise.all([
+    fetchLatestStanding(),
+    loadStanding(),
+  ])
+
+  const rhythm = health?.rhythm
+  const sleep = health?.sleep
+  const signals = health?.signals
   const tier = tierStyle(rhythm?.tier)
 
   const supabase = await createClient()
 
-  // Recent completed tasks → domain aggregates
   const since = new Date()
   since.setDate(since.getDate() - 3)
   const { data: recentTasks } = await supabase
@@ -53,14 +57,12 @@ export default async function StandingPage() {
 
   const tags: string[] = []
   for (const t of recentTasks || []) {
-    const ds = parseDomains(t.domains, t.domain)
-    tags.push(...ds)
+    tags.push(...parseDomains(t.domains, t.domain))
   }
   const aggregates = aggregateDomains(tags)
   const neglect = detectSelfNeglect(aggregates)
   const maxDomain = Math.max(1, ...Object.values(aggregates))
 
-  // Companions as Trust proxy
   const { data: companions } = await supabase
     .from('companion')
     .select('id, name, slug, affinity_score, is_unlocked')
@@ -81,9 +83,10 @@ export default async function StandingPage() {
     }
   })
 
-  // Multiplier stack
+  // Prefer persisted debt for the dampener; fall back to last rhythm delta
+  const debtForMul = Math.max(0, persisted.shadow_debt || rhythm?.shadowDebtDelta || 0)
   const rhythmMul = rhythm?.rewardEfficiency ?? 1
-  const debtMul = debtToMultiplier(Math.max(0, rhythm?.shadowDebtDelta ?? 0))
+  const debtMul = debtToMultiplier(debtForMul)
   const selfMul = neglect.selfMultiplier
   const combined = Math.max(0.55, Number((rhythmMul * debtMul * selfMul).toFixed(3)))
 
@@ -101,6 +104,40 @@ export default async function StandingPage() {
       </div>
 
       <div className="space-y-4">
+        {/* Persistent currencies */}
+        <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">XP</p>
+              <p className="text-sm font-medium text-violet-300 tabular-nums">
+                {Math.round(persisted.total_xp)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Gold</p>
+              <p className="text-sm font-medium text-amber-300 tabular-nums">
+                {Math.round(persisted.total_gold)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Tokens</p>
+              <p className="text-sm font-medium text-sky-300 tabular-nums">
+                {persisted.consistency_tokens.toFixed(1)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-zinc-500">Debt</p>
+              <p
+                className={`text-sm font-medium tabular-nums ${
+                  persisted.shadow_debt > 0 ? 'text-amber-400' : 'text-zinc-300'
+                }`}
+              >
+                {persisted.shadow_debt.toFixed(0)}
+              </p>
+            </div>
+          </div>
+        </section>
+
         {/* Combined multiplier */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5">
           <div className="flex items-end justify-between">
@@ -220,7 +257,7 @@ export default async function StandingPage() {
           </div>
         </section>
 
-        {/* Companion Trust (affinity proxy) */}
+        {/* Party trust */}
         {party.length > 0 && (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-3">
             <p className="text-[11px] uppercase tracking-wider text-zinc-500">Party trust</p>
@@ -273,7 +310,7 @@ export default async function StandingPage() {
         )}
 
         <p className="text-center text-[11px] text-zinc-600 pt-1">
-          {standing?.date ? `Rhythm scored for ${standing.date}` : 'Domains from last 3 days of tasks'}
+          {health?.date ? `Rhythm scored for ${health.date}` : 'Domains from last 3 days of tasks'}
         </p>
       </div>
     </main>
