@@ -16,12 +16,19 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html,
 body {
-  background: var(--background);
+  background: #09090b !important;
+  background-image: none !important;
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+main {
+  background: transparent !important;
+  background-image: none !important;
 }
 
 /* Better form inputs */
