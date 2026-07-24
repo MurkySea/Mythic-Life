@@ -18,6 +18,8 @@ import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
+import { applyTaskToStanding } from '@/lib/engines/standing-store'
+import { aggregateDomains, detectSelfNeglect } from '@/lib/engines/ontology'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,6 +67,41 @@ async function completeTask(formData: FormData) {
   const bond = await awardBondProgress(domains.join(','), streak, slug)
   const unlockedDetails = await postUnlockCeremony(newlyUnlocked)
 
+  // Dual-track standing: XP/Gold immediate, Tokens scarce, Debt from rhythm + neglect
+  try {
+    const health = await fetchLatestStanding()
+    const rhythm = health?.rhythm
+
+    // Build 3-day domain picture including this completion
+    const since = new Date()
+    since.setDate(since.getDate() - 3)
+    const { data: recent } = await supabase
+      .from('tasks')
+      .select('domains, domain, is_completed, completed_at')
+      .eq('is_completed', true)
+      .gte('completed_at', since.toISOString())
+      .limit(80)
+
+    const tags: string[] = [...domains]
+    for (const t of recent || []) {
+      tags.push(...parseDomains(t.domains, t.domain))
+    }
+    const aggregates = aggregateDomains(tags)
+    const neglect = detectSelfNeglect(aggregates)
+
+    await applyTaskToStanding({
+      domainCount: Math.max(1, domains.length),
+      rhythmRewardEfficiency: rhythm?.rewardEfficiency ?? 1,
+      rhythmTokenMultiplier: rhythm?.consistencyTokenMultiplier ?? 0.5,
+      rhythmDebtDelta: rhythm?.shadowDebtDelta ?? 0,
+      selfMultiplier: neglect.selfMultiplier,
+      selfNeglectSeverity: neglect.severity,
+      rhythmTier: rhythm?.tier ?? null,
+    })
+  } catch (e) {
+    console.error('standing update failed', e)
+  }
+
   const def = getCompanionDef(slug)
   await setFeedback({
     skillGains: (skillGains || []).map((g) => ({
@@ -81,6 +118,7 @@ async function completeTask(formData: FormData) {
   })
 
   revalidatePath('/')
+  revalidatePath('/standing')
   revalidatePath('/skills')
   revalidatePath('/companions')
   revalidatePath('/companion-profile')
@@ -179,7 +217,6 @@ export default async function HubPage() {
 
   return (
     <main className="max-w-md mx-auto p-4 space-y-5 pb-10">
-      {/* ── Identity + status ── */}
       <div className="pt-3 flex items-end justify-between">
         <div>
           <p className="text-zinc-500 text-xs tracking-wide">The Unconventional Advisor</p>
@@ -201,7 +238,6 @@ export default async function HubPage() {
         </div>
       </div>
 
-      {/* ── Feedback (gains / unlocks) ── */}
       {feedback && (
         <div className="space-y-2">
           {(feedback.unlocked || []).map((u) => (
@@ -247,7 +283,6 @@ export default async function HubPage() {
         </div>
       )}
 
-      {/* ── Compact Today's Focus ── */}
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
@@ -325,7 +360,6 @@ export default async function HubPage() {
         )}
       </section>
 
-      {/* ── Standing teaser → full page ── */}
       <Link
         href="/standing"
         className="block rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-3 hover:border-violet-700/50 transition-colors"
@@ -365,7 +399,6 @@ export default async function HubPage() {
         </div>
       </Link>
 
-      {/* ── Module grid ── */}
       <section>
         <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-2.5">World</p>
         <div className="grid grid-cols-3 gap-2.5">
