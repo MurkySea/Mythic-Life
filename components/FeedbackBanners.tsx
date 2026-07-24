@@ -15,11 +15,11 @@ export default function FeedbackBanners({ feedback }: { feedback: FeedbackPayloa
   if (!visible) return null
 
   return (
-    <div className="space-y-2 relative">
+    <div className="space-y-2.5 relative">
       <button
         type="button"
         onClick={() => setVisible(false)}
-        className="absolute -top-1 right-0 z-10 w-7 h-7 rounded-full bg-zinc-900/90 border border-zinc-700 text-zinc-400 hover:text-white text-sm flex items-center justify-center"
+        className="absolute -top-1 right-1 z-10 w-8 h-8 rounded-full bg-[#121218] border border-[#2a2a35] text-zinc-400 hover:text-white text-base flex items-center justify-center"
         aria-label="Dismiss"
       >
         ×
@@ -28,39 +28,39 @@ export default function FeedbackBanners({ feedback }: { feedback: FeedbackPayloa
       {(feedback.unlocked || []).map((u) => (
         <div
           key={u.slug}
-          className="rounded-2xl border border-amber-600/40 bg-amber-950/30 p-3 pr-9"
+          className="rounded-[1.15rem] border border-amber-600/35 bg-amber-950/25 p-4 pr-10 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]"
         >
-          <p className="text-amber-200 text-sm font-medium">
+          <p className="text-amber-200 text-sm font-bold tracking-tight">
             {u.emoji} {u.name} joined your party
           </p>
-          <p className="text-zinc-400 text-sm mt-1 leading-relaxed">{u.line}</p>
+          <p className="text-zinc-400 text-sm mt-1.5 leading-relaxed">{u.line}</p>
           <Link
             href={`/messages?c=${u.slug}`}
-            className="inline-block mt-1.5 text-xs text-amber-300/90 hover:text-amber-200"
+            className="inline-block mt-2 text-xs font-semibold text-amber-300/90 hover:text-amber-200"
           >
             Speak with them →
           </Link>
         </div>
       ))}
 
-      <div className="rounded-2xl border border-violet-700/40 bg-violet-950/30 p-3 pr-9">
-        <p className="text-[11px] uppercase tracking-wider text-violet-400/80 mb-1.5">Gains</p>
+      <div className="rounded-[1.15rem] border border-violet-600/35 bg-violet-950/25 p-4 pr-10 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]">
+        <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-violet-400/90 mb-2">Gains</p>
         <div className="flex flex-wrap gap-1.5">
           {(feedback.skillGains || []).map((g) => (
             <span
               key={g.skill}
-              className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-violet-200 border border-violet-800/40"
+              className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#0c0c10] text-violet-200 border border-violet-700/40"
             >
               +{g.xp} {g.label} · Lv {g.level}
             </span>
           ))}
           {feedback.bondXp > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-fuchsia-200 border border-fuchsia-800/40">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#0c0c10] text-fuchsia-200 border border-fuchsia-700/40">
               +{feedback.bondXp} bond · {feedback.companionName}
             </span>
           )}
           {(feedback.streak || 0) >= 2 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-amber-200 border border-amber-800/40">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[#0c0c10] text-amber-200 border border-amber-700/40">
               {feedback.streak} day streak
             </span>
           )}
