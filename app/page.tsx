@@ -17,6 +17,7 @@ import { parseDomains, SKILL_LABELS, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
+import FeedbackBanners from '@/components/FeedbackBanners'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { applyTaskToStanding } from '@/lib/engines/standing-store'
 import { aggregateDomains, detectSelfNeglect } from '@/lib/engines/ontology'
@@ -67,12 +68,10 @@ async function completeTask(formData: FormData) {
   const bond = await awardBondProgress(domains.join(','), streak, slug)
   const unlockedDetails = await postUnlockCeremony(newlyUnlocked)
 
-  // Dual-track standing: XP/Gold immediate, Tokens scarce, Debt from rhythm + neglect
   try {
     const health = await fetchLatestStanding()
     const rhythm = health?.rhythm
 
-    // Build 3-day domain picture including this completion
     const since = new Date()
     since.setDate(since.getDate() - 3)
     const { data: recent } = await supabase
@@ -238,50 +237,7 @@ export default async function HubPage() {
         </div>
       </div>
 
-      {feedback && (
-        <div className="space-y-2">
-          {(feedback.unlocked || []).map((u) => (
-            <div
-              key={u.slug}
-              className="rounded-2xl border border-amber-600/40 bg-amber-950/30 p-3"
-            >
-              <p className="text-amber-200 text-sm font-medium">
-                {u.emoji} {u.name} joined your party
-              </p>
-              <p className="text-zinc-400 text-sm mt-1 leading-relaxed">{u.line}</p>
-              <Link
-                href={`/messages?c=${u.slug}`}
-                className="inline-block mt-1.5 text-xs text-amber-300/90 hover:text-amber-200"
-              >
-                Speak with them →
-              </Link>
-            </div>
-          ))}
-          <div className="rounded-2xl border border-violet-700/40 bg-violet-950/30 p-3">
-            <p className="text-[11px] uppercase tracking-wider text-violet-400/80 mb-1.5">Gains</p>
-            <div className="flex flex-wrap gap-1.5">
-              {(feedback.skillGains || []).map((g) => (
-                <span
-                  key={g.skill}
-                  className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-violet-200 border border-violet-800/40"
-                >
-                  +{g.xp} {g.label} · Lv {g.level}
-                </span>
-              ))}
-              {feedback.bondXp > 0 && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-fuchsia-200 border border-fuchsia-800/40">
-                  +{feedback.bondXp} bond · {feedback.companionName}
-                </span>
-              )}
-              {(feedback.streak || 0) >= 2 && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-900 text-amber-200 border border-amber-800/40">
-                  {feedback.streak} day streak
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {feedback && <FeedbackBanners feedback={feedback} />}
 
       <section className="space-y-2">
         <div className="flex items-center justify-between">
