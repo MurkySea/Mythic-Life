@@ -1,5 +1,6 @@
 import type { SkillKey } from './skills'
 import { GROK_COMPANION_DEFS } from './grokCompanions'
+import { ANGEL_COMPANION } from './angelCompanion'
 import { getRelationshipStage, type RelationshipStage } from './engines/relationship'
 
 export type CompanionDef = {
@@ -152,13 +153,13 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     unlockLine: 'Your notes finally formed a library worth entering. I am Mira. Shall we continue the index, Mark?',
     world: 'Living archives of Valdris.',
     backstory: 'Expelled for publishing restricted records that exposed corruption.',
-    lifeBefore: 'Decades organizing other people\'s secrets until she published what power wanted buried.',
+    lifeBefore: "Decades organizing other people's secrets until she published what power wanted buried.",
     traits: ['curious', 'precise', 'principled', 'awkwardly affectionate'],
     wounds: 'Dismissed as cold. Work suppressed. Direct praise flusters her.',
     loves: 'Thoughtful questions, shared study.',
     hates: 'Sloppy thinking, institutions that hoard truth.',
     emotionalRange: 'Affection arrives as systems. Hurt makes her formal.',
-    regard: 'Respects Mark\'s mind when he uses it honestly.',
+    regard: "Respects Mark's mind when he uses it honestly.",
     appearance:
       'elegant high-elf woman, olive skin, chestnut bun, emerald eyes, long pointed ears, ink-stained fingers, glasses, slender feminine figure',
   },
@@ -212,7 +213,7 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     emotionalRange: 'Feels out loud. Love invites further and notices fatigue.',
     regard: 'Respects distance covered, not speeches about it.',
     appearance:
-      'young grey-wolfkin woman, brown skin, ash-grey curls, green-gold eyes, grey wolf ears and tail, freckles, athletic feminine figure, lithe runner\'s build',
+      "young grey-wolfkin woman, brown skin, ash-grey curls, green-gold eyes, grey wolf ears and tail, freckles, athletic feminine figure, lithe runner's build",
   },
   {
     slug: 'selene_tideglass',
@@ -288,9 +289,9 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     loves: 'Hard completed work, concise honesty.',
     hates: 'Bribe-gifts, vague promises.',
     emotionalRange: 'Warmth rare and precise. Love is protection without announcement.',
-    regard: 'Respects evidence in Mark\'s life.',
+    regard: "Respects evidence in Mark's life.",
     appearance:
-      'lean dark-elf woman, cool umber skin, silver collar-cut hair, violet eyes, pointed ears, sharp feminine features, lithe female assassin\'s build',
+      "lean dark-elf woman, cool umber skin, silver collar-cut hair, violet eyes, pointed ears, sharp feminine features, lithe female assassin's build",
   },
   {
     slug: 'rowan_ironmane',
@@ -307,7 +308,7 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     voice: 'Warm low alto, plainspoken, steady.',
     unlockLine: 'Drama without action is noise, Mark. I am Rowena. Keep the road — I walk with you.',
     world: 'Caravan roads and last lines of defense.',
-    backstory: 'Lost a caravan to stubborn outdated route over a young scout\'s warning.',
+    backstory: "Lost a caravan to stubborn outdated route over a young scout's warning.",
     lifeBefore: 'Caravan captain who learned reliability includes adaptation.',
     traits: ['loyal', 'practical', 'protective'],
     wounds: 'Costly rigidity. Reckless promises.',
@@ -340,7 +341,7 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     loves: 'Routines, bodily care, honest silence.',
     hates: 'Self-hatred dressed as discipline.',
     emotionalRange: 'Calm can look like distance. Care is shared practice.',
-    regard: 'Wants Mark\'s discipline to serve life, not wound it.',
+    regard: "Wants Mark's discipline to serve life, not wound it.",
     appearance:
       'calm highlander woman, warm tan skin, close-cropped dark hair, grey-green eyes, rope scars at wrists, lean athletic feminine figure',
   },
@@ -444,7 +445,7 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
     loves: 'Decisive action after thought. People who choose.',
     hates: 'Recklessness without thought; paralysis as wisdom.',
     emotionalRange: 'Cool surface; deep undercurrents. Love is a shared full hour.',
-    regard: 'Drawn to Mark\'s willingness to act inside an imperfect hour.',
+    regard: "Drawn to Mark's willingness to act inside an imperfect hour.",
     appearance:
       'celestial dragonkin woman, pale gold skin, black hair with white ends, heterochromia gold/blue, pearl horns, elegant feminine figure',
   },
@@ -476,10 +477,11 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
   },
 ]
 
-/** Full playable roster: Notion Bible + original Grok cast */
+/** Full playable roster: Notion Bible + original Grok cast + muster-exclusive Angel */
 export const COMPANION_DEFS: CompanionDef[] = [
   ...NOTION_COMPANION_DEFS,
   ...(GROK_COMPANION_DEFS as CompanionDef[]),
+  ANGEL_COMPANION,
 ]
 
 export function getCompanionDef(slug: string): CompanionDef | undefined {
@@ -495,10 +497,6 @@ export function meetsUnlock(
   return entries.every(([skill, min]) => (levels[skill] || 1) >= (min || 1))
 }
 
-/**
- * Legacy affinity-only stage label (1–24 scale).
- * Prefer dual-axis when Trust + Intimacy are available.
- */
 export function relationshipStage(affinity: number): string {
   if (affinity >= 20) return 'deep private bond — intimate, trusted, chosen'
   if (affinity >= 12) return 'close — real affection and ease'
@@ -507,10 +505,6 @@ export function relationshipStage(affinity: number): string {
   return 'early — still learning each other'
 }
 
-/**
- * Dual-axis stage (Trust + Intimacy, 0–100 each).
- * Returns the canonical RelationshipStage from the engine.
- */
 export function dualRelationshipStage(
   trust: number,
   intimacy: number
