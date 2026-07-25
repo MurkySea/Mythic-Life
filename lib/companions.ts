@@ -481,7 +481,7 @@ const NOTION_COMPANION_DEFS: CompanionDef[] = [
 export const COMPANION_DEFS: CompanionDef[] = [
   ...NOTION_COMPANION_DEFS,
   ...(GROK_COMPANION_DEFS as CompanionDef[]),
-  ANGEL_COMPANION,
+  ANGEL_COMPANION as CompanionDef,
 ]
 
 export function getCompanionDef(slug: string): CompanionDef | undefined {
