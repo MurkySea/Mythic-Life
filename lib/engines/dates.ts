@@ -1,7 +1,9 @@
 /**
  * Date ideas — random pick for companion night-out experiences.
- * ~25 distinct scenarios so dates feel different every time.
+ * Common romantic dates + a few rare adult-themed pulls.
  */
+
+export type DateRarity = 'common' | 'uncommon' | 'rare'
 
 export interface DateIdea {
   id: string
@@ -10,8 +12,10 @@ export interface DateIdea {
   outfit: string
   pose: string
   mood: string
-  /** Short line she might say after */
   line: string
+  rarity: DateRarity
+  /** Adult / intimate styling — changes image prompt guardrails */
+  adult?: boolean
 }
 
 export const DATE_IDEAS: DateIdea[] = [
@@ -23,6 +27,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'seated at a small table, soft eye contact, slight smile',
     mood: 'warm, present, quietly happy',
     line: 'Candlelight suits you. I dressed up for this on purpose.',
+    rarity: 'common',
   },
   {
     id: 'lantern_street',
@@ -32,6 +37,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'walking pause under a streetlight, half-turn toward viewer',
     mood: 'playful, close, content',
     line: 'I would walk this street with you for hours.',
+    rarity: 'common',
   },
   {
     id: 'rooftop_golden',
@@ -41,6 +47,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'leaning on a balcony rail, relaxed, wind in hair',
     mood: 'serene, romantic, unhurried',
     line: 'The whole city below us and I still only notice you.',
+    rarity: 'common',
   },
   {
     id: 'jazz_booth',
@@ -50,6 +57,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'seated in a booth, chin lightly resting on hand, looking at viewer',
     mood: 'intimate, amused, soft',
     line: 'The music is fine. Being next to you is better.',
+    rarity: 'common',
   },
   {
     id: 'moon_garden',
@@ -59,6 +67,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'standing on the path, gentle smile, looking toward viewer',
     mood: 'tender, quiet, devoted',
     line: 'I saved the quietest path for us.',
+    rarity: 'common',
   },
   {
     id: 'bookstore_cafe',
@@ -68,6 +77,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'holding a book, seated by a window, soft eye contact',
     mood: 'curious, warm, at ease',
     line: 'You picked the café. I picked the corner with the best light.',
+    rarity: 'common',
   },
   {
     id: 'pier_sunset',
@@ -77,6 +87,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'standing at the rail, wind in hair, looking back at viewer',
     mood: 'free, bright, affectionate',
     line: 'I wanted the horizon with you. This is it.',
+    rarity: 'common',
   },
   {
     id: 'art_gallery',
@@ -86,6 +97,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'standing before a painting, half-turned, soft smile',
     mood: 'thoughtful, close, refined',
     line: 'I liked the art. I liked standing next to you more.',
+    rarity: 'common',
   },
   {
     id: 'cooking_together',
@@ -95,6 +107,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'leaning on the counter, playful smile, flour on fingers optional',
     mood: 'domestic, playful, intimate',
     line: 'Not a restaurant. Just us. I prefer this sometimes.',
+    rarity: 'common',
   },
   {
     id: 'stargazing',
@@ -104,6 +117,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'sitting on a blanket, looking up then toward viewer',
     mood: 'wonder, quiet, close',
     line: 'I saved a clear night for this. Look up with me.',
+    rarity: 'common',
   },
   {
     id: 'rain_cafe',
@@ -113,6 +127,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'seated by the window, cup in hands, soft gaze',
     mood: 'cozy, reflective, warm',
     line: 'The rain made us stay longer. I am not complaining.',
+    rarity: 'common',
   },
   {
     id: 'farmers_market',
@@ -122,6 +137,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'holding flowers, bright smile, looking at viewer',
     mood: 'bright, alive, affectionate',
     line: 'I bought flowers. Not for the table — for the memory.',
+    rarity: 'common',
   },
   {
     id: 'ballroom',
@@ -131,6 +147,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'mid-step of a slow dance pose, looking at viewer',
     mood: 'grand, soft, romantic',
     line: 'No crowd. Just the floor and you. That was the point.',
+    rarity: 'common',
   },
   {
     id: 'train_window',
@@ -140,6 +157,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'seated by the window, profile then soft look to viewer',
     mood: 'thoughtful, traveling, together',
     line: 'I do not care where the train goes if you are on it.',
+    rarity: 'common',
   },
   {
     id: 'picnic_meadow',
@@ -149,6 +167,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'reclining on the blanket, propped on elbow, smiling',
     mood: 'easy, sunny, open',
     line: 'No schedule. Just bread, fruit, and time.',
+    rarity: 'common',
   },
   {
     id: 'ice_rink',
@@ -158,6 +177,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'on the ice, steadying, laughing soft eye contact',
     mood: 'playful, cold-rosy, fun',
     line: 'I almost fell. You noticed. That counts.',
+    rarity: 'common',
   },
   {
     id: 'library_after',
@@ -167,6 +187,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'seated at a long table with a book, looking up',
     mood: 'quiet, intellectual, warm',
     line: 'They closed the doors. We stayed among the books.',
+    rarity: 'common',
   },
   {
     id: 'boat_harbor',
@@ -176,6 +197,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'seated in the boat, looking across at viewer',
     mood: 'calm, adventurous, close',
     line: 'The water is still. So am I, with you.',
+    rarity: 'common',
   },
   {
     id: 'bakery_dawn',
@@ -185,6 +207,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'holding a paper bag of pastries, bright soft smile',
     mood: 'simple, sweet, early',
     line: 'I woke up early so we could have the first loaves.',
+    rarity: 'common',
   },
   {
     id: 'firepit',
@@ -194,6 +217,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'sitting by the fire, hands warming, soft look to viewer',
     mood: 'grounded, intimate, unhurried',
     line: 'No tickets. No reservation. Just fire and us.',
+    rarity: 'common',
   },
   {
     id: 'observatory',
@@ -203,6 +227,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'standing near a telescope, looking from stars to viewer',
     mood: 'wonder, precise, close',
     line: 'They showed us galaxies. I kept looking at you.',
+    rarity: 'common',
   },
   {
     id: 'tea_house',
@@ -212,6 +237,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'kneeling or seated at low table, calm smile',
     mood: 'still, respectful, intimate',
     line: 'Slow tea. Slow words. I needed this with you.',
+    rarity: 'common',
   },
   {
     id: 'concert_hall',
@@ -221,6 +247,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'seated in the box, leaning slightly toward viewer',
     mood: 'elevated, moved, shared',
     line: 'The music was excellent. Your shoulder next to mine was the real ticket.',
+    rarity: 'common',
   },
   {
     id: 'hot_springs',
@@ -230,6 +257,7 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'standing at the rail looking at mountains, soft profile then gaze',
     mood: 'rested, warm, private',
     line: 'A night away from everything except you.',
+    rarity: 'common',
   },
   {
     id: 'drive_in',
@@ -239,13 +267,83 @@ export const DATE_IDEAS: DateIdea[] = [
     pose: 'leaning against the car, looking at viewer not the screen',
     mood: 'nostalgic, fun, close',
     line: 'I forgot the movie. I remember you laughing.',
+    rarity: 'common',
+  },
+
+  // Rare adult-themed (~4% combined with weight 1 vs common 10)
+  {
+    id: 'lingerie_surprise',
+    title: 'Lingerie surprise',
+    setting:
+      'dim bedroom at home, soft bedside lamp, door just closed, private and quiet',
+    outfit:
+      'elegant sheer lingerie set, lace bra and matching bottoms, robe slipping off one shoulder',
+    pose:
+      'standing in the doorway or at the foot of the bed, waiting for him, soft confident smile',
+    mood: 'playful, devoted, deliberately chosen for him',
+    line: 'I planned this for when you got home. Just us. No rush.',
+    rarity: 'rare',
+    adult: true,
+  },
+  {
+    id: 'boudoir_evening',
+    title: 'Boudoir evening',
+    setting:
+      'soft boudoir lighting, vanity mirror, silk sheets, warm shadows',
+    outfit:
+      'tasteful boudoir lingerie, garter details optional, elegant not vulgar',
+    pose:
+      'reclining on the bed or seated at the vanity, looking back over her shoulder at the viewer',
+    mood: 'intimate, self-possessed, inviting',
+    line: 'I wanted you to see me like this — chosen, not accidental.',
+    rarity: 'rare',
+    adult: true,
+  },
+  {
+    id: 'silk_robe_morning',
+    title: 'Silk robe morning',
+    setting:
+      'sunlit bedroom morning, curtains half open, coffee on the nightstand',
+    outfit:
+      'short silk robe loosely tied, bare legs, soft morning hair',
+    pose:
+      'sitting on the edge of the bed facing the viewer, robe slightly open at the collar',
+    mood: 'lazy, affectionate, unguarded',
+    line: 'Stay. The morning is still ours.',
+    rarity: 'rare',
+    adult: true,
+  },
+  {
+    id: 'after_hours_hotel',
+    title: 'After-hours hotel',
+    setting:
+      'upscale hotel suite at night, city lights through the window, one lamp on',
+    outfit:
+      'sheer black lingerie under an open blazer or coat, heels still on',
+    pose:
+      'standing by the window then turning toward the viewer, coat open',
+    mood: 'bold, rare, intentional',
+    line: 'I booked the room. The rest is for you.',
+    rarity: 'rare',
+    adult: true,
   },
 ]
 
-/** Pick a random date idea (uniform). */
+const WEIGHT: Record<DateRarity, number> = {
+  common: 10,
+  uncommon: 4,
+  rare: 1,
+}
+
+/** Weighted pick — rare adult dates are uncommon pulls. */
 export function pickDateIdea(): DateIdea {
-  const i = Math.floor(Math.random() * DATE_IDEAS.length)
-  return DATE_IDEAS[i]
+  const total = DATE_IDEAS.reduce((s, d) => s + WEIGHT[d.rarity], 0)
+  let roll = Math.random() * total
+  for (const idea of DATE_IDEAS) {
+    roll -= WEIGHT[idea.rarity]
+    if (roll <= 0) return idea
+  }
+  return DATE_IDEAS[0]
 }
 
 /** Build image prompt from a date idea + companion appearance. */
@@ -254,8 +352,19 @@ export function buildDatePromptFromIdea(
   opts: { appearance: string; name: string; race?: string }
 ): string {
   const look = opts.appearance.trim()
+  const tone = idea.adult
+    ? [
+        'intimate adult romantic illustration, tasteful sensuality, soft erotic atmosphere',
+        'elegant lingerie or boudoir styling as described — alluring, not crude',
+        'adult woman, coherent anatomy, beautiful lighting, high detail, no text, no watermark',
+      ]
+    : [
+        'masterpiece illustration of an adult woman, coherent anatomy, beautiful lighting, high detail, no text, no watermark',
+        'romantic atmosphere, tasteful, fully clothed, soft chemistry',
+      ]
+
   return [
-    'masterpiece illustration of an adult woman, coherent anatomy, beautiful lighting, high detail, no text, no watermark',
+    ...tone,
     'refined anime key-visual quality, cinematic',
     `Character: ${look}`,
     `Name context: ${opts.name}`,
@@ -264,7 +373,6 @@ export function buildDatePromptFromIdea(
     `Pose: ${idea.pose}`,
     `Setting: ${idea.setting}`,
     `expression: ${idea.mood} — not performative`,
-    'romantic atmosphere, tasteful, fully clothed, soft chemistry',
     'single character focus, clear face, feminine adult proportions',
   ].join('. ')
 }
