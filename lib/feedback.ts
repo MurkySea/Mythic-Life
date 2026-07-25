@@ -1,5 +1,12 @@
 import { cookies } from 'next/headers'
 
+export type LootFeedback = {
+  kind: string
+  amount: number
+  label: string
+  rarity: 'common' | 'uncommon' | 'rare'
+}
+
 export type FeedbackPayload = {
   skillGains: { skill: string; label: string; xp: number; level: number }[]
   bondXp: number
@@ -7,6 +14,7 @@ export type FeedbackPayload = {
   companionSlug: string
   unlocked: { name: string; slug: string; emoji: string; line: string }[]
   streak?: number
+  loot?: LootFeedback | null
 }
 
 const COOKIE = 'ml_feedback'
