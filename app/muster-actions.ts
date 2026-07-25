@@ -9,7 +9,7 @@ import {
   yesterdayChicagoYmd,
   ANGEL_SLUG,
 } from '@/lib/engines/muster'
-import { getCompanionDef, COMPANION_DEFS } from '@/lib/companions'
+import { getCompanionDef } from '@/lib/companions'
 import { ANGEL_COMPANION } from '@/lib/angelCompanion'
 import { buildDateScenePrompt, dateRewards } from '@/lib/engines/loot'
 import { setFeedback } from '@/lib/feedback'
@@ -24,7 +24,7 @@ async function unlockAngel(): Promise<boolean> {
     .or(`slug.eq.${def.slug},name.eq.${def.name}`)
     .maybeSingle()
 
-  if (existing?.is_unlocked) return false // already had her
+  if (existing?.is_unlocked) return false
 
   if (existing) {
     await supabase
@@ -68,15 +68,19 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
     .select('id, slug, name, affinity_score, bond_xp, image_url')
     .or('is_unlocked.eq.true,is_unlocked.is.null')
 
-  const list = (party || []).filter((c) => c.slug !== ANGEL_SLUG || c.affinity_score)
+  const list = (party || []).slice()
   if (list.length === 0) return null
 
-  // Top companion by affinity
   list.sort((a, b) => (b.affinity_score || 0) - (a.affinity_score || 0))
   const top = list[0]
-  const slug =
+  const slug: string =
     top.slug ||
-    (top.name === 'Seraphine' ? 'seraphine' : top.name?.toLowerCase().replace(/\s+/g, '_'))
+    (top.name === 'Seraphine'
+      ? 'seraphine'
+      : String(top.name || 'seraphine')
+          .toLowerCase()
+          .replace(/\s+/g, '_'))
+
   const def = getCompanionDef(slug)
   const characterName = top.name || def?.name || 'Companion'
   const appearance =
@@ -135,12 +139,12 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
   }
 }
 
-export async function claimDailyMuster() {
+export async function claimDailyMuster(_formData?: FormData) {
   const today = chicagoYmd()
   const standing = await loadStanding()
 
   if (standing.last_muster_date === today) {
-    return { ok: false as const, reason: 'already' }
+    return { ok: false as const, reason: 'already' as const }
   }
 
   const yesterday = yesterdayChicagoYmd()
@@ -151,7 +155,6 @@ export async function claimDailyMuster() {
 
   const reward = rollMusterReward({ streak: nextStreak })
 
-  // Apply base reward fields
   const patch: Parameters<typeof saveStanding>[0] = {
     last_muster_date: today,
     muster_streak: nextStreak,
@@ -178,16 +181,15 @@ export async function claimDailyMuster() {
     specialNight = await grantSpecialNight()
   }
 
-  // Light companion line for common/uncommon (not for angel/special which already message)
   if (reward.kind === 'gold' || reward.kind === 'date_coin' || reward.kind === 'token') {
     try {
       const supabase = await createClient()
       const greet =
         nextStreak >= 7
-          ? `Seven days at the muster. The house notices.`
+          ? 'Seven days at the muster. The house notices.'
           : nextStreak >= 3
-            ? `Third day running. Keep coming.`
-            : `You made it.`
+            ? 'Third day running. Keep coming.'
+            : 'You made it.'
       await supabase.from('messages').insert({
         role: 'companion',
         content: greet,
@@ -197,6 +199,13 @@ export async function claimDailyMuster() {
       /* non-fatal */
     }
   }
+
+  const lootRarity =
+    reward.rarity === 'ultra' || reward.rarity === 'rare'
+      ? ('rare' as const)
+      : reward.rarity === 'uncommon'
+        ? ('uncommon' as const)
+        : ('common' as const)
 
   await setFeedback({
     skillGains: [],
@@ -209,30 +218,22 @@ export async function claimDailyMuster() {
       reward.kind === 'angel'
         ? ANGEL_SLUG
         : specialNight?.slug || 'seraphine',
-    unlocked:
-      angelUnlocked
-        ? [
-            {
-              name: ANGEL_COMPANION.name,
-              slug: ANGEL_SLUG,
-              emoji: ANGEL_COMPANION.emoji,
-              line: ANGEL_COMPANION.unlockLine,
-            },
-          ]
-        : [],
+    unlocked: angelUnlocked
+      ? [
+          {
+            name: ANGEL_COMPANION.name,
+            slug: ANGEL_SLUG,
+            emoji: ANGEL_COMPANION.emoji,
+            line: ANGEL_COMPANION.unlockLine,
+          },
+        ]
+      : [],
     streak: nextStreak,
     loot: {
       kind: reward.kind,
       amount: reward.amount,
       label: reward.label,
-      rarity:
-        reward.rarity === 'ultra'
-          ? 'rare'
-          : reward.rarity === 'rare'
-            ? 'rare'
-            : reward.rarity === 'uncommon'
-              ? 'uncommon'
-              : 'common',
+      rarity: lootRarity,
     },
   })
 
