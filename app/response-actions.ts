@@ -1,0 +1,173 @@
+'use server'
+
+import { createClient } from '@/utils/supabase/server'
+import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
+import { getCompanionDef } from '@/lib/companions'
+import {
+  applyOutreachResponse,
+  type LiveCompanionScores,
+} from '@/lib/engines/relationship-wire'
+import type { ResponseChoice } from '@/lib/engines/relationship'
+import { markConversationRead, pushIfStillUnread } from '@/lib/reads'
+
+/** Natural first-person lines for each response choice */
+const RESPONSE_LINES: Record<ResponseChoice, string[]> = {
+  honest: [
+    "It's been off. I'm not fine — I'm trying to be honest about that.",
+    "You're right to notice. Things have been slipping more than I wanted to admit.",
+    "I've been struggling more than I let on. Thanks for asking.",
+  ],
+  ask_support: [
+    "I could use you in this, if you're willing. I don't want to carry it alone.",
+    "Stay close for a bit? I need the company more than a fix.",
+    "Help me not disappear into it. Just… be here.",
+  ],
+  push_through: [
+    "I just need to lock in and get through this stretch. I'll be alright.",
+    "I'm pushing through it. Not ignoring you — just focused on getting back on track.",
+    "Give me a little room to grind this out. I'll come back clearer.",
+  ],
+  deflect: [
+    "I'm fine. Just a busy stretch.",
+    "Don't worry about it — nothing serious.",
+    "It's nothing. Really.",
+  ],
+}
+
+function pickLine(choice: ResponseChoice): string {
+  const pool = RESPONSE_LINES[choice]
+  return pool[Math.floor(Math.random() * pool.length)]
+}
+
+function intensityFromRecentContext(lastCompanionText: string): 'gentle' | 'direct' | 'urgent' {
+  const t = lastCompanionText.toLowerCase()
+  if (
+    t.includes('worried') ||
+    t.includes('disappearing') ||
+    t.includes('too long') ||
+    t.includes('are you safe') ||
+    t.includes('falling apart')
+  ) {
+    return 'urgent'
+  }
+  if (
+    t.includes('three days') ||
+    t.includes("isn't like you") ||
+    t.includes('talk to me') ||
+    t.includes('what\'s going on') ||
+    t.includes('carrying something')
+  ) {
+    return 'direct'
+  }
+  return 'gentle'
+}
+
+/**
+ * Player answers a companion's outreach / check-in with one of four choices.
+ * Applies dual-axis effects to affinity/bond, posts a natural message, generates reply.
+ */
+export async function respondWithChoice(formData: FormData) {
+  const choice = formData.get('choice') as ResponseChoice
+  const companionSlug = (formData.get('companion_slug') as string) || 'seraphine'
+
+  if (!['honest', 'deflect', 'push_through', 'ask_support'].includes(choice)) {
+    return
+  }
+
+  const supabase = await createClient()
+  const def = getCompanionDef(companionSlug)
+
+  const { data: companion } = await supabase
+    .from('companion')
+    .select('id, slug, name, affinity_score, bond_xp')
+    .or(`slug.eq.${companionSlug},name.eq.${def?.name || 'Seraphine'}`)
+    .maybeSingle()
+
+  if (!companion) return
+
+  // Last companion message → intensity heuristic
+  const { data: recent } = await supabase
+    .from('messages')
+    .select('role, content, companion_slug')
+    .order('created_at', { ascending: false })
+    .limit(12)
+
+  const lastCompanion = (recent || []).find((m) => {
+    if (m.role !== 'companion') return false
+    if (companionSlug === 'seraphine') {
+      return !m.companion_slug || m.companion_slug === 'seraphine'
+    }
+    return m.companion_slug === companionSlug
+  })
+
+  const intensity = intensityFromRecentContext(lastCompanion?.content || '')
+
+  const scores: LiveCompanionScores = {
+    slug: companionSlug,
+    affinity_score: companion.affinity_score || 1,
+    bond_xp: companion.bond_xp || 0,
+  }
+
+  const applied = applyOutreachResponse(scores, choice, intensity)
+
+  // Write score deltas back
+  const nextAffinity = Math.max(
+    1,
+    Math.round(((companion.affinity_score || 1) + applied.affinityDelta) * 10) / 10
+  )
+  const nextBond = Math.max(0, (companion.bond_xp || 0) + applied.bondXpDelta)
+
+  await supabase
+    .from('companion')
+    .update({
+      affinity_score: nextAffinity,
+      bond_xp: nextBond,
+    })
+    .eq('id', companion.id)
+
+  // Natural user message
+  const text = pickLine(choice)
+  await supabase.from('messages').insert({
+    role: 'user',
+    content: text,
+    companion_slug: companionSlug,
+  })
+
+  await markConversationRead(companionSlug)
+
+  revalidatePath('/messages')
+  revalidatePath('/companions')
+  revalidatePath('/companion-profile')
+  revalidatePath('/')
+
+  // Background companion reply — seed includes the mechanical note so her tone lands
+  after(async () => {
+    try {
+      const { generateCompanionResponse } = await import('./actions')
+      const seed = `${text}\n\n(Private context for you only — do not quote: he answered your check-in with "${choice}". ${applied.note} Respond as yourself, human and present, not as a system.)`
+
+      const reply = await generateCompanionResponse(seed, 'conversation', {
+        force: true,
+        isConversation: true,
+        companionSlug,
+      })
+
+      revalidatePath('/messages')
+
+      if (reply && typeof reply === 'string') {
+        const name = def?.name || companion.name || 'Companion'
+        const emoji = def?.emoji || '✦'
+        await pushIfStillUnread({
+          companionSlug,
+          messageCreatedAt: new Date().toISOString(),
+          title: `${emoji} ${name}`,
+          body: reply.trim().slice(0, 120),
+          tag: `chat-${companionSlug}`,
+        })
+      }
+    } catch (e) {
+      console.error('response choice reply failed', e)
+    }
+  })
+}
