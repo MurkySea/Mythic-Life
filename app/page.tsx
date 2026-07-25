@@ -2,29 +2,17 @@ import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import Link from 'next/link'
-import {
-  ensureRecurringTasks,
-  awardBondProgress,
-  generateCompanionResponse,
-  updateTaskStreak,
-  awardSkillXp,
-  pickReactingCompanion,
-  postUnlockCeremony,
-} from './actions'
+import { ensureRecurringTasks } from './actions'
+import { completeTask } from './complete-task'
 import { maybeCompanionCheckIn } from './check-in-actions'
 import { claimDailyMuster } from './muster-actions'
-import { maybeScheduleTaskReaction } from '@/lib/outreach'
-import { parseDomains, SKILL_LABELS, type SkillKey } from '@/lib/skills'
-import { getCompanionDef } from '@/lib/companions'
-import { setFeedback, readFeedback } from '@/lib/feedback'
+import { parseDomains } from '@/lib/skills'
+import { readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
 import FeedbackBanners from '@/components/FeedbackBanners'
 import MusterCard from '@/components/MusterCard'
 import { Plate, TileIcon } from '@/components/FantasyFrame'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
-import { runStandingForCompletedTask } from '@/lib/engines/apply-task'
-import { rollQuestLoot } from '@/lib/engines/loot'
-import { applyLootDrop } from '@/lib/engines/apply-loot'
 import { loadStanding } from '@/lib/engines/standing-store'
 import { chicagoYmd } from '@/lib/engines/muster'
 
@@ -46,82 +34,6 @@ function anchorMinutes(time: string | null | undefined): number {
   const m = String(time).trim().match(/^(\d{1,2}):(\d{2})$/)
   if (!m) return 9999
   return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
-}
-
-async function completeTask(formData: FormData) {
-  'use server'
-
-  const id = formData.get('id') as string
-  const title = formData.get('title') as string
-  const domainsStr = (formData.get('domains') as string) || ''
-  const domainLegacy = (formData.get('domain') as string) || ''
-
-  const supabase = await createClient()
-
-  await supabase
-    .from('tasks')
-    .update({
-      is_completed: true,
-      completed_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-
-  const domains = parseDomains(domainsStr, domainLegacy)
-
-  const { streak } = await updateTaskStreak(id)
-  const { newlyUnlocked, skillGains } = await awardSkillXp(domains)
-  const slug = await pickReactingCompanion(domains)
-  const bond = await awardBondProgress(domains.join(','), streak, slug)
-  const unlockedDetails = await postUnlockCeremony(newlyUnlocked)
-
-  await runStandingForCompletedTask({ title, domains })
-
-  const loot = rollQuestLoot({ streak })
-  try {
-    await applyLootDrop(loot, slug)
-  } catch (e) {
-    console.error('loot apply failed', e)
-  }
-
-  const def = getCompanionDef(slug)
-  await setFeedback({
-    skillGains: (skillGains || []).map((g) => ({
-      skill: g.skill,
-      label: SKILL_LABELS[g.skill as SkillKey] || g.skill,
-      xp: g.xpAdded,
-      level: g.level,
-    })),
-    bondXp: bond.xpGained || 0,
-    companionName: def?.name || 'Companion',
-    companionSlug: slug,
-    unlocked: unlockedDetails,
-    streak,
-    loot: loot.kind === 'nothing' ? null : loot,
-  })
-
-  revalidatePath('/')
-  revalidatePath('/standing')
-  revalidatePath('/skills')
-  revalidatePath('/companions')
-  revalidatePath('/companion-profile')
-
-  after(async () => {
-    try {
-      await generateCompanionResponse(title, domains.join(', '), {
-        streak,
-        companionSlug: slug,
-      })
-      await maybeScheduleTaskReaction({
-        taskTitle: title,
-        companionSlug: slug,
-        domains: domains.join(','),
-      })
-      revalidatePath('/messages')
-      revalidatePath('/')
-    } catch (e) {
-      console.error('background companion reply failed', e)
-    }
-  })
 }
 
 export default async function HubPage() {
@@ -290,7 +202,6 @@ export default async function HubPage() {
                 streak_count?: number
                 anchor_time?: string
               }) => {
-                const domains = parseDomains(task.domains, task.domain)
                 const timeLabel = formatAnchor(task.anchor_time)
                 return (
                   <div
@@ -304,9 +215,6 @@ export default async function HubPage() {
                   >
                     <form action={completeTask} className="shrink-0">
                       <input type="hidden" name="id" value={task.id} />
-                      <input type="hidden" name="title" value={task.title} />
-                      <input type="hidden" name="domains" value={domains.join(',')} />
-                      <input type="hidden" name="domain" value={task.domain || ''} />
                       <PendingCircleButton />
                     </form>
                     <div className="flex-1 min-w-0">
