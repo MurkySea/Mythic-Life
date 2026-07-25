@@ -167,8 +167,8 @@ export default async function HubPage() {
     { href: '/companion-profile', label: 'Mirror', sub: 'Profile', emoji: '🪞' },
     { href: '/settings', label: 'Codex', sub: 'Settings', emoji: '📖' },
     { href: '/standing', label: 'Standing', sub: rhythm ? tier.label : 'Status', emoji: '⚖️' },
+    { href: '/goals', label: 'Goals', sub: 'Direction', emoji: '🎯' },
     { href: '#', label: 'Map', sub: 'Soon', emoji: '🗺️', disabled: true },
-    { href: '#', label: 'Goals', sub: 'Soon', emoji: '🎯', disabled: true },
   ]
 
   return (
