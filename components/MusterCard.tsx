@@ -1,15 +1,11 @@
 'use client'
 
 import { useFormStatus } from 'react-dom'
-import { useRouter } from 'next/navigation'
-import { useTransition } from 'react'
 
 function ClaimButton({ claimed }: { claimed: boolean }) {
   const { pending } = useFormStatus()
   if (claimed) {
-    return (
-      <span className="text-xs font-medium text-zinc-500">Claimed today</span>
-    )
+    return <span className="text-xs font-medium text-zinc-500">Claimed today</span>
   }
   return (
     <button
@@ -35,11 +31,8 @@ export default function MusterCard({
   claimed: boolean
   streak: number
   dateCoins: number
-  action: () => Promise<unknown>
+  action: (formData?: FormData) => Promise<unknown>
 }) {
-  const router = useRouter()
-  const [, startTransition] = useTransition()
-
   return (
     <div
       className="rounded-2xl border px-5 py-4"
@@ -64,15 +57,12 @@ export default function MusterCard({
           <p className="text-[11px] mt-1.5" style={{ color: 'var(--ink-muted)' }}>
             Gold · Date coin · Special night · Ultra Angel
             {streak > 0 ? ` · ${streak} day streak` : ''}
-            {dateCoins > 0 ? ` · ${dateCoins} date coin${dateCoins === 1 ? '' : 's'}` : ''}
+            {dateCoins > 0
+              ? ` · ${dateCoins} date coin${dateCoins === 1 ? '' : 's'}`
+              : ''}
           </p>
         </div>
-        <form
-          action={async () => {
-            await action()
-            startTransition(() => router.refresh())
-          }}
-        >
+        <form action={action}>
           <ClaimButton claimed={claimed} />
         </form>
       </div>
