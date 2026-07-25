@@ -66,7 +66,7 @@ export async function takeCompanionOnDate(formData: FormData) {
     })
 
     const data = await response.json()
-    imageUrl = data.data?.[0]?.url as string | undefined
+    imageUrl = (data.data?.[0]?.url as string | undefined) ?? null
 
     if (!response.ok || !imageUrl) {
       const msg = (data?.error?.message || data?.message || '').toString().toLowerCase()
