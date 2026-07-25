@@ -14,6 +14,7 @@ import { ANGEL_COMPANION } from '@/lib/angelCompanion'
 import { dateRewards } from '@/lib/engines/loot'
 import { pickDateIdea, buildDatePromptFromIdea } from '@/lib/engines/dates'
 import { persistGeneratedImage } from '@/lib/persistImage'
+import { insertGalleryImage } from '@/lib/galleryKind'
 import { setFeedback } from '@/lib/feedback'
 
 async function unlockAngel(): Promise<boolean> {
@@ -127,11 +128,12 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
       })
       .eq('id', top.id)
 
-    await supabase.from('gallery_images').insert({
+    await insertGalleryImage(supabase, {
       character_name: characterName,
       image_url: imageUrl,
       affinity_at_generation: (top.affinity_score || 1) + rewards.affinityDelta,
-      prompt_used: `[Muster · ${idea.title}] ${prompt}`,
+      prompt_used: `Muster · ${idea.title} — ${prompt}`,
+      kind: 'muster',
     })
 
     await supabase.from('messages').insert({
