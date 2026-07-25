@@ -10,10 +10,11 @@ import { readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
 import FeedbackBanners from '@/components/FeedbackBanners'
 import MusterCard from '@/components/MusterCard'
-import { Plate, TileIcon } from '@/components/FantasyFrame'
+import { Plate, TileIcon, QuestRow } from '@/components/FantasyFrame'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { loadStanding } from '@/lib/engines/standing-store'
 import { chicagoYmd } from '@/lib/engines/muster'
+import type { ModuleIconKey } from '@/components/MythicIcons'
 
 export const dynamic = 'force-dynamic'
 
@@ -90,57 +91,83 @@ export default async function HubPage() {
   const today = chicagoYmd()
   const musterClaimed = standingRow.last_muster_date === today
 
-  const modules = [
-    { href: '/tasks', label: 'Quests', sub: 'Task log', emoji: '📜' },
-    { href: '/skills', label: 'Skills', sub: 'Growth', emoji: '⚔️' },
-    { href: '/companions', label: 'Party', sub: 'Allies', emoji: '🦊' },
-    { href: '/messages', label: 'Letters', sub: 'Messages', emoji: '✉️' },
-    { href: '/companion-profile', label: 'Mirror', sub: 'Profile', emoji: '🪞' },
-    { href: '/settings', label: 'Codex', sub: 'Settings', emoji: '📖' },
-    { href: '/standing', label: 'Standing', sub: rhythm ? tier.label : 'Status', emoji: '⚖️' },
-    { href: '/goals', label: 'Goals', sub: 'Direction', emoji: '🎯' },
-    { href: '#', label: 'Map', sub: 'Soon', emoji: '🗺️', disabled: true },
+  const modules: { href: string; label: ModuleIconKey; sub: string; disabled?: boolean }[] = [
+    { href: '/tasks', label: 'Quests', sub: 'Task log' },
+    { href: '/skills', label: 'Skills', sub: 'Growth' },
+    { href: '/companions', label: 'Party', sub: 'Allies' },
+    { href: '/messages', label: 'Letters', sub: 'Messages' },
+    { href: '/companion-profile', label: 'Mirror', sub: 'Profile' },
+    { href: '/settings', label: 'Codex', sub: 'Settings' },
+    { href: '/standing', label: 'Standing', sub: rhythm ? tier.label : 'Status' },
+    { href: '/goals', label: 'Goals', sub: 'Direction' },
+    { href: '#', label: 'Map', sub: 'Soon', disabled: true },
   ]
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-5 space-y-5 safe-bottom">
-      <Plate gold className="px-5 py-5">
+    <main className="max-w-md mx-auto px-4 pt-5 space-y-4 safe-bottom">
+      <Plate gold className="px-5 py-4">
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 pt-1">
+          <div className="min-w-0 pt-0.5">
             <p className="ml-kicker">Mythic Life</p>
-            <h1 className="ml-title mt-1.5">Mark Zito</h1>
-            <p className="mt-2 text-[12px] font-medium" style={{ color: 'var(--ink-muted)' }}>
-              The Unconventional Advisor
-            </p>
-            <div
-              className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold tracking-wide"
-              style={{
-                color: 'var(--gold)',
-                background: 'rgba(212,168,83,0.1)',
-                border: '1px solid rgba(212,168,83,0.28)',
-              }}
-            >
-              Knight of Purpose
-            </div>
+            <h1 className="ml-title mt-1 text-[1.35rem]">Mark Zito</h1>
+            <p className="mt-1.5 text-[11px] font-medium text-muted">The Unconventional Advisor</p>
           </div>
-          <div className="flex flex-col gap-2 shrink-0">
-            {bestStreak > 0 && (
-              <div className="orb orb-gold">
-                <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Streak</span>
-                <span className="text-sm font-bold font-display">{bestStreak}</span>
-              </div>
-            )}
-            <div className="orb orb-violet">
-              <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Today</span>
-              <span className="text-sm font-bold font-display tabular-nums">
-                {doneToday}/{totalToday || '—'}
-              </span>
+          {bestStreak > 0 && (
+            <div className="orb orb-gold shrink-0">
+              <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Streak</span>
+              <span className="text-sm font-bold font-display">{bestStreak}</span>
             </div>
-          </div>
+          )}
         </div>
       </Plate>
 
       {feedback && <FeedbackBanners feedback={feedback} />}
+
+      <div className="progress-strip">
+        <div>
+          <p className="progress-strip-label">Today's progress</p>
+          <p className="text-[11px] text-muted mt-0.5">
+            {doneToday === 0 && totalToday === 0
+              ? 'No quests on the board'
+              : doneToday === totalToday && totalToday > 0
+                ? 'All quests complete'
+                : `${totalToday - doneToday} remaining`}
+          </p>
+        </div>
+        <span className="progress-strip-value">
+          {doneToday}
+          <span className="text-dim text-base font-semibold">/{totalToday || '—'}</span>
+        </span>
+      </div>
+
+      {nextTask && (
+        <Plate emphasis className="quest-hero">
+          <div className="quest-hero-rail" />
+          <div className="flex items-start justify-between gap-3 pl-1">
+            <div className="min-w-0">
+              <p className="ml-kicker text-violet">Active quest</p>
+              <p className="quest-hero-title mt-1.5">{nextTask.title}</p>
+              {(nextTask.streak_count || 0) >= 2 && (
+                <p className="quest-row-streak mt-1">{nextTask.streak_count} day streak</p>
+              )}
+            </div>
+            {nextTime && <span className="quest-hero-meta">{nextTime}</span>}
+          </div>
+          <form action={completeTask} className="mt-3 pl-1">
+            <input type="hidden" name="id" value={nextTask.id} />
+            <button
+              type="submit"
+              className="w-full rounded-xl py-2.5 text-sm font-semibold tracking-wide text-ink"
+              style={{
+                background: 'linear-gradient(180deg, rgba(124,92,191,0.45) 0%, rgba(80,55,140,0.55) 100%)',
+                border: '1px solid rgba(167,139,250,0.45)',
+              }}
+            >
+              Complete quest
+            </button>
+          </form>
+        </Plate>
+      )}
 
       <MusterCard
         claimed={musterClaimed}
@@ -149,173 +176,88 @@ export default async function HubPage() {
         action={claimDailyMuster}
       />
 
-      {nextTask && (
-        <Plate className="px-5 py-4">
-          <div
-            className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
-            style={{ background: 'linear-gradient(180deg, var(--violet), transparent)' }}
-          />
-          <div className="flex items-center justify-between gap-3 pl-2">
-            <div className="min-w-0">
-              <p className="ml-kicker" style={{ color: 'var(--violet)' }}>
-                Active quest
-              </p>
-              <p className="font-display text-[17px] font-semibold mt-1.5 truncate" style={{ color: 'var(--ink)' }}>
-                {nextTask.title}
-              </p>
-            </div>
-            {nextTime && (
-              <span
-                className="shrink-0 text-xs font-bold tabular-nums px-3 py-1.5 rounded-full"
-                style={{
-                  color: 'var(--sky)',
-                  border: '1px solid rgba(125,211,252,0.35)',
-                  background: 'rgba(14,30,48,0.75)',
-                }}
-              >
-                {nextTime}
-              </span>
-            )}
-          </div>
-        </Plate>
-      )}
-
-      <section className="space-y-3">
+      <section className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
-          <h2 className="ml-kicker" style={{ color: 'var(--ink-dim)' }}>
-            Today's quests
-          </h2>
-          <Link href="/mother-list" className="text-xs font-semibold" style={{ color: 'var(--gold)' }}>
+          <h2 className="section-label">Today's quests</h2>
+          <Link href="/mother-list" className="text-xs font-semibold text-gold">
             + Mother List
           </Link>
         </div>
 
         {incompleteTasks.length > 0 ? (
-          <div className="space-y-2.5">
-            {incompleteTasks.slice(0, 4).map(
+          <div className="space-y-2">
+            {incompleteTasks.slice(nextTask ? 1 : 0, 5).map(
               (task: {
                 id: string
                 title: string
-                domains?: string
-                domain?: string
                 streak_count?: number
                 anchor_time?: string
               }) => {
                 const timeLabel = formatAnchor(task.anchor_time)
                 return (
-                  <div
-                    key={task.id}
-                    className="flex items-center gap-3.5 px-4 py-3.5 rounded-2xl"
-                    style={{
-                      background: 'linear-gradient(180deg, #1a1630 0%, #12101c 100%)',
-                      border: '1px solid rgba(70,58,110,0.55)',
-                      boxShadow: '0 1px 0 rgba(255,255,255,0.03) inset',
-                    }}
-                  >
+                  <QuestRow key={task.id}>
                     <form action={completeTask} className="shrink-0">
                       <input type="hidden" name="id" value={task.id} />
                       <PendingCircleButton />
                     </form>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-[15px] font-semibold truncate" style={{ color: 'var(--ink)' }}>
-                          {task.title}
-                        </p>
-                        {timeLabel && (
-                          <span className="text-[11px] font-bold tabular-nums" style={{ color: 'var(--sky)' }}>
-                            {timeLabel}
-                          </span>
-                        )}
+                        <p className="quest-row-title truncate">{task.title}</p>
+                        {timeLabel && <span className="quest-row-time">{timeLabel}</span>}
                       </div>
                       {(task.streak_count || 0) >= 2 && (
-                        <p className="text-[10px] font-semibold mt-1" style={{ color: 'var(--gold)' }}>
-                          {task.streak_count} day streak
-                        </p>
+                        <p className="quest-row-streak">{task.streak_count} day streak</p>
                       )}
                     </div>
-                  </div>
+                  </QuestRow>
                 )
               }
             )}
           </div>
         ) : (
-          <div
-            className="px-5 py-9 text-center rounded-2xl"
-            style={{
-              background: 'linear-gradient(180deg, #1a1630 0%, #12101c 100%)',
-              border: '1px dashed rgba(90,75,130,0.45)',
-            }}
-          >
-            <p className="text-sm font-medium" style={{ color: 'var(--ink-muted)' }}>
+          <div className="quest-row justify-center py-8">
+            <p className="text-sm font-medium text-muted text-center">
               {completedTasks.length > 0 ? 'All quests complete for today.' : 'No quests on the board.'}
             </p>
-            {completedTasks.length === 0 && (
-              <Link href="/mother-list" className="inline-block mt-3 text-sm font-semibold" style={{ color: 'var(--gold)' }}>
-                Draw from the Mother List →
-              </Link>
-            )}
           </div>
         )}
       </section>
 
       <Link href="/standing" className="block">
-        <Plate gold className="px-5 py-4">
-          <div
-            className="absolute left-0 top-3 bottom-3 w-[3px] rounded-full"
-            style={{ background: 'linear-gradient(180deg, var(--gold), transparent)' }}
-          />
-          <div className="flex items-center justify-between pl-2">
+        <Plate gold className="px-5 py-3.5">
+          <div className="flex items-center justify-between">
             <div className="min-w-0">
               <p className="ml-kicker">Standing</p>
               {rhythm ? (
-                <div className="mt-1.5">
-                  <p className={`font-display text-[15px] font-semibold ${tier.color}`}>
-                    Rhythm · {tier.label}
-                  </p>
-                  <p className="text-xs mt-0.5" style={{ color: 'var(--ink-dim)' }}>
-                    {standingUi?.sleep?.bedtimeDisplay && standingUi?.sleep?.wakeDisplay
-                      ? `${standingUi.sleep.bedtimeDisplay} → ${standingUi.sleep.wakeDisplay}`
-                      : 'Sleep window scored'}
-                  </p>
-                </div>
-              ) : (
-                <p className="text-sm font-medium mt-1.5" style={{ color: 'var(--ink-muted)' }}>
-                  Self · Consistency · Shadow Debt
+                <p className={`font-display text-[14px] font-semibold mt-1 ${tier.color}`}>
+                  Rhythm · {tier.label}
                 </p>
+              ) : (
+                <p className="text-sm font-medium mt-1 text-muted">Self · Consistency · Shadow Debt</p>
               )}
             </div>
-            <span className="text-2xl opacity-80">⚖️</span>
+            <span className="text-dim text-lg opacity-70">→</span>
           </div>
         </Plate>
       </Link>
 
-      <section>
-        <p className="ml-kicker mb-3 px-1" style={{ color: 'var(--ink-dim)' }}>
-          Grimoire
-        </p>
-        <div className="grid grid-cols-3 gap-3">
+      <section className="section-quiet pt-1">
+        <p className="section-label mb-2.5 px-1">Grimoire</p>
+        <div className="grid grid-cols-3 gap-2.5">
           {modules.map((m) =>
-            (m as { disabled?: boolean }).disabled ? (
-              <div
-                key={m.label}
-                className="rounded-2xl p-3.5 opacity-30 flex flex-col items-center"
-                style={{ border: '1px solid #2a2440', background: '#0e0c16' }}
-              >
-                <TileIcon emoji={m.emoji} label={m.label} />
-                <span className="text-[9px] mt-1" style={{ color: 'var(--ink-dim)' }}>
-                  {m.sub}
-                </span>
+            m.disabled ? (
+              <div key={m.label} className="grimoire-tile p-3 opacity-30 flex flex-col items-center">
+                <TileIcon label={m.label} icon={m.label} />
+                <span className="text-[9px] mt-0.5 text-dim">{m.sub}</span>
               </div>
             ) : (
               <Link
                 key={m.label}
                 href={m.href}
-                className="grimoire-tile p-3.5 flex flex-col items-center gap-0.5"
+                className="grimoire-tile p-3 flex flex-col items-center gap-0.5"
               >
-                <TileIcon emoji={m.emoji} label={m.label} />
-                <span className="text-[9px] mt-0.5" style={{ color: 'var(--ink-muted)' }}>
-                  {m.sub}
-                </span>
+                <TileIcon label={m.label} icon={m.label} />
+                <span className="text-[9px] mt-0.5 text-muted">{m.sub}</span>
               </Link>
             )
           )}
