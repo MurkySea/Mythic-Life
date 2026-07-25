@@ -8,11 +8,13 @@ export default function FeedbackBanners({ feedback }: { feedback: FeedbackPayloa
   const [visible, setVisible] = useState(true)
 
   useEffect(() => {
-    const t = setTimeout(() => setVisible(false), 3200)
+    const t = setTimeout(() => setVisible(false), 3800)
     return () => clearTimeout(t)
   }, [])
 
   if (!visible) return null
+
+  const loot = feedback.loot && feedback.loot.kind !== 'nothing' ? feedback.loot : null
 
   return (
     <div className="space-y-2.5 relative">
@@ -42,6 +44,39 @@ export default function FeedbackBanners({ feedback }: { feedback: FeedbackPayloa
           </Link>
         </div>
       ))}
+
+      {loot && (
+        <div
+          className={`rounded-[1.15rem] border p-4 pr-10 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset] ${
+            loot.rarity === 'rare'
+              ? 'border-amber-500/50 bg-amber-950/30'
+              : loot.rarity === 'uncommon'
+                ? 'border-sky-600/40 bg-sky-950/25'
+                : 'border-zinc-600/40 bg-zinc-900/50'
+          }`}
+        >
+          <p
+            className={`text-[10px] font-bold tracking-[0.12em] uppercase mb-1.5 ${
+              loot.rarity === 'rare'
+                ? 'text-amber-300'
+                : loot.rarity === 'uncommon'
+                  ? 'text-sky-300'
+                  : 'text-zinc-400'
+            }`}
+          >
+            {loot.rarity === 'rare' ? '✦ Rare loot' : loot.rarity === 'uncommon' ? 'Loot' : 'Loot'}
+          </p>
+          <p className="text-sm font-semibold text-white">{loot.label}</p>
+          {loot.kind === 'scene_credit' && (
+            <Link
+              href={`/companion-profile?c=${feedback.companionSlug}`}
+              className="inline-block mt-2 text-xs font-semibold text-amber-300/90 hover:text-amber-200"
+            >
+              Claim a scene →
+            </Link>
+          )}
+        </div>
+      )}
 
       <div className="rounded-[1.15rem] border border-violet-600/35 bg-violet-950/25 p-4 pr-10 shadow-[0_1px_0_rgba(255,255,255,0.04)_inset]">
         <p className="text-[10px] font-bold tracking-[0.12em] uppercase text-violet-400/90 mb-2">Gains</p>
