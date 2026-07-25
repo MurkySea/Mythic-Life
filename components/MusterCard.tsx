@@ -31,7 +31,7 @@ export default function MusterCard({
   claimed: boolean
   streak: number
   dateCoins: number
-  action: (formData?: FormData) => Promise<unknown>
+  action: (formData: FormData) => void | Promise<void>
 }) {
   return (
     <div
