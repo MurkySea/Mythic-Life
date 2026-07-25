@@ -3,7 +3,7 @@
 import { useFormStatus } from 'react-dom'
 import { DATE_GOLD_COST } from '@/lib/engines/loot'
 
-function Submit() {
+function Submit({ hasCoin }: { hasCoin: boolean }) {
   const { pending } = useFormStatus()
   return (
     <button
@@ -15,7 +15,11 @@ function Submit() {
           : 'bg-amber-700/90 hover:bg-amber-600 text-amber-50'
       }`}
     >
-      {pending ? 'Getting ready…' : `Take on a date · ${DATE_GOLD_COST} gold`}
+      {pending
+        ? 'Getting ready…'
+        : hasCoin
+          ? 'Take on a date · 1 date coin'
+          : `Take on a date · ${DATE_GOLD_COST} gold`}
     </button>
   )
 }
@@ -23,28 +27,34 @@ function Submit() {
 export default function TakeOnDateButton({
   slug,
   gold,
+  dateCoins = 0,
   action,
 }: {
   slug: string
   gold: number
+  dateCoins?: number
   action: (formData: FormData) => Promise<void>
 }) {
-  const canAfford = gold >= DATE_GOLD_COST
+  const hasCoin = dateCoins >= 1
+  const canAfford = hasCoin || gold >= DATE_GOLD_COST
 
   return (
     <div className="w-full mt-2">
       <p className="text-[11px] text-zinc-500 text-center leading-relaxed px-2">
-        Spend gold on a night out — not a transaction. She dresses up; you both get the memory.
-        <span className="block mt-1 text-zinc-600">You have {Math.floor(gold)} gold</span>
+        Spend a date coin or gold on a night out — not a transaction. She dresses up; you both get the memory.
+        <span className="block mt-1 text-zinc-600">
+          {dateCoins > 0 ? `${dateCoins} date coin${dateCoins === 1 ? '' : 's'} · ` : ''}
+          {Math.floor(gold)} gold
+        </span>
       </p>
       {canAfford ? (
         <form action={action}>
           <input type="hidden" name="slug" value={slug} />
-          <Submit />
+          <Submit hasCoin={hasCoin} />
         </form>
       ) : (
         <p className="mt-3 text-center text-xs text-zinc-600">
-          Need {DATE_GOLD_COST} gold · complete quests for loot
+          Need a date coin or {DATE_GOLD_COST} gold · muster & quests
         </p>
       )}
     </div>
