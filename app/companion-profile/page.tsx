@@ -16,14 +16,9 @@ import { loadStanding } from '@/lib/engines/standing-store'
 import { takeCompanionOnDate } from '@/app/date-actions'
 import TakeOnDateButton from '@/components/TakeOnDateButton'
 import { persistGeneratedImage } from '@/lib/persistImage'
+import { insertGalleryImage, isAffinitySceneRow } from '@/lib/galleryKind'
 
 export const dynamic = 'force-dynamic'
-
-/** Date / muster rows prefix prompt_used with [Title] — affinity scenes do not. */
-function isAffinitySceneRow(promptUsed: string | null | undefined): boolean {
-  if (!promptUsed) return true
-  return !promptUsed.trimStart().startsWith('[')
-}
 
 async function generateCompanionImage(formData: FormData) {
   'use server'
@@ -46,15 +41,12 @@ async function generateCompanionImage(formData: FormData) {
   const characterName = companion.name || def?.name || 'Seraphine'
   const earned = scenesEarned(affinity)
 
-  // Only count affinity scenes — not dates / muster specials
   const { data: galleryRows } = await supabase
     .from('gallery_images')
-    .select('prompt_used')
+    .select('kind, prompt_used')
     .eq('character_name', characterName)
 
-  const used = (galleryRows || []).filter((r: { prompt_used?: string | null }) =>
-    isAffinitySceneRow(r.prompt_used)
-  ).length
+  const used = (galleryRows || []).filter(isAffinitySceneRow).length
 
   if (used >= earned) {
     redirect(`/companion-profile?c=${slug}&scene=limit`)
@@ -96,11 +88,12 @@ async function generateCompanionImage(formData: FormData) {
       kind: `scene_${sceneIndex + 1}`,
     })
 
-    await supabase.from('gallery_images').insert({
+    await insertGalleryImage(supabase, {
       character_name: characterName,
       image_url: imageUrl,
       affinity_at_generation: affinity,
       prompt_used: prompt,
+      kind: 'scene',
     })
 
     revalidatePath('/companion-profile')
@@ -272,7 +265,7 @@ export default async function CompanionProfilePage({
       .limit(20),
     supabase
       .from('gallery_images')
-      .select('prompt_used')
+      .select('kind, prompt_used')
       .eq('character_name', characterName),
     loadStanding(),
   ])
@@ -284,9 +277,7 @@ export default async function CompanionProfilePage({
     })
     .slice(0, 8)
 
-  const used = (galleryRows || []).filter((r: { prompt_used?: string | null }) =>
-    isAffinitySceneRow(r.prompt_used)
-  ).length
+  const used = (galleryRows || []).filter(isAffinitySceneRow).length
   const canGenerate = used < earned
 
   return (
@@ -345,7 +336,6 @@ export default async function CompanionProfilePage({
                 </p>
               )}
 
-              {/* Affinity scenes — separate from dates */}
               <div className="mt-5 w-full rounded-2xl border border-violet-800/40 bg-zinc-950/60 p-4 text-center">
                 <p className="text-[11px] uppercase tracking-wider text-violet-400/80">Affinity scenes</p>
                 <p className="text-lg text-white mt-1">
@@ -391,10 +381,12 @@ export default async function CompanionProfilePage({
                 )}
               </div>
 
-              {/* Date night — own card, never replaces scenes */}
               <div className="mt-3 w-full rounded-2xl border border-amber-800/35 bg-amber-950/15 p-4">
                 <p className="text-[11px] uppercase tracking-wider text-amber-400/80 text-center">
                   Date night
+                </p>
+                <p className="text-[10px] text-zinc-500 text-center mt-1 mb-1">
+                  Separate from affinity scenes · does not use scene slots
                 </p>
                 <TakeOnDateButton
                   slug={slug}
