@@ -132,7 +132,7 @@ function DateBanner({ status }: { status?: string }) {
       className: 'border-amber-600/50 bg-amber-950/30 text-amber-100',
     },
     broke: {
-      text: 'Not enough gold yet. Complete quests for loot, then invite her out.',
+      text: 'Not enough gold or date coins. Muster and complete quests.',
       className: 'border-zinc-600 bg-zinc-900 text-zinc-300',
     },
     blocked: {
@@ -375,6 +375,7 @@ export default async function CompanionProfilePage({
               <TakeOnDateButton
                 slug={slug}
                 gold={standing.total_gold}
+                dateCoins={standing.date_coins}
                 action={takeCompanionOnDate}
               />
 
