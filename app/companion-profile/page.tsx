@@ -12,6 +12,9 @@ import {
   getIntimacyLabel,
   SCENE_MILESTONES,
 } from '@/lib/scenes'
+import { loadStanding } from '@/lib/engines/standing-store'
+import { takeCompanionOnDate } from '@/app/date-actions'
+import TakeOnDateButton from '@/components/TakeOnDateButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,7 +80,6 @@ async function generateCompanionImage(formData: FormData) {
       redirect(`/companion-profile?c=${slug}&scene=${blocked ? 'blocked' : 'error'}`)
     }
 
-    // Scenes live in the gallery only — do not overwrite base profile portrait
     await supabase.from('gallery_images').insert({
       character_name: characterName,
       image_url: imageUrl,
@@ -122,14 +124,42 @@ function SceneBanner({ status }: { status?: string }) {
   )
 }
 
+function DateBanner({ status }: { status?: string }) {
+  if (!status) return null
+  const map: Record<string, { text: string; className: string }> = {
+    ok: {
+      text: 'Date night saved — check Messages and Gallery for the moment.',
+      className: 'border-amber-600/50 bg-amber-950/30 text-amber-100',
+    },
+    broke: {
+      text: 'Not enough gold yet. Complete quests for loot, then invite her out.',
+      className: 'border-zinc-600 bg-zinc-900 text-zinc-300',
+    },
+    blocked: {
+      text: 'Image model declined the night-out prompt. Try again later.',
+      className: 'border-rose-700/50 bg-rose-950/40 text-rose-200',
+    },
+    error: {
+      text: 'Could not start the date — try again in a moment.',
+      className: 'border-zinc-600 bg-zinc-900 text-zinc-300',
+    },
+  }
+  const item = map[status]
+  if (!item) return null
+  return (
+    <div className={`rounded-2xl border px-4 py-3 text-sm mb-4 ${item.className}`}>{item.text}</div>
+  )
+}
+
 export default async function CompanionProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ c?: string; scene?: string }>
+  searchParams: Promise<{ c?: string; scene?: string; date?: string }>
 }) {
   const params = await searchParams
   const slug = params.c || ''
   const sceneStatus = params.scene
+  const dateStatus = params.date
 
   const supabase = await createClient()
   const { data: all } = await supabase
@@ -215,10 +245,9 @@ export default async function CompanionProfilePage({
   const affinity = companion?.affinity_score || 1
   const earned = scenesEarned(affinity)
   const nextAt = nextSceneMilestone(affinity)
-  // Base portrait only — scenes stay in Gallery
   const portraitSrc = resolveHeadshot(slug, companion?.image_url)
 
-  const [{ data: memories }, { count: sceneCount }] = await Promise.all([
+  const [{ data: memories }, { count: sceneCount }, standing] = await Promise.all([
     supabase
       .from('messages')
       .select('*')
@@ -229,6 +258,7 @@ export default async function CompanionProfilePage({
       .from('gallery_images')
       .select('*', { count: 'exact', head: true })
       .eq('character_name', characterName),
+    loadStanding(),
   ])
 
   const filteredMemories = (memories || [])
@@ -260,6 +290,7 @@ export default async function CompanionProfilePage({
       </div>
 
       <SceneBanner status={sceneStatus} />
+      <DateBanner status={dateStatus} />
 
       {companion && (
         <div className="space-y-6">
@@ -340,6 +371,13 @@ export default async function CompanionProfilePage({
                   Deepen the bond through tasks and conversation to unlock the next scene.
                 </p>
               )}
+
+              <TakeOnDateButton
+                slug={slug}
+                gold={standing.total_gold}
+                action={takeCompanionOnDate}
+              />
+
               <Link
                 href={`/gallery?character=${encodeURIComponent(characterName)}`}
                 className="mt-3 text-xs text-violet-400 hover:text-violet-300"
