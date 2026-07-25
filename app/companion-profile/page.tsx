@@ -19,6 +19,12 @@ import { persistGeneratedImage } from '@/lib/persistImage'
 
 export const dynamic = 'force-dynamic'
 
+/** Date / muster rows prefix prompt_used with [Title] — affinity scenes do not. */
+function isAffinitySceneRow(promptUsed: string | null | undefined): boolean {
+  if (!promptUsed) return true
+  return !promptUsed.trimStart().startsWith('[')
+}
+
 async function generateCompanionImage(formData: FormData) {
   'use server'
 
@@ -40,12 +46,16 @@ async function generateCompanionImage(formData: FormData) {
   const characterName = companion.name || def?.name || 'Seraphine'
   const earned = scenesEarned(affinity)
 
-  const { count } = await supabase
+  // Only count affinity scenes — not dates / muster specials
+  const { data: galleryRows } = await supabase
     .from('gallery_images')
-    .select('*', { count: 'exact', head: true })
+    .select('prompt_used')
     .eq('character_name', characterName)
 
-  const used = count || 0
+  const used = (galleryRows || []).filter((r: { prompt_used?: string | null }) =>
+    isAffinitySceneRow(r.prompt_used)
+  ).length
+
   if (used >= earned) {
     redirect(`/companion-profile?c=${slug}&scene=limit`)
   }
@@ -253,7 +263,7 @@ export default async function CompanionProfilePage({
   const nextAt = nextSceneMilestone(affinity)
   const portraitSrc = resolveHeadshot(slug, companion?.image_url)
 
-  const [{ data: memories }, { count: sceneCount }, standing] = await Promise.all([
+  const [{ data: memories }, { data: galleryRows }, standing] = await Promise.all([
     supabase
       .from('messages')
       .select('*')
@@ -262,7 +272,7 @@ export default async function CompanionProfilePage({
       .limit(20),
     supabase
       .from('gallery_images')
-      .select('*', { count: 'exact', head: true })
+      .select('prompt_used')
       .eq('character_name', characterName),
     loadStanding(),
   ])
@@ -274,7 +284,9 @@ export default async function CompanionProfilePage({
     })
     .slice(0, 8)
 
-  const used = sceneCount || 0
+  const used = (galleryRows || []).filter((r: { prompt_used?: string | null }) =>
+    isAffinitySceneRow(r.prompt_used)
+  ).length
   const canGenerate = used < earned
 
   return (
@@ -333,8 +345,9 @@ export default async function CompanionProfilePage({
                 </p>
               )}
 
-              <div className="mt-5 w-full rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 text-center">
-                <p className="text-[11px] uppercase tracking-wider text-zinc-500">Scenes</p>
+              {/* Affinity scenes — separate from dates */}
+              <div className="mt-5 w-full rounded-2xl border border-violet-800/40 bg-zinc-950/60 p-4 text-center">
+                <p className="text-[11px] uppercase tracking-wider text-violet-400/80">Affinity scenes</p>
                 <p className="text-lg text-white mt-1">
                   {used} <span className="text-zinc-500 text-sm">/ {earned} earned</span>
                 </p>
@@ -360,30 +373,36 @@ export default async function CompanionProfilePage({
                     />
                   ))}
                 </div>
+
+                {canGenerate ? (
+                  <form action={generateCompanionImage} className="mt-4">
+                    <input type="hidden" name="slug" value={slug} />
+                    <button
+                      type="submit"
+                      className="w-full px-6 py-2.5 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-xl text-sm font-medium transition"
+                    >
+                      Claim Scene {used + 1}
+                    </button>
+                  </form>
+                ) : (
+                  <p className="mt-3 text-xs text-zinc-600 text-center">
+                    Deepen affinity through tasks & talk to unlock the next scene.
+                  </p>
+                )}
               </div>
 
-              {canGenerate ? (
-                <form action={generateCompanionImage} className="mt-4">
-                  <input type="hidden" name="slug" value={slug} />
-                  <button
-                    type="submit"
-                    className="px-6 py-2.5 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-xl text-sm font-medium transition"
-                  >
-                    Claim Scene {used + 1}
-                  </button>
-                </form>
-              ) : (
-                <p className="mt-4 text-xs text-zinc-600 text-center max-w-[240px]">
-                  Deepen the bond through tasks and conversation to unlock the next scene.
+              {/* Date night — own card, never replaces scenes */}
+              <div className="mt-3 w-full rounded-2xl border border-amber-800/35 bg-amber-950/15 p-4">
+                <p className="text-[11px] uppercase tracking-wider text-amber-400/80 text-center">
+                  Date night
                 </p>
-              )}
-
-              <TakeOnDateButton
-                slug={slug}
-                gold={standing.total_gold}
-                dateCoins={standing.date_coins}
-                action={takeCompanionOnDate}
-              />
+                <TakeOnDateButton
+                  slug={slug}
+                  gold={standing.total_gold}
+                  dateCoins={standing.date_coins}
+                  action={takeCompanionOnDate}
+                />
+              </div>
 
               <Link
                 href={`/gallery?character=${encodeURIComponent(characterName)}`}
