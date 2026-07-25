@@ -8,10 +8,12 @@ import { loadStanding, saveStanding } from '@/lib/engines/standing-store'
 import { DATE_GOLD_COST, dateRewards } from '@/lib/engines/loot'
 import { pickDateIdea, buildDatePromptFromIdea } from '@/lib/engines/dates'
 import { persistGeneratedImage } from '@/lib/persistImage'
+import { insertGalleryImage } from '@/lib/galleryKind'
 
 /**
  * Spend a date coin (preferred) or gold to take a companion on a date.
  * Picks one of ~25 date ideas at random. Image is persisted to Storage.
+ * Does NOT consume affinity scene slots.
  */
 export async function takeCompanionOnDate(formData: FormData) {
   const slug = (formData.get('slug') as string) || 'seraphine'
@@ -78,7 +80,6 @@ export async function takeCompanionOnDate(formData: FormData) {
       redirect(`/companion-profile?c=${slug}&date=${blocked ? 'blocked' : 'error'}`)
     }
 
-    // Make the gallery URL durable (temp CDN → Supabase Storage)
     imageUrl = await persistGeneratedImage(imageUrl, {
       characterName,
       kind: `date_${idea.id}`,
@@ -106,11 +107,12 @@ export async function takeCompanionOnDate(formData: FormData) {
     })
     .eq('id', companion.id)
 
-  await supabase.from('gallery_images').insert({
+  await insertGalleryImage(supabase, {
     character_name: characterName,
     image_url: imageUrl,
     affinity_at_generation: nextAffinity,
-    prompt_used: `[${idea.title}] ${prompt}`,
+    prompt_used: `${idea.title} — ${prompt}`,
+    kind: 'date',
   })
 
   const content = `${idea.line}\n\n— ${idea.title} —\n\n[image:${imageUrl}]`
