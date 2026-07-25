@@ -12,9 +12,8 @@ import {
 } from '@/lib/engines/loot'
 
 /**
- * Spend gold to take a companion on a date.
- * Not transactional love — an experience: dressed-up night-out image,
- * message in thread, big bond/affinity boost.
+ * Spend a date coin (preferred) or gold to take a companion on a date.
+ * Experience — dressed-up night-out image, message, big bond boost.
  */
 export async function takeCompanionOnDate(formData: FormData) {
   const slug = (formData.get('slug') as string) || 'seraphine'
@@ -22,7 +21,10 @@ export async function takeCompanionOnDate(formData: FormData) {
   const supabase = await createClient()
 
   const standing = await loadStanding()
-  if (standing.total_gold < DATE_GOLD_COST) {
+  const useCoin = (standing.date_coins || 0) >= 1
+  const canPay = useCoin || standing.total_gold >= DATE_GOLD_COST
+
+  if (!canPay) {
     redirect(`/companion-profile?c=${slug}&date=broke`)
   }
 
@@ -81,10 +83,12 @@ export async function takeCompanionOnDate(formData: FormData) {
     redirect(`/companion-profile?c=${slug}&date=error`)
   }
 
-  // Charge gold only after image succeeds
-  await saveStanding({
-    total_gold: standing.total_gold - DATE_GOLD_COST,
-  })
+  // Charge only after image succeeds — coin first, else gold
+  if (useCoin) {
+    await saveStanding({ date_coins: standing.date_coins - 1 })
+  } else {
+    await saveStanding({ total_gold: standing.total_gold - DATE_GOLD_COST })
+  }
 
   const rewards = dateRewards()
   const nextAffinity = (companion.affinity_score || 1) + rewards.affinityDelta
@@ -98,7 +102,6 @@ export async function takeCompanionOnDate(formData: FormData) {
     })
     .eq('id', companion.id)
 
-  // Gallery entry
   await supabase.from('gallery_images').insert({
     character_name: characterName,
     image_url: imageUrl,
@@ -106,12 +109,17 @@ export async function takeCompanionOnDate(formData: FormData) {
     prompt_used: prompt,
   })
 
-  // Message in thread with image marker
-  const lines = [
-    `I dressed up for tonight. Thank you for this — not the gold, the choosing me for an evening.`,
-    `A whole night just for us. I felt seen the moment we stepped out.`,
-    `You spent what you earned so we could have this. That means more than you think.`,
-  ]
+  const lines = useCoin
+    ? [
+        `You spent a Date coin on me. That feels rarer than gold.`,
+        `A special night from the muster table — I dressed up for it.`,
+        `You chose the experience. I'm here for all of it.`,
+      ]
+    : [
+        `I dressed up for tonight. Thank you for this — not the gold, the choosing me for an evening.`,
+        `A whole night just for us. I felt seen the moment we stepped out.`,
+        `You spent what you earned so we could have this. That means more than you think.`,
+      ]
   const line = lines[Math.floor(Math.random() * lines.length)]
   const content = `${line}\n\n[image:${imageUrl}]`
 
