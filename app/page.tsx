@@ -12,17 +12,21 @@ import {
   postUnlockCeremony,
 } from './actions'
 import { maybeCompanionCheckIn } from './check-in-actions'
+import { claimDailyMuster } from './muster-actions'
 import { maybeScheduleTaskReaction } from '@/lib/outreach'
 import { parseDomains, SKILL_LABELS, type SkillKey } from '@/lib/skills'
 import { getCompanionDef } from '@/lib/companions'
 import { setFeedback, readFeedback } from '@/lib/feedback'
 import { PendingCircleButton } from '@/components/PendingSubmit'
 import FeedbackBanners from '@/components/FeedbackBanners'
+import MusterCard from '@/components/MusterCard'
 import { Plate, TileIcon } from '@/components/FantasyFrame'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { runStandingForCompletedTask } from '@/lib/engines/apply-task'
 import { rollQuestLoot } from '@/lib/engines/loot'
 import { applyLootDrop } from '@/lib/engines/apply-loot'
+import { loadStanding } from '@/lib/engines/standing-store'
+import { chicagoYmd } from '@/lib/engines/muster'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,7 +76,6 @@ async function completeTask(formData: FormData) {
 
   await runStandingForCompletedTask({ title, domains })
 
-  // Quest loot — instant gratification on real completion
   const loot = rollQuestLoot({ streak })
   try {
     await applyLootDrop(loot, slug)
@@ -142,7 +145,10 @@ export default async function HubPage() {
   })
 
   const feedback = await readFeedback()
-  const standing = await fetchLatestStanding()
+  const [standingUi, standingRow] = await Promise.all([
+    fetchLatestStanding(),
+    loadStanding(),
+  ])
   const supabase = await createClient()
 
   const { data: todayTasks } = await supabase
@@ -165,10 +171,13 @@ export default async function HubPage() {
     ...(todayTasks || []).map((t: { streak_count?: number }) => t.streak_count || 0)
   )
 
-  const rhythm = standing?.rhythm
+  const rhythm = standingUi?.rhythm
   const tier = tierStyle(rhythm?.tier)
   const nextTask = incompleteTasks[0] || null
   const nextTime = nextTask ? formatAnchor(nextTask.anchor_time) : null
+
+  const today = chicagoYmd()
+  const musterClaimed = standingRow.last_muster_date === today
 
   const modules = [
     { href: '/tasks', label: 'Quests', sub: 'Task log', emoji: '📜' },
@@ -221,6 +230,13 @@ export default async function HubPage() {
       </Plate>
 
       {feedback && <FeedbackBanners feedback={feedback} />}
+
+      <MusterCard
+        claimed={musterClaimed}
+        streak={standingRow.muster_streak || 0}
+        dateCoins={standingRow.date_coins || 0}
+        action={claimDailyMuster}
+      />
 
       {nextTask && (
         <Plate className="px-5 py-4">
@@ -350,8 +366,8 @@ export default async function HubPage() {
                     Rhythm · {tier.label}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: 'var(--ink-dim)' }}>
-                    {standing?.sleep?.bedtimeDisplay && standing?.sleep?.wakeDisplay
-                      ? `${standing.sleep.bedtimeDisplay} → ${standing.sleep.wakeDisplay}`
+                    {standingUi?.sleep?.bedtimeDisplay && standingUi?.sleep?.wakeDisplay
+                      ? `${standingUi.sleep.bedtimeDisplay} → ${standingUi.sleep.wakeDisplay}`
                       : 'Sleep window scored'}
                   </p>
                 </div>
