@@ -11,7 +11,9 @@ import {
 } from '@/lib/engines/muster'
 import { getCompanionDef } from '@/lib/companions'
 import { ANGEL_COMPANION } from '@/lib/angelCompanion'
-import { buildDateScenePrompt, dateRewards } from '@/lib/engines/loot'
+import { dateRewards } from '@/lib/engines/loot'
+import { pickDateIdea, buildDatePromptFromIdea } from '@/lib/engines/dates'
+import { persistGeneratedImage } from '@/lib/persistImage'
 import { setFeedback } from '@/lib/feedback'
 
 async function unlockAngel(): Promise<boolean> {
@@ -87,7 +89,8 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
     def?.appearance ||
     'elegant adult woman, distinctive feminine features, graceful figure'
 
-  const prompt = buildDateScenePrompt({
+  const idea = pickDateIdea()
+  const prompt = buildDatePromptFromIdea(idea, {
     appearance,
     name: characterName,
     race: def?.race,
@@ -107,8 +110,13 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
       }),
     })
     const data = await response.json()
-    const imageUrl = (data.data?.[0]?.url as string | undefined) ?? null
+    let imageUrl = (data.data?.[0]?.url as string | undefined) ?? null
     if (!response.ok || !imageUrl) return { name: characterName, slug }
+
+    imageUrl = await persistGeneratedImage(imageUrl, {
+      characterName,
+      kind: `muster_${idea.id}`,
+    })
 
     const rewards = dateRewards()
     await supabase
@@ -123,12 +131,12 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
       character_name: characterName,
       image_url: imageUrl,
       affinity_at_generation: (top.affinity_score || 1) + rewards.affinityDelta,
-      prompt_used: prompt,
+      prompt_used: `[Muster · ${idea.title}] ${prompt}`,
     })
 
     await supabase.from('messages').insert({
       role: 'companion',
-      content: `A special night — from the muster. I dressed for you.\n\n[image:${imageUrl}]`,
+      content: `${idea.line}\n\n— Special night from the muster · ${idea.title} —\n\n[image:${imageUrl}]`,
       companion_slug: slug,
     })
 
