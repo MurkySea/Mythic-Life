@@ -1,10 +1,16 @@
 # Goals System
 
-Added 2026-07-24.
+Added 2026-07-24. UI + store live 2026-07-25.
 
 ## Purpose
 
-Goals sit **above** daily tasks. They are weighted, time-bound (or ongoing) real-life objectives under stable pillars. Completing them feeds Consistency Tokens and can deepen companion relationships. Neglecting them feeds Shadow Debt and can cool Trust.
+Goals sit **above** daily tasks. They are weighted, time-bound (or ongoing) real-life objectives under stable pillars. Completing them feeds Consistency Tokens and XP/Gold. Neglecting them feeds Shadow Debt.
+
+## Routes
+
+- `/goals` — active / paused / history
+- `/goals/new` — create form
+- Home Grimoire tile → Goals
 
 ## Pillars
 
@@ -27,19 +33,42 @@ Goals sit **above** daily tasks. They are weighted, time-bound (or ongoing) real
 
 ## Rewards & penalties
 
-- **Completion** → Consistency Tokens, XP, Gold, small Trust + Intimacy to companions who care about that pillar
-- **Neglect / abandon** → Shadow Debt + Trust damage to caring companions
+- **Completion** → Consistency Tokens, XP, Gold (via `player_standing`)
+- **Abandon** → Shadow Debt
 
-## Companion care
+## Supabase schema (run once)
 
-Seraphine cares most about faith, body, legacy. Other companions have preferred pillars (see `COMPANION_PILLAR_CARE` in `goals.ts`). Completing or abandoning a goal in their domain can trigger voice seeds for outreach.
+```sql
+create table if not exists goals (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  pillar text not null,
+  weight int not null default 3,
+  horizon text not null default 'weekly',
+  target int not null default 1,
+  progress int not null default 0,
+  status text not null default 'active',
+  notes text,
+  skills text,
+  created_at timestamptz default now(),
+  completed_at timestamptz,
+  updated_at timestamptz default now()
+);
 
-## Implementation status
+create index if not exists goals_status_idx on goals (status);
+create index if not exists goals_pillar_idx on goals (pillar);
+```
 
-Pure engine: `lib/engines/goals.ts`
+## Files
 
-Still needed:
-1. Supabase `goals` table (id, title, pillar, weight, horizon, target, progress, status, created_at, completed_at, notes, skills)
-2. UI to create / advance / complete goals
-3. Hook completion into `applyTaskToStanding` / token grants
-4. Optional: auto-advance body-pillar goals from Rhythm data
+- `lib/engines/goals.ts` — pure engine
+- `lib/engines/goals-store.ts` — Supabase CRUD + standing hooks
+- `app/goals/actions.ts` — server actions
+- `app/goals/page.tsx` — list UI
+- `app/goals/new/page.tsx` — create form
+
+## Still optional
+
+- Companion voice reaction on goal complete / abandon
+- Auto-advance body-pillar goals from Rhythm data
+- Link tasks → goal progress
