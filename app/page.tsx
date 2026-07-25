@@ -21,6 +21,8 @@ import FeedbackBanners from '@/components/FeedbackBanners'
 import { Plate, TileIcon } from '@/components/FantasyFrame'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { runStandingForCompletedTask } from '@/lib/engines/apply-task'
+import { rollQuestLoot } from '@/lib/engines/loot'
+import { applyLootDrop } from '@/lib/engines/apply-loot'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +72,14 @@ async function completeTask(formData: FormData) {
 
   await runStandingForCompletedTask({ title, domains })
 
+  // Quest loot — instant gratification on real completion
+  const loot = rollQuestLoot({ streak })
+  try {
+    await applyLootDrop(loot, slug)
+  } catch (e) {
+    console.error('loot apply failed', e)
+  }
+
   const def = getCompanionDef(slug)
   await setFeedback({
     skillGains: (skillGains || []).map((g) => ({
@@ -83,6 +93,7 @@ async function completeTask(formData: FormData) {
     companionSlug: slug,
     unlocked: unlockedDetails,
     streak,
+    loot: loot.kind === 'nothing' ? null : loot,
   })
 
   revalidatePath('/')
@@ -173,7 +184,6 @@ export default async function HubPage() {
 
   return (
     <main className="max-w-md mx-auto px-4 pt-5 space-y-5 safe-bottom">
-      {/* Character plate */}
       <Plate gold className="px-5 py-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 pt-1">
@@ -212,7 +222,6 @@ export default async function HubPage() {
 
       {feedback && <FeedbackBanners feedback={feedback} />}
 
-      {/* Active quest */}
       {nextTask && (
         <Plate className="px-5 py-4">
           <div
@@ -244,7 +253,6 @@ export default async function HubPage() {
         </Plate>
       )}
 
-      {/* Quest log */}
       <section className="space-y-3">
         <div className="flex items-center justify-between px-1">
           <h2 className="ml-kicker" style={{ color: 'var(--ink-dim)' }}>
@@ -327,7 +335,6 @@ export default async function HubPage() {
         )}
       </section>
 
-      {/* Standing */}
       <Link href="/standing" className="block">
         <Plate gold className="px-5 py-4">
           <div
@@ -359,7 +366,6 @@ export default async function HubPage() {
         </Plate>
       </Link>
 
-      {/* Grimoire */}
       <section>
         <p className="ml-kicker mb-3 px-1" style={{ color: 'var(--ink-dim)' }}>
           Grimoire
