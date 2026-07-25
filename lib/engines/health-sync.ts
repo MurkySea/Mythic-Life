@@ -1,18 +1,21 @@
 /**
- * Mythic Life – Health Data Sync (Rhythm feed)
+ * Mythic Life – Health Data Sync + Rhythm Day → Tier bridge
  *
- * Policy (2026-07-25):
+ * Policy (finalized 2026-07-25):
  * - Cadence: every 12 hours
  * - Query model: incremental “from last sync”
  * - Bootstrap: last 7 days when no prior successful sync exists
  * - Safety cap: never look back more than 30 days in a single query
  * - Idempotent upsert by sample ID
  * - Cursor (lastSuccessfulSync) advances only after a successful write + engine processing
- * - Nights stay provisional until a clean wake is observed or the hard cutoff (14:00 local) is reached
+ * - Nights stay provisional until a clean wake is observed or the hard cutoff (14:00 local)
+ * - Finalized nights are mapped to RhythmTier so they can drive Trust / Patience / Companions
  *
- * Pure functions only. Side-effect boundaries (HealthKit / export query, persistence)
- * live outside this module.
+ * Pure functions only. Side-effect boundaries (HealthKit / export query, persistence,
+ * companion Trust updates) live outside this module.
  */
+
+import type { RhythmTier } from './relationship'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -37,7 +40,7 @@ export type SleepValue =
 export interface SleepSample {
   id: string
   startDate: string // ISO
-  endDate: string   // ISO
+  endDate: string // ISO
   value: SleepValue
   sourceName?: string
   sourceId?: string
@@ -73,19 +76,24 @@ export interface RhythmScoreConfig {
   bootstrapDays: number
   /** Target sync interval in hours */
   syncIntervalHours: number
+  /**
+   * Ideal sleep duration window in minutes (used by rhythmDayToTier).
+   * Default targets a healthy adult range.
+   */
+  idealSleepMinutes: { min: number; max: number }
 }
 
 export const DEFAULT_RHYTHM_CONFIG: RhythmScoreConfig = {
   hardCutoffHour: 14,
   bootstrapDays: 7,
   syncIntervalHours: 12,
+  idealSleepMinutes: { min: 390, max: 540 }, // 6.5h – 9h
 }
 
 // ─── Query window & scheduling ──────────────────────────────────────────────
 
 /**
  * Compute the query window for the next pull.
- * Returns { start, end, usedBootstrap }
  */
 export function computeQueryWindow(
   state: HealthSyncState,
@@ -154,7 +162,6 @@ export function recordFailedAttempt(
 
 /**
  * Simple exponential backoff in minutes (capped).
- * Useful for the background scheduler.
  */
 export function backoffMinutes(consecutiveFailures: number): number {
   if (consecutiveFailures <= 0) return 0
@@ -196,11 +203,6 @@ export function planSync(
 
 /**
  * Decide whether a night can be finalized or must stay provisional.
- *
- * Rules:
- * - No sleep samples → missing
- * - Past hardCutoffHour → force finalize
- * - Otherwise stay provisional until a later sync sees a clean wake
  */
 export function evaluateNightStatus(
   samples: SleepSample[],
@@ -298,4 +300,59 @@ export function processNewSamples(
   }
 
   return days
+}
+
+// ─── RhythmDay → RhythmTier bridge ─────────────────────────────────────────
+
+/**
+ * Map a finalized RhythmDay to the RhythmTier vocabulary used by
+ * relationship.ts (updateTrustWithPatience, consecutiveBadDays, etc.).
+ *
+ * Design notes:
+ * - Only finalized (or manual) days should be passed in.
+ * - Provisional days must never affect Trust or companion reactions.
+ * - Duration is the primary signal for now. Bedtime consistency can be layered
+ *   later once we keep a short rolling history of bedtimes.
+ *
+ * Thresholds (tunable via config.idealSleepMinutes):
+ *   Excellent  ≥ ideal max          (very solid night)
+ *   Good       inside ideal window
+ *   Neutral    slightly short or slightly long
+ *   Poor       noticeably short
+ *   Bad        severely short or almost none
+ */
+export function rhythmDayToTier(
+  day: RhythmDay,
+  config: RhythmScoreConfig = DEFAULT_RHYTHM_CONFIG
+): RhythmTier {
+  // Guard: never score provisional or missing nights
+  if (day.status === 'provisional' || day.status === 'missing') {
+    return 'Neutral' // safe no-op default; caller should filter these out
+  }
+
+  const mins = day.totalSleepMinutes ?? 0
+  const { min, max } = config.idealSleepMinutes
+
+  if (mins >= max) return 'Excellent'
+  if (mins >= min) return 'Good'
+  if (mins >= min - 60) return 'Neutral' // up to 1 h short
+  if (mins >= min - 120) return 'Poor' // 1–2 h short
+  return 'Bad'
+}
+
+/**
+ * Convenience: take a batch of RhythmDays and return only the ones that
+ * are safe to feed into Trust / companion systems, already mapped to tiers.
+ */
+export function finalizedTiersFromDays(
+  days: RhythmDay[],
+  config: RhythmScoreConfig = DEFAULT_RHYTHM_CONFIG
+): { date: string; tier: RhythmTier; day: RhythmDay }[] {
+  return days
+    .filter((d) => d.status === 'finalized' || d.status === 'manual')
+    .map((d) => ({
+      date: d.date,
+      tier: rhythmDayToTier(d, config),
+      day: d,
+    }))
 }

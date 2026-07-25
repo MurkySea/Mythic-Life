@@ -1,6 +1,6 @@
 # Rhythm Engine & Health Data Sync
 
-Added / updated 2026-07-25.
+Finalized 2026-07-25.
 
 ## Policy
 
@@ -12,44 +12,66 @@ Added / updated 2026-07-25.
 | Safety cap | Never look back more than **30 days** in one query |
 | Cursor advance | Only after successful write + engine processing |
 | Night finalization | Provisional until clean wake **or** hard cutoff (14:00 local) |
+| Ideal sleep window | 6.5 h – 9 h (390–540 min) |
 
-## Why this shape
+## Core loop (now closed)
 
-- Battery and privacy friendly.
-- Incremental pulls keep payloads small and idempotent (upsert by sample ID).
-- Provisional nights prevent companions from reacting to incomplete sleep data while the user is still asleep.
-- Force-finalize at 14:00 local keeps the daily Rhythm Score and Consistency Tokens on a predictable schedule.
+```
+HealthKit / export
+       ↓
+planSync → incremental pull (“from last sync”)
+       ↓
+processNewSamples → RhythmDay[]
+       ↓
+finalize nights past cutoff
+       ↓
+finalizedTiersFromDays → { date, tier, day }[]
+       ↓
+updateTrustWithPatience (per companion)
+       ↓
+Companions, Consistency Tokens, outreach intensity
+```
 
-## Integration path
+Provisional nights are **never** scored. Companions only notice (and Trust only moves) after a night is closed.
 
-1. Background scheduler (or hybrid app bridge) calls `planSync(state)`.
-2. If `shouldRun`, perform the real HealthKit / export query using the returned window.
-3. Upsert samples by ID.
-4. Call `processNewSamples(...)` → get `RhythmDay[]`.
-5. Only then call `advanceSuccessfulSync`.
-6. On failure call `recordFailedAttempt` and respect `backoffMinutes`.
+## RhythmDay → RhythmTier mapping
 
-Companions, Consistency Tokens, and the Truth Multiplier should only react to **finalized** nights.
+| Sleep duration | Tier | Trust effect (base) |
+|----------------|------|---------------------|
+| ≥ 9 h | Excellent | +10 |
+| 6.5 – 9 h | Good | +5 |
+| 5.5 – 6.5 h | Neutral | +1.5 |
+| 4.5 – 5.5 h | Poor | –4 |
+| < 4.5 h | Bad | –10 |
+
+Devoted companions still receive the patience multiplier (bad days only ~45 % damage).
 
 ## Key pure functions (`lib/engines/health-sync.ts`)
 
+**Sync plumbing**
 - `computeQueryWindow(state, now?)`
 - `shouldRunSync(state, now?)`
 - `planSync(state, now?)`
 - `advanceSuccessfulSync(prev, at?)`
 - `recordFailedAttempt(prev, at?)`
 - `backoffMinutes(failures)`
+
+**Night construction**
 - `evaluateNightStatus(samples, date, now)`
 - `processNewSamples(samples, now, getLocalDate)`
 
-## Config defaults
+**Bridge to relationship engine**
+- `rhythmDayToTier(day)` → `RhythmTier`
+- `finalizedTiersFromDays(days)` → only safe, finalized results
 
-```ts
-{
-  hardCutoffHour: 14,
-  bootstrapDays: 7,
-  syncIntervalHours: 12
-}
-```
+## Integration notes
 
-All values live in `DEFAULT_RHYTHM_CONFIG` and can be overridden per environment.
+1. Background job / hybrid bridge calls `planSync`.
+2. Real HealthKit (or export) query uses the returned window.
+3. Upsert samples by ID.
+4. `processNewSamples` → `RhythmDay[]`.
+5. At the daily roll-up (or immediately after a force-finalize), call `finalizedTiersFromDays`.
+6. For each result feed `updateTrustWithPatience` for every companion.
+7. Only then advance the success cursor.
+
+Companions, Consistency Tokens, and the Truth Multiplier should react exclusively to **finalized** nights.
