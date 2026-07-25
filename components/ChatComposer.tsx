@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useRef, useState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
+import ResponseChoices from '@/components/ResponseChoices'
 
 function SendButton() {
   const { pending } = useFormStatus()
@@ -25,10 +26,14 @@ export default function ChatComposer({
   companionSlug,
   displayName,
   action,
+  responseAction,
+  lastMessageIsCompanion = false,
 }: {
   companionSlug: string
   displayName: string
   action: (formData: FormData) => Promise<void>
+  responseAction?: (formData: FormData) => Promise<void>
+  lastMessageIsCompanion?: boolean
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -69,27 +74,43 @@ export default function ChatComposer({
     startPoll()
   }
 
+  async function onResponseChoice(formData: FormData) {
+    if (!responseAction) return
+    await responseAction(formData)
+    startPoll()
+  }
+
   return (
-    <div className="shrink-0 px-4 pt-2 pb-3 border-t border-zinc-900 bg-zinc-950/95 backdrop-blur-md">
-      {waitingReply && (
-        <p className="text-[11px] text-zinc-500 mb-1.5 px-1 animate-pulse">
-          {displayName} is writing…
-        </p>
+    <div className="shrink-0 px-0 pt-2 pb-3 border-t border-zinc-900 bg-zinc-950/95 backdrop-blur-md">
+      {responseAction && (
+        <ResponseChoices
+          companionSlug={companionSlug}
+          action={onResponseChoice}
+          visible={lastMessageIsCompanion && !waitingReply}
+        />
       )}
-      <form action={clientAction}>
-        <input type="hidden" name="companion_slug" value={companionSlug} />
-        <div className="flex gap-2 items-center bg-zinc-900 border border-zinc-800 rounded-2xl p-1.5">
-          <input
-            ref={inputRef}
-            type="text"
-            name="content"
-            placeholder={`Reply to ${displayName}...`}
-            className="flex-1 bg-transparent px-4 py-3 text-white placeholder:text-zinc-500 text-[15px] focus:outline-none"
-            autoComplete="off"
-          />
-          <SendButton />
-        </div>
-      </form>
+
+      <div className="px-4">
+        {waitingReply && (
+          <p className="text-[11px] text-zinc-500 mb-1.5 px-1 animate-pulse">
+            {displayName} is writing…
+          </p>
+        )}
+        <form action={clientAction}>
+          <input type="hidden" name="companion_slug" value={companionSlug} />
+          <div className="flex gap-2 items-center bg-zinc-900 border border-zinc-800 rounded-2xl p-1.5">
+            <input
+              ref={inputRef}
+              type="text"
+              name="content"
+              placeholder={`Reply to ${displayName}...`}
+              className="flex-1 bg-transparent px-4 py-3 text-white placeholder:text-zinc-500 text-[15px] focus:outline-none"
+              autoComplete="off"
+            />
+            <SendButton />
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
