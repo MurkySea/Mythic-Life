@@ -5,15 +5,13 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { getCompanionDef } from '@/lib/companions'
 import { loadStanding, saveStanding } from '@/lib/engines/standing-store'
-import {
-  DATE_GOLD_COST,
-  dateRewards,
-  buildDateScenePrompt,
-} from '@/lib/engines/loot'
+import { DATE_GOLD_COST, dateRewards } from '@/lib/engines/loot'
+import { pickDateIdea, buildDatePromptFromIdea } from '@/lib/engines/dates'
+import { persistGeneratedImage } from '@/lib/persistImage'
 
 /**
  * Spend a date coin (preferred) or gold to take a companion on a date.
- * Experience — dressed-up night-out image, message, big bond boost.
+ * Picks one of ~25 date ideas at random. Image is persisted to Storage.
  */
 export async function takeCompanionOnDate(formData: FormData) {
   const slug = (formData.get('slug') as string) || 'seraphine'
@@ -43,7 +41,8 @@ export async function takeCompanionOnDate(formData: FormData) {
     'elegant adult woman, distinctive feminine features, graceful figure'
   const characterName = companion.name || def?.name || 'Companion'
 
-  const prompt = buildDateScenePrompt({
+  const idea = pickDateIdea()
+  const prompt = buildDatePromptFromIdea(idea, {
     appearance,
     name: characterName,
     race: def?.race,
@@ -78,12 +77,17 @@ export async function takeCompanionOnDate(formData: FormData) {
         response.status === 400
       redirect(`/companion-profile?c=${slug}&date=${blocked ? 'blocked' : 'error'}`)
     }
+
+    // Make the gallery URL durable (temp CDN → Supabase Storage)
+    imageUrl = await persistGeneratedImage(imageUrl, {
+      characterName,
+      kind: `date_${idea.id}`,
+    })
   } catch (e) {
     console.error('date image failed', e)
     redirect(`/companion-profile?c=${slug}&date=error`)
   }
 
-  // Charge only after image succeeds — coin first, else gold
   if (useCoin) {
     await saveStanding({ date_coins: standing.date_coins - 1 })
   } else {
@@ -106,22 +110,10 @@ export async function takeCompanionOnDate(formData: FormData) {
     character_name: characterName,
     image_url: imageUrl,
     affinity_at_generation: nextAffinity,
-    prompt_used: prompt,
+    prompt_used: `[${idea.title}] ${prompt}`,
   })
 
-  const lines = useCoin
-    ? [
-        `You spent a Date coin on me. That feels rarer than gold.`,
-        `A special night from the muster table — I dressed up for it.`,
-        `You chose the experience. I'm here for all of it.`,
-      ]
-    : [
-        `I dressed up for tonight. Thank you for this — not the gold, the choosing me for an evening.`,
-        `A whole night just for us. I felt seen the moment we stepped out.`,
-        `You spent what you earned so we could have this. That means more than you think.`,
-      ]
-  const line = lines[Math.floor(Math.random() * lines.length)]
-  const content = `${line}\n\n[image:${imageUrl}]`
+  const content = `${idea.line}\n\n— ${idea.title} —\n\n[image:${imageUrl}]`
 
   await supabase.from('messages').insert({
     role: 'companion',
