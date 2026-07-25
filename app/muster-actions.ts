@@ -107,7 +107,7 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
       }),
     })
     const data = await response.json()
-    const imageUrl = data.data?.[0]?.url as string | undefined
+    const imageUrl = (data.data?.[0]?.url as string | undefined) ?? null
     if (!response.ok || !imageUrl) return { name: characterName, slug }
 
     const rewards = dateRewards()
@@ -139,12 +139,13 @@ async function grantSpecialNight(): Promise<{ name: string; slug: string } | nul
   }
 }
 
-export async function claimDailyMuster(_formData?: FormData) {
+/** Server action — form-compatible (returns void). */
+export async function claimDailyMuster(_formData?: FormData): Promise<void> {
   const today = chicagoYmd()
   const standing = await loadStanding()
 
   if (standing.last_muster_date === today) {
-    return { ok: false as const, reason: 'already' as const }
+    return
   }
 
   const yesterday = yesterdayChicagoYmd()
@@ -243,12 +244,4 @@ export async function claimDailyMuster(_formData?: FormData) {
   revalidatePath('/messages')
   revalidatePath('/gallery')
   revalidatePath('/standing')
-
-  return {
-    ok: true as const,
-    reward,
-    streak: nextStreak,
-    angelUnlocked,
-    specialNight,
-  }
 }
