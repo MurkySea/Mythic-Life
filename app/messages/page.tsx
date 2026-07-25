@@ -13,6 +13,7 @@ import ChatThread from '@/components/ChatThread'
 import ChatComposer from '@/components/ChatComposer'
 import CompanionAvatar from '@/components/CompanionAvatar'
 import MarkReadOnOpen from '@/components/MarkReadOnOpen'
+import { respondWithChoice } from '@/app/response-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -240,6 +241,9 @@ export default async function MessagesPage({
     return m.companion_slug === activeSlug
   })
 
+  const lastMsg = thread[thread.length - 1]
+  const lastMessageIsCompanion = lastMsg?.role === 'companion'
+
   return (
     <main className="max-w-md mx-auto h-[100dvh] flex flex-col pb-20">
       {/* Client-side force mark — this is the reliable path */}
@@ -276,6 +280,8 @@ export default async function MessagesPage({
         companionSlug={activeSlug}
         displayName={displayName}
         action={sendMessage}
+        responseAction={respondWithChoice}
+        lastMessageIsCompanion={lastMessageIsCompanion}
       />
     </main>
   )
