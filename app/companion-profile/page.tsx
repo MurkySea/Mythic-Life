@@ -15,6 +15,7 @@ import {
 import { loadStanding } from '@/lib/engines/standing-store'
 import { takeCompanionOnDate } from '@/app/date-actions'
 import TakeOnDateButton from '@/components/TakeOnDateButton'
+import { persistGeneratedImage } from '@/lib/persistImage'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,7 +68,7 @@ async function generateCompanionImage(formData: FormData) {
     })
 
     const data = await response.json()
-    const imageUrl = data.data?.[0]?.url as string | undefined
+    let imageUrl = (data.data?.[0]?.url as string | undefined) ?? null
 
     if (!response.ok || !imageUrl) {
       const msg = (data?.error?.message || data?.message || '').toString().toLowerCase()
@@ -79,6 +80,11 @@ async function generateCompanionImage(formData: FormData) {
         response.status === 400
       redirect(`/companion-profile?c=${slug}&scene=${blocked ? 'blocked' : 'error'}`)
     }
+
+    imageUrl = await persistGeneratedImage(imageUrl, {
+      characterName,
+      kind: `scene_${sceneIndex + 1}`,
+    })
 
     await supabase.from('gallery_images').insert({
       character_name: characterName,
