@@ -1,12 +1,14 @@
-import type { CompanionDef } from './companions'
 import type { SkillKey } from './skills'
 import { SKILLS } from './skills'
 
 /**
  * Ultra-rare muster exclusive.
  * Affinity to EVERY skill domain. Cannot be unlocked via skill levels.
+ *
+ * Typed structurally (not CompanionDef) to avoid circular import
+ * with lib/companions.ts.
  */
-export const ANGEL_COMPANION: CompanionDef = {
+export const ANGEL_COMPANION = {
   slug: 'aurelia_solace',
   name: 'Aurelia Solace',
   title: 'Answered Light',
@@ -15,8 +17,8 @@ export const ANGEL_COMPANION: CompanionDef = {
   rarity: 'Ultra',
   age: 27,
   affinities: [...SKILLS] as SkillKey[],
-  unlock: { faith: 99 }, // effectively skill-locked; only muster grants her
-  starter: false,
+  unlock: { faith: 99 } as Partial<Record<SkillKey, number>>,
+  starter: false as boolean | undefined,
   emoji: '👼',
   personality:
     'Serene, absolute, and strangely intimate. Speaks as if she has always known the shape of your days. Does not flatter. Does not leave.',
