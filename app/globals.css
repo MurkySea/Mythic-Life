@@ -37,7 +37,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Subtle violet atmosphere without full-page gradient */
 .mythic-bg {
   background-color: var(--bg-deep);
   background-image:
@@ -50,7 +49,6 @@ main {
   background: transparent !important;
 }
 
-/* Display / titles */
 .font-display {
   font-family: var(--font-display);
   letter-spacing: 0.02em;
@@ -74,7 +72,8 @@ main {
   line-height: 1.15;
 }
 
-/* Character plate / panels */
+/* ─── Plates ─────────────────────────────────────────────────────────────── */
+
 .plate {
   background:
     linear-gradient(165deg, rgba(36, 30, 52, 0.95) 0%, rgba(18, 16, 28, 0.98) 100%);
@@ -95,6 +94,144 @@ main {
     0 16px 40px rgba(0, 0, 0, 0.55);
 }
 
+.plate-emphasis {
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow:
+    0 0 0 1px rgba(167, 139, 250, 0.15),
+    0 1px 0 rgba(255, 255, 255, 0.06) inset,
+    0 0 28px rgba(124, 92, 191, 0.18),
+    0 20px 48px rgba(0, 0, 0, 0.55);
+}
+
+.plate-sheen {
+  background: linear-gradient(180deg, rgba(212, 168, 83, 0.07) 0%, transparent 28%);
+  border-radius: inherit;
+}
+
+.plate-emphasis .plate-sheen {
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.12) 0%, transparent 40%);
+}
+
+.plate::before,
+.plate::after {
+  content: '';
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: rgba(212, 168, 83, 0.35);
+  pointer-events: none;
+}
+
+.plate::before {
+  top: 8px;
+  left: 8px;
+  border-top: 1.5px solid;
+  border-left: 1.5px solid;
+}
+
+.plate::after {
+  bottom: 8px;
+  right: 8px;
+  border-bottom: 1.5px solid;
+  border-right: 1.5px solid;
+}
+
+/* ─── Hierarchy: active quest + progress ─────────────────────────────────── */
+
+.quest-hero {
+  position: relative;
+  padding: 1.15rem 1.25rem 1.15rem 1.35rem;
+}
+
+.quest-hero-rail {
+  position: absolute;
+  left: 0;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--violet), transparent);
+}
+
+.quest-hero-title {
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+}
+
+.quest-hero-meta {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--sky);
+  border: 1px solid rgba(125, 211, 252, 0.35);
+  background: rgba(14, 30, 48, 0.75);
+  border-radius: 999px;
+  padding: 0.35rem 0.75rem;
+  flex-shrink: 0;
+}
+
+.progress-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 1.1rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, rgba(28, 24, 48, 0.95) 0%, rgba(16, 14, 28, 0.98) 100%);
+  border: 1px solid rgba(90, 75, 130, 0.5);
+}
+
+.progress-strip-label {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.progress-strip-value {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--violet);
+  font-variant-numeric: tabular-nums;
+}
+
+.quest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #161225 0%, #100e1a 100%);
+  border: 1px solid #2e2842;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+}
+
+.quest-row-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.quest-row-time {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--sky);
+}
+
+.quest-row-streak {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--gold);
+  margin-top: 0.15rem;
+}
+
 .quest-card {
   background: linear-gradient(180deg, #161225 0%, #100e1a 100%);
   border: 1px solid #2e2842;
@@ -102,7 +239,8 @@ main {
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
 }
 
-/* Grimoire tile */
+/* ─── Grimoire ───────────────────────────────────────────────────────────── */
+
 .grimoire-tile {
   background: linear-gradient(160deg, #1c1830 0%, #12101c 100%);
   border: 1px solid #3a3150;
@@ -126,24 +264,32 @@ main {
   transform: scale(0.98);
 }
 
-/* Accent rails */
-.rail-gold {
-  box-shadow:
-    inset 3px 0 0 0 var(--gold),
-    0 0 0 1px rgba(212, 168, 83, 0.1),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 16px 40px rgba(0, 0, 0, 0.5);
+.tile-icon-well {
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(60, 48, 95, 0.9) 0%, rgba(28, 22, 48, 0.95) 100%);
+  border: 1px solid rgba(212, 168, 83, 0.28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.06) inset, 0 4px 12px rgba(0, 0, 0, 0.35);
+  color: var(--gold);
 }
 
-.rail-violet {
-  box-shadow:
-    inset 3px 0 0 0 var(--violet),
-    0 0 0 1px rgba(167, 139, 250, 0.12),
-    0 1px 0 rgba(255, 255, 255, 0.04) inset,
-    0 16px 40px rgba(0, 0, 0, 0.5);
+.tile-icon-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.15;
+  color: var(--ink);
 }
 
-/* Stat orbs */
+/* ─── Orbs / rails ───────────────────────────────────────────────────────── */
+
 .orb {
   display: flex;
   flex-direction: column;
@@ -169,52 +315,31 @@ main {
   color: var(--violet);
 }
 
-/* Decorative corner marks via pseudo — applied on plates */
-.plate::before,
-.plate::after {
-  content: '';
-  position: absolute;
-  width: 10px;
-  height: 10px;
-  border-color: rgba(212, 168, 83, 0.35);
-  pointer-events: none;
+.rail-gold {
+  box-shadow:
+    inset 3px 0 0 0 var(--gold),
+    0 0 0 1px rgba(212, 168, 83, 0.1),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
-.plate::before {
-  top: 8px;
-  left: 8px;
-  border-top: 1.5px solid;
-  border-left: 1.5px solid;
+.rail-violet {
+  box-shadow:
+    inset 3px 0 0 0 var(--violet),
+    0 0 0 1px rgba(167, 139, 250, 0.12),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 16px 40px rgba(0, 0, 0, 0.5);
 }
 
-.plate::after {
-  bottom: 8px;
-  right: 8px;
-  border-bottom: 1.5px solid;
-  border-right: 1.5px solid;
-}
+/* ─── Utilities ──────────────────────────────────────────────────────────── */
 
-input:focus,
-select:focus,
-textarea:focus {
-  outline: none;
-  border-color: var(--violet) !important;
-  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
-}
+.text-ink { color: var(--ink); }
+.text-muted { color: var(--ink-muted); }
+.text-dim { color: var(--ink-dim); }
+.text-gold { color: var(--gold); }
+.text-violet { color: var(--violet); }
+.text-sky { color: var(--sky); }
 
-button {
-  transition: all 0.15s ease;
-}
-
-button:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.safe-bottom {
-  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
-}
-
-/* Back-compat aliases */
 .section-label {
   font-family: var(--font-display);
   font-size: 10px;
@@ -242,4 +367,24 @@ button:active:not(:disabled) {
   background: linear-gradient(180deg, #161225 0%, #100e1a 100%);
   border: 1px solid #2e2842;
   border-radius: 1rem;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--violet) !important;
+  box-shadow: 0 0 0 3px rgba(167, 139, 250, 0.2);
+}
+
+button {
+  transition: all 0.15s ease;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.safe-bottom {
+  padding-bottom: max(1.75rem, env(safe-area-inset-bottom));
 }
