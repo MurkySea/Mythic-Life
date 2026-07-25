@@ -12,8 +12,14 @@ import { insertGalleryImage } from '@/lib/galleryKind'
 
 /**
  * Spend a date coin (preferred) or gold to take a companion on a date.
- * Picks one of ~25 date ideas at random. Image is persisted to Storage.
+ * Picks one of ~25 date ideas, with adult probability scaled by intimacy.
+ * Image is persisted to Storage.
  * Does NOT consume affinity scene slots.
+ *
+ * Intimacy scaling (2026-07-25):
+ * Uses affinity_score as a temporary proxy for the dual-axis Intimacy value
+ * until Trust + Intimacy are fully persisted per companion.
+ * Higher intimacy → higher chance of adult / exclusive date ideas.
  */
 export async function takeCompanionOnDate(formData: FormData) {
   const slug = (formData.get('slug') as string) || 'seraphine'
@@ -43,7 +49,10 @@ export async function takeCompanionOnDate(formData: FormData) {
     'elegant adult woman, distinctive feminine features, graceful figure'
   const characterName = companion.name || def?.name || 'Companion'
 
-  const idea = pickDateIdea()
+  // affinity_score currently ranges roughly 1–100+; clamp to 0–100 for the curve
+  const intimacyProxy = Math.max(0, Math.min(100, companion.affinity_score || 30))
+
+  const idea = pickDateIdea(intimacyProxy)
   const prompt = buildDatePromptFromIdea(idea, {
     appearance,
     name: characterName,
@@ -115,7 +124,7 @@ export async function takeCompanionOnDate(formData: FormData) {
     kind: 'date',
   })
 
-  const content = `${idea.line}\n\n— ${idea.title} —\n\n[image:${imageUrl}]`
+  const content = `${idea.line}\\n\\n— ${idea.title} —\\n\\n[image:${imageUrl}]`
 
   await supabase.from('messages').insert({
     role: 'companion',
