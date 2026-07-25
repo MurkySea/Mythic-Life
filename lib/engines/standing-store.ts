@@ -1,7 +1,7 @@
 /**
  * Persistent player standing
  *
- * Supabase SQL (run once):
+ * Supabase SQL (run once / migrate):
  *
  * create table if not exists player_standing (
  *   id text primary key default 'solo',
@@ -12,10 +12,16 @@
  *   last_rhythm_tier text,
  *   last_rhythm_date text,
  *   last_self_neglect text,
+ *   date_coins int not null default 0,
+ *   last_muster_date text,
+ *   muster_streak int not null default 0,
  *   updated_at timestamptz default now()
  * );
  *
  * alter table player_standing add column if not exists last_rhythm_date text;
+ * alter table player_standing add column if not exists date_coins int not null default 0;
+ * alter table player_standing add column if not exists last_muster_date text;
+ * alter table player_standing add column if not exists muster_streak int not null default 0;
  *
  * insert into player_standing (id) values ('solo') on conflict do nothing;
  */
@@ -31,6 +37,9 @@ export interface PlayerStandingRow {
   last_rhythm_tier: string | null
   last_rhythm_date: string | null
   last_self_neglect: string | null
+  date_coins: number
+  last_muster_date: string | null
+  muster_streak: number
   updated_at?: string
 }
 
@@ -43,6 +52,9 @@ const DEFAULT: PlayerStandingRow = {
   last_rhythm_tier: null,
   last_rhythm_date: null,
   last_self_neglect: null,
+  date_coins: 0,
+  last_muster_date: null,
+  muster_streak: 0,
 }
 
 export async function loadStanding(): Promise<PlayerStandingRow> {
@@ -64,6 +76,9 @@ export async function loadStanding(): Promise<PlayerStandingRow> {
       last_rhythm_tier: data.last_rhythm_tier ?? null,
       last_rhythm_date: data.last_rhythm_date ?? null,
       last_self_neglect: data.last_self_neglect ?? null,
+      date_coins: Number(data.date_coins) || 0,
+      last_muster_date: data.last_muster_date ?? null,
+      muster_streak: Number(data.muster_streak) || 0,
       updated_at: data.updated_at,
     }
   } catch {
@@ -94,6 +109,9 @@ export async function saveStanding(
         last_rhythm_tier: next.last_rhythm_tier,
         last_rhythm_date: next.last_rhythm_date,
         last_self_neglect: next.last_self_neglect,
+        date_coins: next.date_coins,
+        last_muster_date: next.last_muster_date,
+        muster_streak: next.muster_streak,
         updated_at: next.updated_at,
       },
       { onConflict: 'id' }
@@ -105,11 +123,6 @@ export async function saveStanding(
   return next
 }
 
-/**
- * Apply a completed task into standing.
- * XP/Gold immediate. Tokens scarce.
- * Rhythm debt applies AT MOST ONCE per scored sleep date.
- */
 export async function applyTaskToStanding(opts: {
   domainCount: number
   rhythmRewardEfficiency: number
@@ -139,7 +152,6 @@ export async function applyTaskToStanding(opts: {
     tokenGain = Number((0.35 * opts.rhythmTokenMultiplier * opts.selfMultiplier).toFixed(2))
   }
 
-  // Debt only once per sleep-scored date
   let debtDelta = 0
   let nextRhythmDate = current.last_rhythm_date
   if (opts.rhythmDate && opts.rhythmDate !== current.last_rhythm_date) {
@@ -160,7 +172,6 @@ export async function applyTaskToStanding(opts: {
   })
 }
 
-/** Spend tokens on an extra (never gates core loops). Returns false if insufficient. */
 export async function spendTokens(amount: number): Promise<boolean> {
   if (amount <= 0) return false
   const current = await loadStanding()
@@ -168,5 +179,12 @@ export async function spendTokens(amount: number): Promise<boolean> {
   await saveStanding({
     consistency_tokens: Number((current.consistency_tokens - amount).toFixed(2)),
   })
+  return true
+}
+
+export async function spendDateCoin(): Promise<boolean> {
+  const current = await loadStanding()
+  if (current.date_coins < 1) return false
+  await saveStanding({ date_coins: current.date_coins - 1 })
   return true
 }
