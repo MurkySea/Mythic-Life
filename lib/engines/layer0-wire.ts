@@ -5,7 +5,7 @@
  * 1. Safe per-task incremental rewards using Layer 0 multipliers
  * 2. Idempotent daily Rhythm → Debt / Trust application (once per rhythm date)
  *    — uses personal baseline ladder when sleep times are available
- * 3. Push Trust deltas into active party companions
+ * 3. Push Trust deltas into active party companions (incl. consecutive streaks)
  * 4. Trigger reactive companions when a new rhythm day is applied
  * 5. Refresh World Integrity after daily rhythm
  */
@@ -23,7 +23,10 @@ import {
   createDefaultTruth,
   type RhythmTier,
 } from '@/lib/engines/layer0'
-import { applyRhythmToCompanion } from '@/lib/engines/relationship-wire'
+import {
+  applyRhythmToCompanion,
+  companionScorePatch,
+} from '@/lib/engines/relationship-wire'
 import { reactCompanionsToLayer0 } from '@/lib/engines/reactive-companions'
 import { refreshWorldIntegrity } from '@/lib/engines/world-integrity-wire'
 import { scoreNightWithLadder } from '@/lib/engines/baseline-wire'
@@ -118,7 +121,9 @@ async function applyDailyRhythmIfNeeded(): Promise<{
     try {
       const { data: row } = await supabase
         .from('companion')
-        .select('id, slug, affinity_score, bond_xp')
+        .select(
+          'id, slug, affinity_score, bond_xp, consecutive_bad_days, consecutive_good_days, trust_score, intimacy_score'
+        )
         .eq('slug', member.slug)
         .maybeSingle()
 
@@ -129,6 +134,17 @@ async function applyDailyRhythmIfNeeded(): Promise<{
           slug: member.slug,
           affinity_score: Number(row.affinity_score) || 1,
           bond_xp: Number(row.bond_xp) || 0,
+          consecutive_bad_days:
+            row.consecutive_bad_days != null
+              ? Number(row.consecutive_bad_days)
+              : null,
+          consecutive_good_days:
+            row.consecutive_good_days != null
+              ? Number(row.consecutive_good_days)
+              : null,
+          trust_score: row.trust_score != null ? Number(row.trust_score) : null,
+          intimacy_score:
+            row.intimacy_score != null ? Number(row.intimacy_score) : null,
         },
         tier,
         rhythmDate
@@ -140,13 +156,25 @@ async function applyDailyRhythmIfNeeded(): Promise<{
         Math.round(((Number(row.affinity_score) || 1) + result.affinityDelta) * 10) / 10
       )
 
-      await supabase
-        .from('companion')
-        .update({
-          bond_xp: nextBond,
-          affinity_score: nextAff,
-        })
-        .eq('id', row.id)
+      const patch = companionScorePatch({
+        affinity: nextAff,
+        bondXp: nextBond,
+        consecutiveBadDays: result.consecutiveBadDays,
+        consecutiveGoodDays: result.consecutiveGoodDays,
+        trustScore: result.trustAfter,
+      })
+
+      // Soft write: consecutive / trust columns may not exist yet
+      try {
+        await supabase.from('companion').update(patch).eq('id', row.id)
+      } catch (writeErr) {
+        // Fallback to core scores only
+        await supabase
+          .from('companion')
+          .update({ bond_xp: nextBond, affinity_score: nextAff })
+          .eq('id', row.id)
+        console.error('companion dual-axis write failed, fell back', writeErr)
+      }
 
       trustDeltas.push({
         slug: member.slug,

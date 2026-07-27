@@ -6,6 +6,8 @@ import { after } from 'next/server'
 import { getCompanionDef } from '@/lib/companions'
 import {
   applyOutreachResponse,
+  intensityFromMessage,
+  companionScorePatch,
   type LiveCompanionScores,
 } from '@/lib/engines/relationship-wire'
 import type { ResponseChoice } from '@/lib/engines/relationship'
@@ -40,34 +42,15 @@ function pickLine(choice: ResponseChoice): string {
   return pool[Math.floor(Math.random() * pool.length)]
 }
 
-function intensityFromRecentContext(lastCompanionText: string): 'gentle' | 'direct' | 'urgent' {
-  const t = lastCompanionText.toLowerCase()
-  if (
-    t.includes('worried') ||
-    t.includes('disappearing') ||
-    t.includes('too long') ||
-    t.includes('are you safe') ||
-    t.includes('falling apart')
-  ) {
-    return 'urgent'
-  }
-  if (
-    t.includes('three days') ||
-    t.includes("isn't like you") ||
-    t.includes('talk to me') ||
-    t.includes('what\'s going on') ||
-    t.includes('carrying something')
-  ) {
-    return 'direct'
-  }
-  return 'gentle'
-}
-
 /**
  * Player answers a companion's outreach / check-in with one of four choices.
  * Applies dual-axis effects to affinity/bond, posts a natural message, generates reply.
+ * Returns note + stage for the UI feedback banner.
  */
-export async function respondWithChoice(formData: FormData) {
+export async function respondWithChoice(formData: FormData): Promise<{
+  note: string
+  stage: string
+} | void> {
   const choice = formData.get('choice') as ResponseChoice
   const companionSlug = (formData.get('companion_slug') as string) || 'seraphine'
 
@@ -80,7 +63,9 @@ export async function respondWithChoice(formData: FormData) {
 
   const { data: companion } = await supabase
     .from('companion')
-    .select('id, slug, name, affinity_score, bond_xp')
+    .select(
+      'id, slug, name, affinity_score, bond_xp, consecutive_bad_days, consecutive_good_days, trust_score, intimacy_score'
+    )
     .or(`slug.eq.${companionSlug},name.eq.${def?.name || 'Seraphine'}`)
     .maybeSingle()
 
@@ -101,30 +86,50 @@ export async function respondWithChoice(formData: FormData) {
     return m.companion_slug === companionSlug
   })
 
-  const intensity = intensityFromRecentContext(lastCompanion?.content || '')
+  const intensity = intensityFromMessage(lastCompanion?.content || '')
 
   const scores: LiveCompanionScores = {
     slug: companionSlug,
-    affinity_score: companion.affinity_score || 1,
-    bond_xp: companion.bond_xp || 0,
+    affinity_score: Number(companion.affinity_score) || 1,
+    bond_xp: Number(companion.bond_xp) || 0,
+    consecutive_bad_days:
+      companion.consecutive_bad_days != null
+        ? Number(companion.consecutive_bad_days)
+        : null,
+    consecutive_good_days:
+      companion.consecutive_good_days != null
+        ? Number(companion.consecutive_good_days)
+        : null,
+    trust_score:
+      companion.trust_score != null ? Number(companion.trust_score) : null,
+    intimacy_score:
+      companion.intimacy_score != null ? Number(companion.intimacy_score) : null,
   }
 
   const applied = applyOutreachResponse(scores, choice, intensity)
 
-  // Write score deltas back
   const nextAffinity = Math.max(
     1,
-    Math.round(((companion.affinity_score || 1) + applied.affinityDelta) * 10) / 10
+    Math.round(((Number(companion.affinity_score) || 1) + applied.affinityDelta) * 10) /
+      10
   )
-  const nextBond = Math.max(0, (companion.bond_xp || 0) + applied.bondXpDelta)
+  const nextBond = Math.max(
+    0,
+    (Number(companion.bond_xp) || 0) + applied.bondXpDelta
+  )
 
-  await supabase
-    .from('companion')
-    .update({
-      affinity_score: nextAffinity,
-      bond_xp: nextBond,
-    })
-    .eq('id', companion.id)
+  // Prefer writing dual-axis when columns exist; always write affinity + bond
+  const patch = companionScorePatch({
+    affinity: nextAffinity,
+    bondXp: nextBond,
+  })
+
+  // Soft dual-axis write: if columns exist this lands; if not, ignore error path
+  try {
+    await supabase.from('companion').update(patch).eq('id', companion.id)
+  } catch (e) {
+    console.error('companion score update failed', e)
+  }
 
   // Natural user message
   const text = pickLine(choice)
@@ -170,4 +175,9 @@ export async function respondWithChoice(formData: FormData) {
       console.error('response choice reply failed', e)
     }
   })
+
+  return {
+    note: applied.note,
+    stage: applied.stage,
+  }
 }
