@@ -1,30 +1,62 @@
-# Active Party (max 5)
+# Active Party (max 5) — Isekai Doctrine
 
-Finalized 2026-07-25.
+Updated 2026-07-26.
 
-## Purpose
+## Fantasy
 
-The full companion roster can be large.  
-Only the **active party** (max 5) receives:
+Mythic Life is an **isekai anime harem party builder**.
 
-- Leader Trust updates from Rhythm / sleep events
-- Priority dialogue and outreach
-- Daily effects and Vacation Mode reactions
-- Visual presence in the main UI
+Companions do not start as collected waifus. They **notice** you, **watch** how you lead (Rhythm, places, kept promises), and only after **respect** is earned do they **choose to follow**. The active party (max 5) is the living unit that walks the road with you.
 
-This keeps cognitive load and emotional bandwidth manageable while still allowing a rich long-term roster.
+**Founding companion (Seraphine)** = Raphtalia-class:
 
-## Rules
+- Loyalty earned through protection and consistency
+- Speaks for the party when needed
+- Challenges neglect without abandoning the leader
+- Optional light Aqua-register banter later — never pure comic relief as her core
 
-| Rule                        | Value                          |
-|-----------------------------|--------------------------------|
-| Maximum active members      | **5**                          |
-| Leader                      | Exactly one (or zero if empty) |
-| First joiner                | Automatically becomes Leader   |
-| Leader leaves               | Earliest-joined member promoted |
-| Soft lock                   | Optional – blocks join/leave   |
+## Respect → Follow
 
-## Pure API (`lib/engines/party.ts`)
+| Stage | Meaning |
+|-------|--------|
+| Noticed | Exists in the world; rare lines |
+| Watched | Comments on real life signal |
+| Respected | Trust/affinity threshold; may offer to join |
+| Followed | Active Party member |
+
+Join is a **decision beat**, not a silent unlock.
+
+## Party size rules
+
+| Rule | Value |
+|------|--------|
+| Maximum active members | **5** |
+| Leader | Exactly one (or zero if empty) |
+| First joiner | Automatically becomes Leader |
+| Leader leaves | Earliest-joined member promoted |
+| Soft lock | Optional – blocks join/leave |
+
+Only the active party receives Trust priority, dialogue priority, daily effects, and unit reactions.
+
+## Unit reactions (layer 1)
+
+Shared **party mood** from Rhythm / Trust / Shadow Debt:
+
+`proud | steady | uneasy | strained | fractured`
+
+One primary speaker (Leader → founder → first member) plus optional secondary beat on strong moods.
+
+See `lib/engines/party-doctrine.ts` → `buildUnitReaction`.
+
+## Cross-talk (layer 2)
+
+Stance tags: `founder | challenger | mediator | devotee | observer | spark`
+
+Companions may reference each other in **one beat** for flavor. No autonomous companion–companion soap opera.
+
+## Pure APIs
+
+**Roster / slots** — `lib/engines/party.ts`:
 
 ```ts
 createEmptyParty()
@@ -36,18 +68,22 @@ setPartyLocked(party, locked)
 validateParty(party)
 ```
 
-All functions are pure and return a new state (or `null` on invalid transition).
+**Doctrine / voice** — `lib/engines/party-doctrine.ts`:
 
-## Integration Notes
+```ts
+followStage(affinity, inActiveParty)
+joinFollowBeat(name, isFounder)
+partyMoodFromSignals(input)
+buildUnitReaction(party, input)
+crossTalkHint(speakerSlug, aboutSlug)
+partyContextBlurb(party, mood, speakerSlug)
+lifeSignalSeed(kind, detail?)
+```
+
+## Integration notes
 
 - Store `PartyState` on the player record.
-- When applying Trust deltas from Rhythm / Vacation Mode, iterate only `party.members`.
-- UI should surface the current party of 5 prominently and treat the rest of the roster as “available / reserve”.
-- Vacation Mode companions still react, but only active party members generate daily Trust drift and dialogue priority.
-
-## Edge Cases
-
-- Empty party is valid (no Leader).
-- Attempting to join a full party returns `null`.
-- Locked party rejects all join/leave operations.
-- `validateParty` is useful for migrations and tests.
+- When applying Trust deltas, iterate only `party.members`.
+- Inject `partyContextBlurb` into companion generation when the speaker is in the active party.
+- Place + Rhythm events can call `lifeSignalSeed` + `buildUnitReaction` for outreach.
+- Full independent multi-agent simulation is **out of scope**; keep layers 1–2.
