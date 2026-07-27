@@ -14,6 +14,7 @@ import { Plate, TileIcon, QuestRow } from '@/components/FantasyFrame'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { loadStanding } from '@/lib/engines/standing-store'
 import { chicagoYmd } from '@/lib/engines/muster'
+import { MUST_DO_CAP, splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
 import type { ModuleIconKey } from '@/components/MythicIcons'
 
 export const dynamic = 'force-dynamic'
@@ -29,11 +30,65 @@ function formatAnchor(time: string | null | undefined): string | null {
   return `${h}:${min} ${ampm}`
 }
 
-function anchorMinutes(time: string | null | undefined): number {
-  if (!time) return 9999
-  const m = String(time).trim().match(/^(\d{1,2}):(\d{2})$/)
-  if (!m) return 9999
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10)
+function TaskLane({
+  label,
+  hint,
+  tasks,
+  empty,
+  accent,
+}: {
+  label: string
+  hint?: string
+  tasks: TaskRow[]
+  empty?: string
+  accent?: 'gold' | 'violet' | 'zinc'
+}) {
+  const kicker =
+    accent === 'gold'
+      ? 'text-amber-400/90'
+      : accent === 'violet'
+        ? 'text-violet-400/90'
+        : 'text-zinc-500'
+
+  return (
+    <section className="space-y-2">
+      <div className="flex items-baseline justify-between px-1 gap-2">
+        <h2 className={`section-label ${kicker}`}>{label}</h2>
+        {hint && <span className="text-[10px] text-zinc-600 tabular-nums">{hint}</span>}
+      </div>
+
+      {tasks.length > 0 ? (
+        <div className="space-y-2">
+          {tasks.map((task) => {
+            const timeLabel = formatAnchor(task.anchor_time)
+            return (
+              <QuestRow key={task.id}>
+                <form action={completeTask} className="shrink-0">
+                  <input type="hidden" name="id" value={task.id} />
+                  <PendingCircleButton />
+                </form>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="quest-row-title truncate">{task.title}</p>
+                    {timeLabel && <span className="quest-row-time">{timeLabel}</span>}
+                  </div>
+                  {(task.streak_count || 0) >= 2 && (
+                    <p className="quest-row-streak">{task.streak_count} day streak</p>
+                  )}
+                </div>
+              </QuestRow>
+            )
+          })}
+        </div>
+      ) : (
+        empty && (
+          <div className="rounded-xl border border-dashed border-zinc-800/80 px-4 py-4">
+            <p className="text-xs text-zinc-600 text-center">{empty}</p>
+          </div>
+        )
+      )}
+    </section>
+  )
 }
 
 export default async function HubPage() {
@@ -63,24 +118,31 @@ export default async function HubPage() {
   ])
   const supabase = await createClient()
 
-  const { data: todayTasks } = await supabase
+  // Pull open + today's completed so progress is accurate; lanes use incomplete only
+  const { data: allTasks } = await supabase
     .from('tasks')
     .select('*')
-    .eq('is_today', true)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
+    .limit(200)
 
-  const incompleteTasks = (todayTasks?.filter((t) => !t.is_completed) || []).slice().sort((a, b) => {
-    const ta = anchorMinutes(a.anchor_time)
-    const tb = anchorMinutes(b.anchor_time)
-    if (ta !== tb) return ta - tb
-    return 0
+  const rows = (allTasks || []) as TaskRow[]
+  const { routine, mustDos, master } = splitTaskLanes(rows)
+
+  // Progress = routine + must-dos (the committed day), not the whole master backlog
+  const focusPool = rows.filter((t) => {
+    if (t.is_completed) {
+      // count completed today-ish focus items
+      return t.is_today || t.must_do || isRecurringToday(t)
+    }
+    return false
   })
-  const completedTasks = todayTasks?.filter((t) => t.is_completed) || []
-  const totalToday = (todayTasks || []).length
-  const doneToday = completedTasks.length
+  const focusOpen = routine.length + mustDos.length
+  const focusDone = focusPool.length
+  const focusTotal = focusOpen + focusDone
+
   const bestStreak = Math.max(
     0,
-    ...(todayTasks || []).map((t: { streak_count?: number }) => t.streak_count || 0)
+    ...rows.map((t) => t.streak_count || 0)
   )
 
   const rhythm = standingUi?.rhythm
@@ -111,31 +173,30 @@ export default async function HubPage() {
             <p className="mt-1.5 text-[11px] font-medium text-muted">The Unconventional Advisor</p>
           </div>
           <div className="flex items-start gap-2 shrink-0">
-            {/* Today's progress — compact orb like streak */}
             <div
               className="orb shrink-0"
               title={
-                totalToday === 0
-                  ? 'No quests today'
-                  : doneToday === totalToday
-                    ? 'All quests complete'
-                    : `${totalToday - doneToday} remaining`
+                focusTotal === 0
+                  ? 'No focus tasks'
+                  : focusOpen === 0
+                    ? 'Focus complete'
+                    : `${focusOpen} remaining`
               }
               style={{
                 background:
-                  totalToday > 0 && doneToday === totalToday
+                  focusTotal > 0 && focusOpen === 0
                     ? 'linear-gradient(160deg, rgba(52, 211, 153, 0.22) 0%, rgba(16, 24, 20, 0.9) 100%)'
                     : undefined,
                 borderColor:
-                  totalToday > 0 && doneToday === totalToday
+                  focusTotal > 0 && focusOpen === 0
                     ? 'rgba(52, 211, 153, 0.4)'
                     : undefined,
               }}
             >
               <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Today</span>
               <span className="text-sm font-bold font-display tabular-nums">
-                {doneToday}
-                <span className="text-[10px] opacity-60 font-semibold">/{totalToday || '—'}</span>
+                {focusDone}
+                <span className="text-[10px] opacity-60 font-semibold">/{focusTotal || '—'}</span>
               </span>
             </div>
             {bestStreak > 0 && (
@@ -159,52 +220,48 @@ export default async function HubPage() {
         />
       )}
 
-      <section className="space-y-2.5">
+      {/* ── Today lanes ───────────────────────────────────── */}
+      <div className="space-y-5">
         <div className="flex items-center justify-between px-1">
-          <h2 className="section-label">Today's quests</h2>
+          <h2 className="section-label text-zinc-300">Today</h2>
           <Link href="/mother-list" className="text-xs font-semibold text-gold">
-            + Mother List
+            + Plan
           </Link>
         </div>
 
-        {incompleteTasks.length > 0 ? (
-          <div className="space-y-2">
-            {incompleteTasks.slice(0, 6).map(
-              (task: {
-                id: string
-                title: string
-                streak_count?: number
-                anchor_time?: string
-              }) => {
-                const timeLabel = formatAnchor(task.anchor_time)
-                return (
-                  <QuestRow key={task.id}>
-                    <form action={completeTask} className="shrink-0">
-                      <input type="hidden" name="id" value={task.id} />
-                      <PendingCircleButton />
-                    </form>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="quest-row-title truncate">{task.title}</p>
-                        {timeLabel && <span className="quest-row-time">{timeLabel}</span>}
-                      </div>
-                      {(task.streak_count || 0) >= 2 && (
-                        <p className="quest-row-streak">{task.streak_count} day streak</p>
-                      )}
-                    </div>
-                  </QuestRow>
-                )
-              }
-            )}
-          </div>
-        ) : (
-          <div className="quest-row justify-center py-8">
-            <p className="text-sm font-medium text-muted text-center">
-              {completedTasks.length > 0 ? 'All quests complete for today.' : 'No quests on the board.'}
-            </p>
-          </div>
+        <TaskLane
+          label="Routine"
+          hint={routine.length ? `${routine.length}` : undefined}
+          tasks={routine}
+          empty="No recurring tasks scheduled today."
+          accent="zinc"
+        />
+
+        <TaskLane
+          label="Must-dos"
+          hint={`${mustDos.length}/${MUST_DO_CAP}`}
+          tasks={mustDos}
+          empty="Pull up to 5 one-time tasks onto Today from the Master List."
+          accent="gold"
+        />
+
+        <TaskLane
+          label="Master list"
+          hint={master.length ? `${master.length} open` : undefined}
+          tasks={master.slice(0, 8)}
+          empty="Master list is clear."
+          accent="violet"
+        />
+
+        {master.length > 8 && (
+          <Link
+            href="/mother-list"
+            className="block text-center text-xs text-zinc-500 hover:text-violet-400 py-1"
+          >
+            View all {master.length} on Master List →
+          </Link>
         )}
-      </section>
+      </div>
 
       <Link href="/standing" className="block">
         <Plate gold className="px-5 py-3.5">
@@ -248,4 +305,9 @@ export default async function HubPage() {
       </section>
     </main>
   )
+}
+
+function isRecurringToday(t: TaskRow): boolean {
+  const r = (t.recurrence || '').toLowerCase()
+  return (r === 'daily' || r === 'weekly') && !!t.is_today
 }
