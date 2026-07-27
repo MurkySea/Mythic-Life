@@ -12,6 +12,8 @@ import { loadPlayerState } from '@/lib/player-state'
 import { readPartyMood } from '@/lib/engines/reactive-companions'
 import { buildDailyChronicle, buildDailyHeadline } from '@/lib/engines/narrative'
 import { getLeader } from '@/lib/engines/party'
+import { getWorldIntegrity } from '@/lib/engines/world-integrity-wire'
+import { BAND_LABEL, BAND_HINT } from '@/lib/engines/world-integrity'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,12 +41,30 @@ function moodFromAffinity(aff: number): string {
   return 'withdrawn'
 }
 
+function integrityColor(band: string): string {
+  switch (band) {
+    case 'flourishing':
+      return 'text-emerald-400'
+    case 'stable':
+      return 'text-sky-400'
+    case 'thinning':
+      return 'text-amber-300'
+    case 'strained':
+      return 'text-orange-400'
+    case 'fractured':
+      return 'text-red-400'
+    default:
+      return 'text-zinc-300'
+  }
+}
+
 export default async function StandingPage() {
-  const [health, persisted, playerState, partyMoodSnap] = await Promise.all([
+  const [health, persisted, playerState, partyMoodSnap, integrity] = await Promise.all([
     fetchLatestStanding(),
     loadStanding(),
     loadPlayerState(),
     readPartyMood().catch(() => null),
+    getWorldIntegrity().catch(() => null),
   ])
 
   const rhythm = health?.rhythm
@@ -99,7 +119,6 @@ export default async function StandingPage() {
   const selfMul = neglect.selfMultiplier
   const combined = Math.max(0.55, Number((rhythmMul * debtMul * selfMul).toFixed(3)))
 
-  // Daily chronicle (Layer 1 narrative)
   const leaderSlug = getLeader(playerState.party)?.slug
   const speakerName =
     (leaderSlug && getCompanionDef(leaderSlug)?.name) ||
@@ -135,11 +154,29 @@ export default async function StandingPage() {
       </div>
 
       <div className="space-y-4">
-        {/* Layer 1 — Daily chronicle */}
-        <section className="rounded-2xl border border-violet-900/40 bg-gradient-to-b from-violet-950/30 to-zinc-900/80 p-5 space-y-2">
-          <p className="text-[11px] uppercase tracking-wider text-violet-400/80">Chronicle</p>
-          <p className="text-sm text-violet-100/90 font-medium leading-snug">{headline}</p>
+        {/* Layer 1 — Chronicle + World Integrity */}
+        <section className="rounded-2xl border border-violet-900/40 bg-gradient-to-b from-violet-950/30 to-zinc-900/80 p-5 space-y-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase tracking-wider text-violet-400/80">Chronicle</p>
+              <p className="text-sm text-violet-100/90 font-medium leading-snug mt-0.5">{headline}</p>
+            </div>
+            {integrity && (
+              <div className="text-right shrink-0">
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500">Integrity</p>
+                <p className={`text-2xl font-medium tabular-nums ${integrityColor(integrity.band)}`}>
+                  {integrity.value}
+                </p>
+                <p className={`text-[11px] ${integrityColor(integrity.band)}`}>
+                  {BAND_LABEL[integrity.band]}
+                </p>
+              </div>
+            )}
+          </div>
           <p className="text-sm text-zinc-300 leading-relaxed">{chronicle}</p>
+          {integrity && (
+            <p className="text-[11px] text-zinc-500 leading-relaxed">{BAND_HINT[integrity.band]}</p>
+          )}
         </section>
 
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
