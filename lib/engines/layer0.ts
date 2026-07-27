@@ -93,12 +93,18 @@ export interface TokenGateInput {
   taskFloor?: number
 }
 
+/** Full union coverage — primary names + sandbox aliases */
 const TIER_TOKEN_FACTOR: Record<RhythmTier, number> = {
   Excellent: 1.35,
+  Elite: 1.35,
   Good: 1.15,
+  Strong: 1.15,
   Neutral: 1.0,
+  Steady: 1.0,
   Poor: 0.55,
+  Fragile: 0.55,
   Bad: 0.2,
+  Broken: 0.2,
 }
 
 /**
@@ -160,10 +166,15 @@ export interface MultiplierInput {
 
 const RHYTHM_MULT: Record<RhythmTier, number> = {
   Excellent: 1.25,
+  Elite: 1.25,
   Good: 1.1,
+  Strong: 1.1,
   Neutral: 1.0,
+  Steady: 1.0,
   Poor: 0.85,
+  Fragile: 0.85,
   Bad: 0.65,
+  Broken: 0.65,
 }
 
 /**
@@ -191,14 +202,19 @@ export function buildMultiplierStack(input: MultiplierInput): MultiplierStack {
 export function rhythmTrustDelta(tier: RhythmTier): number {
   switch (tier) {
     case 'Excellent':
+    case 'Elite':
       return 10
     case 'Good':
+    case 'Strong':
       return 5
     case 'Neutral':
+    case 'Steady':
       return 1.5
     case 'Poor':
+    case 'Fragile':
       return -4
     case 'Bad':
+    case 'Broken':
       return -10
     default:
       return 0
@@ -246,9 +262,9 @@ export function evaluateDay(input: DayEvalInput): DayEvalResult {
   }
 
   // Severe rhythm also adds a small debt hit
-  if (rhythmTier === 'Bad') {
+  if (rhythmTier === 'Bad' || rhythmTier === 'Broken') {
     debt = accumulateShadowDebt(debt, 4)
-  } else if (rhythmTier === 'Poor') {
+  } else if (rhythmTier === 'Poor' || rhythmTier === 'Fragile') {
     debt = accumulateShadowDebt(debt, 2)
   }
 
