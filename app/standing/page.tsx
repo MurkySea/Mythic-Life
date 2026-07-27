@@ -8,6 +8,10 @@ import { buySink } from './actions'
 import type { LifeDomain } from '@/lib/engines/types'
 import { getCompanionDef } from '@/lib/companions'
 import { parseDomains } from '@/lib/skills'
+import { loadPlayerState } from '@/lib/player-state'
+import { readPartyMood } from '@/lib/engines/reactive-companions'
+import { buildDailyChronicle, buildDailyHeadline } from '@/lib/engines/narrative'
+import { getLeader } from '@/lib/engines/party'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,9 +40,11 @@ function moodFromAffinity(aff: number): string {
 }
 
 export default async function StandingPage() {
-  const [health, persisted] = await Promise.all([
+  const [health, persisted, playerState, partyMoodSnap] = await Promise.all([
     fetchLatestStanding(),
     loadStanding(),
+    loadPlayerState(),
+    readPartyMood().catch(() => null),
   ])
 
   const rhythm = health?.rhythm
@@ -93,6 +99,28 @@ export default async function StandingPage() {
   const selfMul = neglect.selfMultiplier
   const combined = Math.max(0.55, Number((rhythmMul * debtMul * selfMul).toFixed(3)))
 
+  // Daily chronicle (Layer 1 narrative)
+  const leaderSlug = getLeader(playerState.party)?.slug
+  const speakerName =
+    (leaderSlug && getCompanionDef(leaderSlug)?.name) ||
+    (leaderSlug === 'seraphine' ? 'Seraphine' : null) ||
+    'Someone who follows you'
+
+  const chronicle = buildDailyChronicle({
+    date: health?.date,
+    rhythmTier: rhythm?.tier || persisted.last_rhythm_tier,
+    shadowDebt: persisted.shadow_debt,
+    selfNeglect: neglect.severity,
+    partyMood: partyMoodSnap?.mood ?? null,
+    speakerName,
+    taskCountHint: (recentTasks || []).length,
+  })
+  const headline = buildDailyHeadline({
+    rhythmTier: rhythm?.tier || persisted.last_rhythm_tier,
+    shadowDebt: persisted.shadow_debt,
+    partyMood: partyMoodSnap?.mood ?? null,
+  })
+
   return (
     <main className="max-w-md mx-auto px-4 pt-6 pb-12 min-h-screen">
       <div className="mb-6">
@@ -107,6 +135,13 @@ export default async function StandingPage() {
       </div>
 
       <div className="space-y-4">
+        {/* Layer 1 — Daily chronicle */}
+        <section className="rounded-2xl border border-violet-900/40 bg-gradient-to-b from-violet-950/30 to-zinc-900/80 p-5 space-y-2">
+          <p className="text-[11px] uppercase tracking-wider text-violet-400/80">Chronicle</p>
+          <p className="text-sm text-violet-100/90 font-medium leading-snug">{headline}</p>
+          <p className="text-sm text-zinc-300 leading-relaxed">{chronicle}</p>
+        </section>
+
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-4">
           <div className="grid grid-cols-4 gap-2 text-center">
             <div>
@@ -229,7 +264,6 @@ export default async function StandingPage() {
           </div>
         </section>
 
-        {/* Token sinks — extras only */}
         <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-3">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-zinc-500">Token sinks</p>
