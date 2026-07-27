@@ -78,19 +78,19 @@ export default async function TodayPage() {
 
       <div className="space-y-6">
         <TaskLane
-          label="Routine"
-          hint={routine.length ? `${routine.length}` : undefined}
-          tasks={routine}
-          empty="No recurring tasks scheduled today."
-          accent="zinc"
-        />
-
-        <TaskLane
           label="Must-dos"
           hint={`${mustDos.length}/${MUST_DO_CAP}`}
           tasks={mustDos}
           empty="Pull up to 5 one-time tasks onto Today from Plan."
           accent="gold"
+        />
+
+        <TaskLane
+          label="Routine"
+          hint={routine.length ? `${routine.length}` : undefined}
+          tasks={routine}
+          empty="No recurring tasks scheduled today."
+          accent="zinc"
         />
 
         <TaskLane
