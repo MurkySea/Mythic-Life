@@ -41,11 +41,17 @@ export function sceneTier(affinity: number): number {
   return 0
 }
 
-/** Deterministic pick so the same claim is stable; different sceneIndex → different vibe */
+/** Seeded pick — same seed → same choice */
 function pick<T>(arr: T[], seed: number): T {
   if (arr.length === 0) throw new Error('empty pick')
-  const i = Math.abs(seed) % arr.length
+  const i = Math.abs(Math.floor(seed)) % arr.length
   return arr[i]
+}
+
+/** Mix deterministic inputs with real entropy so every generation differs */
+function makeSeed(sceneIndex: number, tier: number, slugLen: number, affinity: number): number {
+  const entropy = Date.now() % 100000 + Math.floor(Math.random() * 10000)
+  return sceneIndex * 17 + tier * 3 + slugLen * 5 + affinity * 2 + entropy
 }
 
 function appearanceFor(def?: CompanionDef | null): string {
@@ -68,7 +74,8 @@ function speciesFlavor(def?: CompanionDef | null): string[] {
       'subtle fox-ear expression',
       'tail curled with mood',
       'soft fur catching light',
-      'delicate collar or silver charm at the throat'
+      'delicate collar or silver charm at the throat',
+      'one ear tilted, attentive'
     )
   }
   if (race.includes('cat') || race.includes('lion') || slug.includes('ashrunner') || slug.includes('ironmane')) {
@@ -192,6 +199,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'travel cloak over practical layers',
     'soft sweater and long skirt',
     'training wrap worn neatly',
+    'linen shirt and fitted pants',
   ],
   // 1 familiar
   [
@@ -200,6 +208,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'elegant high-collar coat',
     'soft layered robes',
     'casual fine shirt, sleeves rolled',
+    'fitted vest over a soft blouse',
   ],
   // 2 warming
   [
@@ -208,6 +217,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'evening wrap dress',
     'soft knit that sits close',
     'delicate formal wear, relaxed',
+    'open cardigan over a thin camisole',
   ],
   // 3 tender
   [
@@ -216,6 +226,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'loose robe over underlayers',
     'backless evening dress still elegant',
     'thin-strap dress, private indoor wear',
+    'silk camisole and loose trousers',
   ],
   // 4 intimate
   [
@@ -224,6 +235,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'silk slip dress',
     'fine lingerie, robe slipping off one shoulder',
     'draped sheet and delicate undergarments',
+    'thin robe held closed by one hand',
   ],
   // 5 heated
   [
@@ -232,6 +244,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'minimal silk lingerie',
     'strappy elegant lingerie, still refined',
     'sheer robe over fitted lingerie',
+    'half-removed robe, lingerie underneath',
   ],
   // 6 sensual
   [
@@ -240,6 +253,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'translucent silk and little else',
     'barely-there elegant lingerie',
     'sheer fabric held rather than worn',
+    'strategic drapery, almost undressed',
   ],
   // 7 peak
   [
@@ -248,6 +262,7 @@ const OUTFITS_BY_TIER: string[][] = [
     'sheer lingerie reduced to lines and light',
     'strategic silk only',
     'intimate undress, fabric as suggestion',
+    'bare skin with a single sheer scarf',
   ],
 ]
 
@@ -257,60 +272,68 @@ const POSES_BY_TIER: string[][] = [
     'seated upright, hands folded',
     'leaning lightly on a railing or window',
     'walking pause, looking back over one shoulder',
+    'standing near a table, one hand resting on it',
   ],
   [
     'relaxed three-quarter portrait',
     'seated, one knee drawn up casually',
     'standing with weight on one hip',
     'leaning in a doorway',
+    'half-turned, glancing toward the viewer',
   ],
   [
     'slight lean toward the viewer',
     'seated closer, soft eye contact',
     'standing, hand near the collarbone',
     'profile turning into a glance',
+    'sitting on a low stool, relaxed posture',
   ],
   [
     'upper-body close, private quiet',
     'seated on a bed edge or low sill',
     'leaning against a wall, softer posture',
     'looking over the shoulder with warmth',
+    'kneeling on a cushion, calm and open',
   ],
   [
     'close intimate framing',
     'sitting on the edge of a bed',
     'reclining on one elbow',
     'standing close, soft vulnerable posture',
+    'seated with knees drawn, chin on hand',
   ],
   [
     'seated on bed or window seat, heated calm',
     'kneeling sit, open posture',
     'leaning back on hands',
     'close crop, breath-near intimacy',
+    'half-reclined against pillows',
   ],
   [
     'intimate pose on bed',
     'against a wall, close framing',
     'half-reclined, strong eye contact',
     'seated, legs drawn, private chamber',
+    'lying on side, propped on one elbow',
   ],
   [
     'on bed, peak private gaze',
     'pressed gently back to wall or headboard',
     'intimate recline, minimal fabric',
     'close entangled framing with light and shadow',
+    'arching slightly, soft focused eyes',
   ],
 ]
 
 const SETTINGS_BY_TIER: string[][] = [
-  ['soft daylight interior', 'quiet courtyard', 'sunlit threshold', 'simple study'],
-  ['warm ambient room', 'evening street-edge glow', 'cozy hearth side', 'library corner'],
-  ['golden-hour window', 'lamplit sitting room', 'balcony at dusk', 'quiet garden edge'],
-  ['private evening room', 'low indoor lamp', 'rain at the window', 'dim study nook'],
-  ['bedroom warm light', 'private chamber', 'candlelit corner', 'moonlit window seat'],
-  ['bedroom low light', 'intimate chamber', 'firelit room', 'night window and sheets'],
-  ['private chamber soft shadows', 'candlelit bed space', 'moonlit intimate room'],
-  ['candlelit or moonlight peak intimacy', 'private bedchamber', 'shadow-and-skin lighting'],
+  ['soft daylight interior', 'quiet courtyard', 'sunlit threshold', 'simple study', 'open hallway with morning light'],
+  ['warm ambient room', 'evening street-edge glow', 'cozy hearth side', 'library corner', 'quiet café window seat'],
+  ['golden-hour window', 'lamplit sitting room', 'balcony at dusk', 'quiet garden edge', 'rain-streaked window, warm interior'],
+  ['private evening room', 'low indoor lamp', 'rain at the window', 'dim study nook', 'candle on a side table'],
+  ['bedroom warm light', 'private chamber', 'candlelit corner', 'moonlit window seat', 'rumpled sheets, soft lamp'],
+  ['bedroom low light', 'intimate chamber', 'firelit room', 'night window and sheets', 'shadowed alcove with warm glow'],
+  ['private chamber soft shadows', 'candlelit bed space', 'moonlit intimate room', 'low firelight on bare walls'],
+  ['candlelit or moonlight peak intimacy', 'private bedchamber', 'shadow-and-skin lighting', 'single candle, deep shadow'],
 ]
 
 const STYLE_FLAVORS = [
@@ -319,22 +342,56 @@ const STYLE_FLAVORS = [
   'painterly anime, soft gradients and sharp eyes',
   'modern anime key-visual quality',
   'detailed anime portrait, shallow depth of field',
+  'soft cinematic anime, film-like color grade',
 ]
 
 const EXPRESSION_BY_TIER: string[][] = [
-  ['reserved calm expression', 'quiet neutral warmth'],
-  ['gentle genuine smile', 'soft open expression'],
-  ['soft affectionate eyes', 'small real smile'],
-  ['tender expression', 'subtle blush'],
-  ['soft parted lips', 'warm private look'],
-  ['flushed cheeks, half-lidded eyes', 'heated but controlled expression'],
-  ['strong blush, slightly parted lips', 'intense soft hunger in the eyes'],
-  ['intense private gaze', 'breathless composure, peak intimacy'],
+  ['reserved calm expression', 'quiet neutral warmth', 'soft thoughtful look'],
+  ['gentle genuine smile', 'soft open expression', 'warm half-smile'],
+  ['soft affectionate eyes', 'small real smile', 'quiet fondness'],
+  ['tender expression', 'subtle blush', 'soft lingering gaze'],
+  ['soft parted lips', 'warm private look', 'gentle flushed cheeks'],
+  ['flushed cheeks, half-lidded eyes', 'heated but controlled expression', 'quiet wanting'],
+  ['strong blush, slightly parted lips', 'intense soft hunger in the eyes', 'breathless soft focus'],
+  ['intense private gaze', 'breathless composure, peak intimacy', 'heavy-lidded, fully present'],
+]
+
+const CAMERA_ANGLES = [
+  'medium shot, eye level',
+  'slight low angle, flattering',
+  'close portrait, shallow depth of field',
+  'three-quarter body shot',
+  'over-the-shoulder intimacy framing',
+  'tight upper-body crop',
+  'wide enough to show environment, still focused on her',
+  'side profile turning toward viewer',
+]
+
+const LIGHTING_MOODS = [
+  'warm golden key light',
+  'cool rim light with warm fill',
+  'soft diffused window light',
+  'dramatic side light, deep shadows',
+  'candle-warm practical light',
+  'moonlight with soft bounce',
+  'low contrast, gentle ambient glow',
+  'high contrast, cinematic chiaroscuro',
+]
+
+const COMPOSITION_NOTES = [
+  'negative space on one side',
+  'subject slightly off-center',
+  'strong leading lines toward her face',
+  'soft bokeh background',
+  'hands visible and intentional',
+  'hair catching a rim of light',
+  'fabric texture emphasized',
+  'eye contact as the focal point',
 ]
 
 /**
- * Super-dynamic scene prompt: outfit × pose × setting × style × species × personality.
- * Seeded by sceneIndex + affinity so each claim differs without pure noise.
+ * Dynamic scene prompt with real variation.
+ * Tier/intimacy constraints stay; each call gets fresh entropy so repeats are rare.
  */
 export function buildScenePrompt(
   affinity: number,
@@ -342,7 +399,7 @@ export function buildScenePrompt(
   sceneIndex = 0
 ): string {
   const tier = sceneTier(affinity)
-  const seed = sceneIndex * 17 + tier * 3 + (def?.slug?.length || 0) * 5 + affinity
+  const seed = makeSeed(sceneIndex, tier, def?.slug?.length || 0, affinity)
 
   const look = appearanceFor(def)
   const name = def?.name || 'companion'
@@ -358,6 +415,10 @@ export function buildScenePrompt(
   const speciesBit = pick(species, seed + 5)
   const speciesBit2 = pick(species, seed + 6)
   const personalityBit = pick(personality, seed + 7)
+
+  const camera = pick(CAMERA_ANGLES, seed + 8)
+  const lighting = pick(LIGHTING_MOODS, seed + 9)
+  const composition = pick(COMPOSITION_NOTES, seed + 10)
 
   const intimacyHint =
     tier >= 6
@@ -381,6 +442,9 @@ export function buildScenePrompt(
     `Outfit: ${outfit}`,
     `Pose: ${pose}`,
     `Setting: ${setting}`,
+    `Camera: ${camera}`,
+    `Lighting: ${lighting}`,
+    `Composition: ${composition}`,
     `Species / world detail: ${speciesBit}`,
     `Secondary atmosphere: ${speciesBit2}`,
     intimacyHint,
