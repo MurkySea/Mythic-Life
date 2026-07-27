@@ -1,6 +1,16 @@
 import { createClient } from '@/utils/supabase/server'
 import { getCompanionDef } from '@/lib/companions'
 import { pushIfStillUnread } from '@/lib/reads'
+import { loadPlayerState } from '@/lib/player-state'
+import {
+  buildUnitReaction,
+  partyContextBlurb,
+  lifeSignalSeed,
+  isFoundingCompanion,
+  type PartyMoodInput,
+  type LifeSignalKind,
+} from '@/lib/engines/party-doctrine'
+import { hasMember } from '@/lib/engines/party'
 
 const TIMEZONE = 'America/Chicago'
 const DAILY_PUSH_CAP = 5
@@ -11,6 +21,7 @@ const TASK_REACTION_CHANCE = 0.22
 const WANDERING_CHANCE = 0.18
 const MISSING_YOU_CHANCE = 0.14
 const SHARE_MOMENT_CHANCE = 0.12
+const PARTY_UNIT_CHANCE = 0.4
 const ANCHOR_PING_MIN = 5
 const ANCHOR_PING_MAX = 25
 
@@ -23,6 +34,7 @@ export type OutreachKind =
   | 'missing_you'
   | 'share_moment'
   | 'soft_love'
+  | 'party_unit'
 
 function localHour(): number {
   return parseInt(
@@ -114,6 +126,66 @@ async function logPush(kind: string, companionSlug: string) {
   }
 }
 
+/** Prefer active party members; fall back to unlocked roster. */
+async function pickUnlockedCompanion(opts?: {
+  minAffinity?: number
+  preferHighBond?: boolean
+  preferParty?: boolean
+}): Promise<{ slug: string; affinity: number; name: string } | null> {
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('companion')
+    .select('slug, name, is_unlocked, affinity_score')
+    .or('is_unlocked.eq.true,is_unlocked.is.null')
+
+  let party = (data || []).filter((c) => c.is_unlocked !== false)
+  if (opts?.minAffinity) {
+    party = party.filter((c) => (c.affinity_score || 1) >= opts.minAffinity!)
+  }
+  if (party.length === 0) return null
+
+  const preferParty = opts?.preferParty !== false
+  if (preferParty) {
+    try {
+      const { party: active } = await loadPlayerState()
+      const inParty = party.filter((c) => {
+        const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
+        return slug && hasMember(active, slug)
+      })
+      if (inParty.length > 0) party = inParty
+    } catch {
+      // player_state optional
+    }
+  }
+
+  const weighted = party.flatMap((c) => {
+    const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : 'seraphine')
+    const aff = c.affinity_score || 1
+    const founderBoost = isFoundingCompanion(slug) ? 2 : 1
+    const w = opts?.preferHighBond
+      ? Math.max(1, Math.min(8, Math.floor(aff / 2) + 1)) * founderBoost
+      : Math.max(1, Math.min(5, Math.floor(aff / 4) + 1)) * founderBoost
+    return Array(w).fill({ slug, affinity: aff, name: c.name || slug })
+  })
+
+  return weighted[Math.floor(Math.random() * weighted.length)] || null
+}
+
+async function partyAwareSeed(
+  baseSeed: string,
+  companionSlug: string
+): Promise<string> {
+  try {
+    const { party } = await loadPlayerState()
+    if (!hasMember(party, companionSlug)) return baseSeed
+    const mood = buildUnitReaction(party, {}).mood
+    const blurb = partyContextBlurb(party, mood, companionSlug)
+    return `${baseSeed}\n\n[Party context — internal, do not recite as a list: ${blurb}]`
+  } catch {
+    return baseSeed
+  }
+}
+
 export async function maybeScheduleTaskReaction(opts: {
   taskTitle: string
   companionSlug: string
@@ -143,32 +215,90 @@ export async function maybeScheduleTaskReaction(opts: {
   }
 }
 
-async function pickUnlockedCompanion(opts?: {
-  minAffinity?: number
-  preferHighBond?: boolean
-}): Promise<{ slug: string; affinity: number; name: string } | null> {
+/**
+ * Schedule a party-unit reaction from life signal (geo / rhythm / streak).
+ * Uses buildUnitReaction; speaker is party Leader → founder → first member.
+ */
+export async function maybeSchedulePartyUnitReaction(opts: {
+  signal: LifeSignalKind
+  detail?: string
+  moodInput?: PartyMoodInput
+  force?: boolean
+}): Promise<boolean> {
+  if (!opts.force && Math.random() > PARTY_UNIT_CHANCE) return false
+  if (isQuietHours() && !opts.force) return false
+
+  const { party } = await loadPlayerState()
+  if (party.members.length === 0) return false
+
   const supabase = await createClient()
-  const { data } = await supabase
-    .from('companion')
-    .select('slug, name, is_unlocked, affinity_score')
-    .or('is_unlocked.eq.true,is_unlocked.is.null')
+  const { data: existing } = await supabase
+    .from('scheduled_outreach')
+    .select('id')
+    .eq('kind', 'party_unit')
+    .gte('created_at', dayStartISO())
+    .limit(2)
 
-  let party = (data || []).filter((c) => c.is_unlocked !== false)
-  if (opts?.minAffinity) {
-    party = party.filter((c) => (c.affinity_score || 1) >= opts.minAffinity!)
+  // Cap party-unit outreach at 2/day unless forced
+  if (!opts.force && existing && existing.length >= 2) return false
+
+  const reaction = buildUnitReaction(party, opts.moodInput || {})
+  if (!reaction.speakerSlug) return false
+
+  const signalLine = lifeSignalSeed(opts.signal, opts.detail)
+  const sendAfter = new Date(
+    Date.now() + (2 + Math.random() * 18) * 60 * 1000
+  ).toISOString()
+
+  try {
+    await supabase.from('scheduled_outreach').insert({
+      kind: 'party_unit',
+      companion_slug: reaction.speakerSlug,
+      send_after: sendAfter,
+      bypass_cap: false,
+      payload: {
+        day: localYmd(),
+        mood: reaction.mood,
+        seed: reaction.seed,
+        secondarySeed: reaction.secondarySeed || null,
+        signalLine,
+        detail: opts.detail || null,
+        signal: opts.signal,
+      },
+    })
+    return true
+  } catch (e) {
+    console.error('schedule party_unit', e)
+    return false
   }
-  if (party.length === 0) return null
+}
 
-  const weighted = party.flatMap((c) => {
-    const slug = c.slug || (c.name === 'Seraphine' ? 'seraphine' : 'seraphine')
-    const aff = c.affinity_score || 1
-    const w = opts?.preferHighBond
-      ? Math.max(1, Math.min(8, Math.floor(aff / 2) + 1))
-      : Math.max(1, Math.min(5, Math.floor(aff / 4) + 1))
-    return Array(w).fill({ slug, affinity: aff, name: c.name || slug })
-  })
+/** Cron helper: if a geo event landed recently, maybe fire a unit reaction. */
+export async function maybeSchedulePartyUnitFromRecentGeo(): Promise<boolean> {
+  if (isQuietHours()) return false
+  const supabase = await createClient()
+  const since = new Date(Date.now() - 90 * 60 * 1000).toISOString()
 
-  return weighted[Math.floor(Math.random() * weighted.length)] || null
+  try {
+    const { data } = await supabase
+      .from('geo_events')
+      .select('place_id, event, occurred_at')
+      .gte('occurred_at', since)
+      .order('occurred_at', { ascending: false })
+      .limit(1)
+
+    if (!data?.length) return false
+    const ev = data[0]
+    const signal: LifeSignalKind =
+      ev.event === 'leave' ? 'place_leave' : 'place_arrive'
+    return maybeSchedulePartyUnitReaction({
+      signal,
+      detail: String(ev.place_id),
+      moodInput: { recentTier: 'Neutral' },
+    })
+  } catch {
+    return false
+  }
 }
 
 async function completionsToday(): Promise<number> {
@@ -457,6 +587,12 @@ export async function maybeScheduleDayMoments(): Promise<void> {
       bypass_cap: true,
       payload: { completions: count, day: ymd },
     })
+    // Party also feels a strong day
+    await maybeSchedulePartyUnitReaction({
+      signal: 'streak',
+      detail: `${count} tasks`,
+      moodInput: { recentTier: 'Good' },
+    })
   } else if (count === 0 && !kinds.has('quiet_day')) {
     const sendAfter = new Date(
       Date.now() + (20 + Math.random() * 40) * 60 * 1000
@@ -476,6 +612,22 @@ function seedForKind(
   name: string,
   payload: Record<string, unknown>
 ): string {
+  if (kind === 'party_unit') {
+    const signalLine = String(payload.signalLine || '')
+    const unitSeed = String(payload.seed || '')
+    const secondary = payload.secondarySeed
+      ? String(payload.secondarySeed)
+      : ''
+    return [
+      signalLine,
+      unitSeed,
+      secondary,
+      `Speak as ${name} — one of the party that follows him. You may imply the group without roll-call. Short. In character. No productivity coach voice.`,
+    ]
+      .filter(Boolean)
+      .join(' ')
+  }
+
   if (kind === 'missing_you') {
     return `You have been thinking about him. Not because he failed at something — because you wanted his presence. Reach out the way a real person does when someone is on their mind. Short. Specific. Warm. No guilt. No "where have you been." Just the truth of missing contact.`
   }
@@ -502,7 +654,7 @@ function seedForKind(
   }
 
   if (kind === 'productive_day') {
-    return `He got a lot done today. You noticed the shape of his effort. Text him something short and real. No corporate pride speech. No "great job." Just contact.`
+    return `He got a lot done today. You noticed the shape of his effort. Tell him something short and real. No corporate pride speech. No "great job." Just contact.`
   }
 
   if (kind === 'time_anchor') {
@@ -550,7 +702,8 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
     const name = def?.name || 'Companion'
     const emoji = def?.emoji || '✦'
     const payload = (row.payload || {}) as Record<string, unknown>
-    const seed = seedForKind(row.kind, name, payload)
+    let seed = seedForKind(row.kind, name, payload)
+    seed = await partyAwareSeed(seed, row.companion_slug)
 
     try {
       let message = await generateCompanionResponse(seed, row.kind, {
@@ -562,8 +715,6 @@ export async function flushDueOutreach(): Promise<{ flushed: number; pushed: num
       const imageUrl =
         typeof payload.imageUrl === 'string' ? payload.imageUrl : null
 
-      // Prefer embedding the image marker so the UI can still render
-      // even if the subsequent update races.
       if (row.kind === 'share_moment' && imageUrl && typeof message === 'string') {
         const withImage = `${message.trim()}\n\n[image:${imageUrl}]`
 

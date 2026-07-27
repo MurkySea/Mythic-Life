@@ -6,6 +6,7 @@ import {
   maybeScheduleWanderingCheckIn,
   maybeScheduleMissingYou,
   maybeScheduleShareMoment,
+  maybeSchedulePartyUnitFromRecentGeo,
 } from '@/lib/outreach'
 
 export const dynamic = 'force-dynamic'
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
     const wandering = await maybeScheduleWanderingCheckIn()
     const missingYou = await maybeScheduleMissingYou()
     const shareMoment = await maybeScheduleShareMoment()
+    const partyGeo = await maybeSchedulePartyUnitFromRecentGeo()
     await maybeScheduleDayMoments()
     const result = await flushDueOutreach()
     return NextResponse.json({
@@ -33,6 +35,7 @@ export async function GET(request: Request) {
       wanderingScheduled: wandering,
       missingYouScheduled: missingYou,
       shareMomentScheduled: shareMoment,
+      partyUnitFromGeo: partyGeo,
       ...result,
     })
   } catch (e) {
