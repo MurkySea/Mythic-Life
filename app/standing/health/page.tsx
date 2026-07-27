@@ -8,13 +8,15 @@ import { StandingTabs } from '../StandingTabs'
 import {
   scoreNightWithLadder,
   progressFromStanding,
+  chicagoMinutesFromMidnight,
 } from '@/lib/engines/baseline-wire'
-import { getPhase } from '@/lib/engines/personal-baseline'
+import { getPhase, type DailyTier } from '@/lib/engines/personal-baseline'
 
 export const dynamic = 'force-dynamic'
 
-function fmtDev(mins?: number): string {
+function fmtDev(mins?: number | null): string {
   if (mins == null || Number.isNaN(mins)) return '—'
+  if (mins === 0) return '0m'
   const sign = mins > 0 ? '+' : ''
   return `${sign}${Math.round(mins)}m`
 }
@@ -22,6 +24,34 @@ function fmtDev(mins?: number): string {
 function fmtNum(n: number | null | undefined, digits = 0, suffix = ''): string {
   if (n == null || Number.isNaN(n)) return '—'
   return `${digits > 0 ? n.toFixed(digits) : Math.round(n)}${suffix}`
+}
+
+/** Ladder contribution aligned with old export scale, keyed by phase tier. */
+function ladderContribution(tier: DailyTier | string | undefined): number {
+  switch (tier) {
+    case 'Excellent':
+      return 12
+    case 'Good':
+      return 7
+    case 'Neutral':
+      return 0
+    case 'Poor':
+      return -4
+    case 'Bad':
+      return -9
+    default:
+      return 0
+  }
+}
+
+/**
+ * Minutes past the phase late-edge (one-sided). 0 if at or before the edge.
+ * Handles midnight wrap for bedtime.
+ */
+function minutesPastLateEdge(actualMin: number, lateEdge: number): number {
+  let delta = (actualMin - lateEdge + 1440) % 1440
+  if (delta > 720) return 0 // actually earlier on the clock
+  return delta
 }
 
 export default async function StandingHealthPage() {
@@ -34,12 +64,14 @@ export default async function StandingHealthPage() {
   const sleep = health?.sleep
   const signals = health?.signals
 
-  // Re-score with ladder for display when possible
-  let ladderTier = rhythm?.tier
+  let ladderTier: string | undefined = rhythm?.tier
   let ladderSummary: string | null = null
   let phaseName = 'Meet Yourself'
   let phaseNum = persisted.baseline_phase || 1
   let phaseLabel = ''
+  let usedLadder = false
+  let bedDevPhase: number | null = null
+  let wakeDevPhase: number | null = null
   let ladderEffects = rhythm
     ? {
         rewardEfficiency: rhythm.rewardEfficiency,
@@ -63,6 +95,7 @@ export default async function StandingHealthPage() {
       health.date
     )
     if (ladder) {
+      usedLadder = true
       ladderTier = ladder.tier
       ladderSummary = ladder.summary
       phaseName = ladder.phaseName
@@ -73,6 +106,17 @@ export default async function StandingHealthPage() {
         consistencyTokenMultiplier: ladder.effects.tokenMultiplier,
         shadowDebtDelta: ladder.effects.shadowDebtDelta,
         leaderTrustDelta: ladder.effects.leaderTrustDelta,
+      }
+
+      const progress = progressFromStanding(persisted)
+      const phase = getPhase(progress)
+      const bedMin = chicagoMinutesFromMidnight(sleep.bedtime)
+      const wakeMin = chicagoMinutesFromMidnight(sleep.wakeTime)
+      if (bedMin != null && phase.windows.bedtime) {
+        bedDevPhase = minutesPastLateEdge(bedMin, phase.windows.bedtime.max)
+      }
+      if (wakeMin != null && phase.windows.wake) {
+        wakeDevPhase = minutesPastLateEdge(wakeMin, phase.windows.wake.max)
       }
     }
   } else {
@@ -90,7 +134,12 @@ export default async function StandingHealthPage() {
       .join(' · ')
   }
 
-  const tier = tierStyle(ladderTier as any)
+  const tier = tierStyle(ladderTier)
+  const contribution = usedLadder
+    ? ladderContribution(ladderTier)
+    : (rhythm?.contribution ?? null)
+  const bedDev = usedLadder ? bedDevPhase : (rhythm?.bedDeviationMinutes ?? null)
+  const wakeDev = usedLadder ? wakeDevPhase : (rhythm?.wakeDeviationMinutes ?? null)
 
   const supabase = await createClient()
   const since = new Date()
@@ -160,10 +209,12 @@ export default async function StandingHealthPage() {
                 <p className={`text-2xl font-medium mt-0.5 ${tier.color}`}>{tier.label}</p>
               </div>
               <div className="text-right">
-                <p className="text-[11px] uppercase tracking-wider text-zinc-500">Contribution</p>
+                <p className="text-[11px] uppercase tracking-wider text-zinc-500">
+                  Contribution{usedLadder ? ' (phase)' : ''}
+                </p>
                 <p className="text-lg font-medium text-white tabular-nums">
-                  {rhythm && rhythm.contribution > 0 ? '+' : ''}
-                  {rhythm?.contribution ?? '—'}
+                  {contribution != null && contribution > 0 ? '+' : ''}
+                  {contribution ?? '—'}
                 </p>
               </div>
             </div>
@@ -178,16 +229,16 @@ export default async function StandingHealthPage() {
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                    <p className="text-[10px] text-zinc-500">Bed deviation</p>
-                    <p className="text-zinc-200 tabular-nums">
-                      {fmtDev(rhythm?.bedDeviationMinutes)}
+                    <p className="text-[10px] text-zinc-500">
+                      Bed vs phase{usedLadder ? ' late edge' : ''}
                     </p>
+                    <p className="text-zinc-200 tabular-nums">{fmtDev(bedDev)}</p>
                   </div>
                   <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                    <p className="text-[10px] text-zinc-500">Wake deviation</p>
-                    <p className="text-zinc-200 tabular-nums">
-                      {fmtDev(rhythm?.wakeDeviationMinutes)}
+                    <p className="text-[10px] text-zinc-500">
+                      Wake vs phase{usedLadder ? ' late edge' : ''}
                     </p>
+                    <p className="text-zinc-200 tabular-nums">{fmtDev(wakeDev)}</p>
                   </div>
                 </div>
               </div>
