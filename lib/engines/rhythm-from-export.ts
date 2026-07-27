@@ -2,6 +2,8 @@
  * Mythic Life – Rhythm from Health Auto Export
  *
  * Ported from mythic_life_data (locked rules 2026-07-23 / 2026-07-25).
+ * Session selection fixed 2026-07-26: do not treat a morning re-sleep
+ * segment as the night's bedtime.
  *
  * Targets:
  *   Bedtime window  22:45 – 23:15  (aim ~11:00 PM)
@@ -86,6 +88,10 @@ export function parseTimeToMinutes(time: string): number {
   return (((h || 0) * 60 + (m || 0)) % 1440 + 1440) % 1440
 }
 
+/**
+ * Circular deviation from a target window on a 24h clock.
+ * Handles midnight wrap (e.g. 00:30 vs 23:00 window).
+ */
 export function getDeviationMinutes(
   actual: string,
   windowStart: string,
@@ -95,9 +101,31 @@ export function getDeviationMinutes(
   const start = parseTimeToMinutes(windowStart)
   const end = parseTimeToMinutes(windowEnd)
 
-  if (actualMin >= start && actualMin <= end) return 0
-  if (actualMin < start) return start - actualMin
-  return actualMin - end
+  // Inside window (non-wrapping)
+  if (start <= end) {
+    if (actualMin >= start && actualMin <= end) return 0
+    const distStart = Math.min(
+      Math.abs(actualMin - start),
+      1440 - Math.abs(actualMin - start)
+    )
+    const distEnd = Math.min(
+      Math.abs(actualMin - end),
+      1440 - Math.abs(actualMin - end)
+    )
+    return Math.min(distStart, distEnd)
+  }
+
+  // Window wraps midnight
+  if (actualMin >= start || actualMin <= end) return 0
+  const distStart = Math.min(
+    Math.abs(actualMin - start),
+    1440 - Math.abs(actualMin - start)
+  )
+  const distEnd = Math.min(
+    Math.abs(actualMin - end),
+    1440 - Math.abs(actualMin - end)
+  )
+  return Math.min(distStart, distEnd)
 }
 
 export function contributionToTier(contribution: number): DailyTier {
@@ -158,15 +186,131 @@ export interface ExtractedSleep {
   date: string | null
 }
 
+interface RawSession {
+  sleepStart?: string
+  inBedStart?: string
+  sleepEnd?: string
+  inBedEnd?: string
+  totalSleep?: number
+  deep?: number
+  rem?: number
+  core?: number
+  awake?: number
+  date?: string
+}
+
+function sessionStartIso(s: RawSession): string | null {
+  return s.sleepStart || s.inBedStart || null
+}
+
+function sessionEndIso(s: RawSession): string | null {
+  return s.sleepEnd || s.inBedEnd || null
+}
+
+function sessionDurationHours(s: RawSession): number {
+  if (typeof s.totalSleep === 'number' && s.totalSleep > 0) return s.totalSleep
+  const a = sessionStartIso(s)
+  const b = sessionEndIso(s)
+  if (!a || !b) return 0
+  const ms = new Date(b).getTime() - new Date(a).getTime()
+  return ms > 0 ? ms / (1000 * 60 * 60) : 0
+}
+
+/**
+ * Local hour 0–23 from an ISO-ish timestamp (best-effort).
+ */
+function localHourFromIso(iso: string): number {
+  try {
+    // Prefer explicit offset / Z; fall back to parsing HH from string
+    const d = new Date(iso)
+    if (!Number.isNaN(d.getTime())) {
+      // Use America/Chicago wall time for Mythic Life
+      const h = parseInt(
+        new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/Chicago',
+          hour: 'numeric',
+          hour12: false,
+        }).format(d),
+        10
+      )
+      return h
+    }
+  } catch {
+    /* fall through */
+  }
+  return parseTimeToMinutes(iso) / 60
+}
+
+/**
+ * Pick the true overnight session.
+ *
+ * Health Auto Export often emits a short morning re-sleep segment
+ * (e.g. 5:06 → 10:24 after a night waking) as the *last* row.
+ * Using that as bedtime produces insane bed deviation and false Bad tiers.
+ *
+ * Rules:
+ * 1. Prefer sessions whose start is in the evening / night (hour >= 19 or hour < 4).
+ * 2. Among candidates, take the longest.
+ * 3. If none qualify, fall back to the longest session overall.
+ * 4. Never prefer a sub-2h morning-only block when a longer prior night exists.
+ */
+export function pickPrimarySleepSession(sessions: RawSession[]): RawSession | null {
+  if (!sessions.length) return null
+
+  const scored = sessions
+    .map((s) => {
+      const start = sessionStartIso(s)
+      const end = sessionEndIso(s)
+      const hours = sessionDurationHours(s)
+      if (!start || !end || hours <= 0) return null
+      const hour = localHourFromIso(start)
+      const isOvernightStart = hour >= 19 || hour < 4
+      const isMorningOnly = hour >= 4 && hour < 12
+      return { s, start, end, hours, hour, isOvernightStart, isMorningOnly }
+    })
+    .filter(Boolean) as {
+    s: RawSession
+    start: string
+    end: string
+    hours: number
+    hour: number
+    isOvernightStart: boolean
+    isMorningOnly: boolean
+  }[]
+
+  if (!scored.length) return sessions[sessions.length - 1] || null
+
+  const overnight = scored.filter((x) => x.isOvernightStart)
+  if (overnight.length) {
+    overnight.sort((a, b) => b.hours - a.hours)
+    return overnight[0].s
+  }
+
+  // No clear overnight start — prefer longest non-trivial session
+  const substantial = scored.filter((x) => x.hours >= 2)
+  const pool = substantial.length ? substantial : scored
+  pool.sort((a, b) => b.hours - a.hours)
+
+  // If the longest is a short morning block and something else is longer at night-ish, already handled
+  return pool[0].s
+}
+
 export function extractSleep(metrics: any[]): ExtractedSleep | null {
   const sleepMetric = metrics.find((m: any) => m.name === 'sleep_analysis')
   if (!sleepMetric?.data?.length) return null
 
-  const session = sleepMetric.data[sleepMetric.data.length - 1]
+  const sessions = sleepMetric.data as RawSession[]
+  const session = pickPrimarySleepSession(sessions)
+  if (!session) return null
+
+  const bedtime = sessionStartIso(session)
+  const wakeTime = sessionEndIso(session)
+  if (!bedtime || !wakeTime) return null
+
   return {
-    bedtime: session.sleepStart || session.inBedStart,
-    wakeTime: session.sleepEnd || session.inBedEnd,
-    totalSleepHours: session.totalSleep ?? null,
+    bedtime,
+    wakeTime,
+    totalSleepHours: session.totalSleep ?? sessionDurationHours(session) ?? null,
     deep: session.deep ?? null,
     rem: session.rem ?? null,
     core: session.core ?? null,
