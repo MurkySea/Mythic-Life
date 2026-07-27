@@ -5,6 +5,7 @@
  * 1. Safe per-task incremental rewards using Layer 0 multipliers
  * 2. Idempotent daily Rhythm → Debt / Trust application (once per rhythm date)
  * 3. Push Trust deltas into active party companions
+ * 4. Trigger reactive companions when a new rhythm day is applied
  *
  * Pure scoring stays in layer0.ts. This file only loads, calls, and persists.
  */
@@ -20,24 +21,16 @@ import {
   earnConsistencyTokens,
   accumulateShadowDebt,
   createDefaultTruth,
-  rhythmTrustDelta,
   type RhythmTier,
 } from '@/lib/engines/layer0'
 import { applyRhythmToCompanion } from '@/lib/engines/relationship-wire'
+import { reactCompanionsToLayer0 } from '@/lib/engines/reactive-companions'
 import type { LifeDomain } from '@/lib/engines/types'
-
-function localYmd(): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Chicago',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(new Date())
-}
 
 /**
  * Apply today's finalized Rhythm to Shadow Debt and to every active party member's Trust.
  * Runs at most once per last_rhythm_date (idempotent).
+ * On first apply for the day, also triggers reactive companion outreach.
  */
 async function applyDailyRhythmIfNeeded(): Promise<{
   applied: boolean
@@ -119,6 +112,13 @@ async function applyDailyRhythmIfNeeded(): Promise<{
     last_rhythm_date: rhythmDate,
   })
 
+  // ── Reactive companions (Layer 1) — once when the day first lands ───────
+  try {
+    await reactCompanionsToLayer0({ force: false })
+  } catch (e) {
+    console.error('reactive companions after rhythm', e)
+  }
+
   return { applied: true, tier, trustDeltas }
 }
 
@@ -138,7 +138,7 @@ export async function runLayer0Evaluation(opts?: {
   rhythmTier: RhythmTier | null
 } | null> {
   try {
-    // 1. Daily rhythm / trust pass (idempotent)
+    // 1. Daily rhythm / trust / reactive pass (idempotent)
     const daily = await applyDailyRhythmIfNeeded()
 
     const standing = await loadStanding()
@@ -208,11 +208,11 @@ export async function runLayer0Evaluation(opts?: {
     let tokenGain = 0
     if (stack.combined >= 0.85) {
       const gated = earnConsistencyTokens({
-        taskScore: 30 * domainCount, // single-task proxy
+        taskScore: 30 * domainCount,
         rhythmTier: tier,
         taskFloor: 20,
       })
-      tokenGain = Math.min(0.5, gated * 0.25) // keep per-task tokens modest
+      tokenGain = Math.min(0.5, gated * 0.25)
       tokenGain = Number(tokenGain.toFixed(2))
     }
 
