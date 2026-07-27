@@ -3,10 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { parseGeoEvent } from '@/lib/engines/geo'
-import type { PlaceId } from '@/lib/engines/places'
 import { maybeSchedulePartyUnitReaction } from '@/lib/outreach'
 
-export async function actionGeoCheckIn(formData: FormData) {
+export async function actionGeoCheckIn(formData: FormData): Promise<void> {
   const place = String(formData.get('place') || '')
   const event = String(formData.get('event') || 'checkin')
 
@@ -17,7 +16,8 @@ export async function actionGeoCheckIn(formData: FormData) {
   })
 
   if (!parsed.ok) {
-    return { ok: false as const, error: parsed.error }
+    console.error('actionGeoCheckIn parse', parsed.error)
+    return
   }
 
   const ev = parsed.event
@@ -32,15 +32,10 @@ export async function actionGeoCheckIn(formData: FormData) {
 
   if (error) {
     console.error('actionGeoCheckIn', error)
-    return {
-      ok: false as const,
-      error: error.message.includes('relation')
-        ? 'geo_events table missing — run SQL in Settings'
-        : error.message,
-    }
+    return
   }
 
-  // Party notices life signal (~35% via maybeSchedule; force false)
+  // Party notices life signal
   try {
     const signal =
       ev.event === 'leave'
@@ -57,5 +52,4 @@ export async function actionGeoCheckIn(formData: FormData) {
 
   revalidatePath('/places')
   revalidatePath('/')
-  return { ok: true as const, place: ev.placeId as PlaceId, event: ev.event }
 }
