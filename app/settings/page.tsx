@@ -51,7 +51,6 @@ export default async function SettingsPage() {
       </div>
 
       <div className="space-y-4">
-        {/* ── Vacation / Rest Mode ── */}
         <div className="bg-emerald-950/30 border border-emerald-800/50 rounded-2xl p-5 space-y-4">
           <div>
             <p className="text-[11px] uppercase tracking-wider text-emerald-400 font-semibold">
@@ -93,7 +92,8 @@ export default async function SettingsPage() {
                 </form>
                 <form action={actionEnterRecovery}>
                   <button
-                    type="submit"iguratively className="w-full py-3 rounded-xl bg-sky-900/80 border border-sky-700/50 text-sky-100 text-sm font-medium hover:border-sky-500 active:scale-[0.99] transition"
+                    type="submit"
+                    className="w-full py-3 rounded-xl bg-sky-900/80 border border-sky-700/50 text-sky-100 text-sm font-medium hover:border-sky-500 active:scale-[0.99] transition"
                   >
                     Recovery Day
                   </button>
