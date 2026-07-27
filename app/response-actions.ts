@@ -13,7 +13,6 @@ import {
 import type { ResponseChoice } from '@/lib/engines/relationship'
 import { markConversationRead, pushIfStillUnread } from '@/lib/reads'
 
-/** Natural first-person lines for each response choice */
 const RESPONSE_LINES: Record<ResponseChoice, string[]> = {
   honest: [
     "It's been off. I'm not fine — I'm trying to be honest about that.",
@@ -44,8 +43,8 @@ function pickLine(choice: ResponseChoice): string {
 
 /**
  * Player answers a companion's outreach / check-in with one of four choices.
- * Applies dual-axis effects to affinity/bond, posts a natural message, generates reply.
- * Returns note + stage for the UI feedback banner.
+ * Dual-axis (trust_score / intimacy_score) is the primary write;
+ * affinity + bond are kept in sync for legacy UI / scenes.
  */
 export async function respondWithChoice(formData: FormData): Promise<{
   note: string
@@ -71,7 +70,6 @@ export async function respondWithChoice(formData: FormData): Promise<{
 
   if (!companion) return
 
-  // Last companion message → intensity heuristic
   const { data: recent } = await supabase
     .from('messages')
     .select('role, content, companion_slug')
@@ -118,20 +116,25 @@ export async function respondWithChoice(formData: FormData): Promise<{
     (Number(companion.bond_xp) || 0) + applied.bondXpDelta
   )
 
-  // Prefer writing dual-axis when columns exist; always write affinity + bond
+  // Primary: dual-axis. Mirror: affinity + bond.
   const patch = companionScorePatch({
     affinity: nextAffinity,
     bondXp: nextBond,
+    trustScore: applied.trustAfter,
+    intimacyScore: applied.intimacyAfter,
   })
 
-  // Soft dual-axis write: if columns exist this lands; if not, ignore error path
   try {
     await supabase.from('companion').update(patch).eq('id', companion.id)
   } catch (e) {
-    console.error('companion score update failed', e)
+    // Columns missing — fall back to affinity/bond only
+    console.error('dual-axis write failed, affinity/bond only', e)
+    await supabase
+      .from('companion')
+      .update({ affinity_score: nextAffinity, bond_xp: nextBond })
+      .eq('id', companion.id)
   }
 
-  // Natural user message
   const text = pickLine(choice)
   await supabase.from('messages').insert({
     role: 'user',
@@ -146,7 +149,6 @@ export async function respondWithChoice(formData: FormData): Promise<{
   revalidatePath('/companion-profile')
   revalidatePath('/')
 
-  // Background companion reply — seed includes the mechanical note so her tone lands
   after(async () => {
     try {
       const { generateCompanionResponse } = await import('./actions')

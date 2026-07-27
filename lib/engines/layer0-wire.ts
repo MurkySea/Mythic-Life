@@ -4,8 +4,7 @@
  * Responsibilities:
  * 1. Safe per-task incremental rewards using Layer 0 multipliers
  * 2. Idempotent daily Rhythm → Debt / Trust application (once per rhythm date)
- *    — uses personal baseline ladder when sleep times are available
- * 3. Push Trust deltas into active party companions (incl. consecutive streaks)
+ * 3. Push Trust deltas into active party companions (dual-axis primary write)
  * 4. Trigger reactive companions when a new rhythm day is applied
  * 5. Refresh World Integrity after daily rhythm
  */
@@ -59,7 +58,6 @@ async function applyDailyRhythmIfNeeded(): Promise<{
   const health = await fetchLatestStanding()
   const rhythmDate = health?.date || null
 
-  // Prefer ladder score when we have sleep timestamps
   let tier: RhythmTier | null = null
   let debtDelta = 0
   let usedLadder = false
@@ -90,7 +88,6 @@ async function applyDailyRhythmIfNeeded(): Promise<{
 
   if (!tier) {
     tier = asRhythmTier(health?.rhythm?.tier) || null
-    // Legacy fixed bumps when ladder unavailable
     if (tier === 'Bad' || tier === 'Broken') debtDelta = 4
     else if (tier === 'Poor' || tier === 'Fragile') debtDelta = 2
     else debtDelta = 0
@@ -104,7 +101,6 @@ async function applyDailyRhythmIfNeeded(): Promise<{
     return { applied: false, tier, trustDeltas: [], usedLadder }
   }
 
-  // Apply debt delta (positive = more debt, negative = burn)
   let debt = standing.shadow_debt
   if (debtDelta > 0) {
     debt = debt + debtDelta
@@ -156,19 +152,19 @@ async function applyDailyRhythmIfNeeded(): Promise<{
         Math.round(((Number(row.affinity_score) || 1) + result.affinityDelta) * 10) / 10
       )
 
+      // Primary dual-axis write + streak + affinity/bond mirror
       const patch = companionScorePatch({
         affinity: nextAff,
         bondXp: nextBond,
         consecutiveBadDays: result.consecutiveBadDays,
         consecutiveGoodDays: result.consecutiveGoodDays,
         trustScore: result.trustAfter,
+        intimacyScore: result.intimacyAfter,
       })
 
-      // Soft write: consecutive / trust columns may not exist yet
       try {
         await supabase.from('companion').update(patch).eq('id', row.id)
       } catch (writeErr) {
-        // Fallback to core scores only
         await supabase
           .from('companion')
           .update({ bond_xp: nextBond, affinity_score: nextAff })
