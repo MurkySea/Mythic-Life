@@ -9,6 +9,10 @@
  * - Score against current Phase windows so Good/Excellent is winnable.
  * - Advance the window only after consistent wins (small, sticky steps).
  * - Long-term destination can still be 11:00 PM / 7:30 AM; the path is incremental.
+ * - ONE-SIDED: doing *better* than the target is always a hit, never a miss.
+ *   Bed at 10 PM when the window is 11:50–12:40 → hit.
+ *   Wake at 6 AM when the window is 7:40–8:30 → hit.
+ *   Extra steps / energy / HRV → hit. Lower RHR → hit.
  */
 
 export type MetricKey =
@@ -50,7 +54,7 @@ export const OBSERVED_BASELINES: Record<MetricKey, MetricBaseline> = {
     observedMedian: 15,
     observedStd: 65,
     improveDirection: 'earlier',
-    ideal: 23 * 60, // 11:00 PM = 1380, but we treat cross-midnight carefully in windows
+    ideal: 23 * 60, // 11:00 PM
   },
   wake: {
     key: 'wake',
@@ -117,9 +121,14 @@ export const OBSERVED_BASELINES: Record<MetricKey, MetricBaseline> = {
 // ─── Progressive phases ─────────────────────────────────────
 
 export interface PhaseWindow {
-  /** Inclusive lower bound (for "higher is better" metrics) or window start */
+  /**
+   * For time metrics:
+   *   min = early edge of the acceptable band
+   *   max = late edge (the one you must not exceed)
+   * For higher-is-better: min = threshold, max ignored for scoring
+   * For lower-is-better: max = threshold, min ignored for scoring
+   */
   min: number
-  /** Inclusive upper bound or window end */
   max: number
   /** Human label for UI */
   label: string
@@ -146,10 +155,10 @@ export const PHASES: PhaseConfig[] = [
     name: 'Meet Yourself',
     advanceAfterGoodDays: 5,
     windows: {
-      // 11:50 PM – 12:40 AM  (centered on 12:17 avg)
-      bedtime: { min: 23 * 60 + 50, max: 40, label: '11:50 PM – 12:40 AM' },
-      // 7:40 – 8:30 AM
-      wake: { min: 7 * 60 + 40, max: 8 * 60 + 30, label: '7:40 – 8:30 AM' },
+      // Late edge 12:40 AM — earlier is always fine
+      bedtime: { min: 23 * 60 + 50, max: 40, label: 'by 12:40 AM (earlier OK)' },
+      // Late edge 8:30 AM — earlier is always fine
+      wake: { min: 7 * 60 + 40, max: 8 * 60 + 30, label: 'by 8:30 AM (earlier OK)' },
       totalSleepHours: { min: 7.0, max: 10.0, label: '≥ 7.0 h' },
       standMinutes: { min: 90, max: 999, label: '≥ 90 min' },
       activeEnergyKcal: { min: 480, max: 9999, label: '≥ 480 kcal' },
@@ -162,9 +171,8 @@ export const PHASES: PhaseConfig[] = [
     name: 'First Shift',
     advanceAfterGoodDays: 5,
     windows: {
-      // 11:35 PM – 12:25 AM
-      bedtime: { min: 23 * 60 + 35, max: 25, label: '11:35 PM – 12:25 AM' },
-      wake: { min: 7 * 60 + 25, max: 8 * 60 + 15, label: '7:25 – 8:15 AM' },
+      bedtime: { min: 23 * 60 + 35, max: 25, label: 'by 12:25 AM (earlier OK)' },
+      wake: { min: 7 * 60 + 25, max: 8 * 60 + 15, label: 'by 8:15 AM (earlier OK)' },
       totalSleepHours: { min: 7.2, max: 10.0, label: '≥ 7.2 h' },
       standMinutes: { min: 100, max: 999, label: '≥ 100 min' },
       activeEnergyKcal: { min: 500, max: 9999, label: '≥ 500 kcal' },
@@ -177,8 +185,8 @@ export const PHASES: PhaseConfig[] = [
     name: 'Steady Climb',
     advanceAfterGoodDays: 6,
     windows: {
-      bedtime: { min: 23 * 60 + 20, max: 10, label: '11:20 PM – 12:10 AM' },
-      wake: { min: 7 * 60 + 15, max: 8 * 60 + 5, label: '7:15 – 8:05 AM' },
+      bedtime: { min: 23 * 60 + 20, max: 10, label: 'by 12:10 AM (earlier OK)' },
+      wake: { min: 7 * 60 + 15, max: 8 * 60 + 5, label: 'by 8:05 AM (earlier OK)' },
       totalSleepHours: { min: 7.4, max: 10.0, label: '≥ 7.4 h' },
       standMinutes: { min: 110, max: 999, label: '≥ 110 min' },
       activeEnergyKcal: { min: 520, max: 9999, label: '≥ 520 kcal' },
@@ -191,8 +199,8 @@ export const PHASES: PhaseConfig[] = [
     name: 'Approaching Ideal',
     advanceAfterGoodDays: 7,
     windows: {
-      bedtime: { min: 23 * 60 + 5, max: 1439, label: '11:05 PM – 12:00 AM' }, // max = end of day for "before midnight"
-      wake: { min: 7 * 60, max: 7 * 60 + 50, label: '7:00 – 7:50 AM' },
+      bedtime: { min: 23 * 60 + 5, max: 0, label: 'by 12:00 AM (earlier OK)' },
+      wake: { min: 7 * 60, max: 7 * 60 + 50, label: 'by 7:50 AM (earlier OK)' },
       totalSleepHours: { min: 7.6, max: 10.0, label: '≥ 7.6 h' },
       standMinutes: { min: 120, max: 999, label: '≥ 120 min' },
       activeEnergyKcal: { min: 550, max: 9999, label: '≥ 550 kcal' },
@@ -205,8 +213,8 @@ export const PHASES: PhaseConfig[] = [
     name: 'Locked In',
     advanceAfterGoodDays: 999, // terminal
     windows: {
-      bedtime: { min: 22 * 60 + 45, max: 23 * 60 + 15, label: '10:45 – 11:15 PM' },
-      wake: { min: 7 * 60 + 15, max: 7 * 60 + 45, label: '7:15 – 7:45 AM' },
+      bedtime: { min: 22 * 60 + 45, max: 23 * 60 + 15, label: 'by 11:15 PM (earlier OK)' },
+      wake: { min: 7 * 60 + 15, max: 7 * 60 + 45, label: 'by 7:45 AM (earlier OK)' },
       totalSleepHours: { min: 7.5, max: 10.0, label: '≥ 7.5 h' },
       standMinutes: { min: 120, max: 999, label: '≥ 120 min' },
       activeEnergyKcal: { min: 550, max: 9999, label: '≥ 550 kcal' },
@@ -238,26 +246,37 @@ export function getPhase(progress: BaselineProgress): PhaseConfig {
   return p
 }
 
-// ─── Scoring against current phase ──────────────────────────
+// ─── Scoring against current phase (ONE-SIDED) ──────────────
 
 export type HitResult = 'hit' | 'near' | 'miss'
 
 /**
- * Bedtime special-case: window can cross midnight.
- * e.g. min=1430 (11:50 PM), max=40 (12:40 AM).
- * A time is "in window" if >= min OR <= max when max < min.
+ * Circular distance on a 24h clock (minutes).
  */
-export function isTimeInWindow(
-  minutesFromMidnight: number,
-  window: PhaseWindow
-): boolean {
-  const { min, max } = window
-  if (max >= min) {
-    // normal non-wrapping window (e.g. wake 7:40–8:30)
-    return minutesFromMidnight >= min && minutesFromMidnight <= max
-  }
-  // wrapping window (bedtime across midnight)
-  return minutesFromMidnight >= min || minutesFromMidnight <= max
+function minutesLate(actual: number, deadline: number): number {
+  // How many minutes past the deadline? 0 if at or before.
+  // Handles midnight wrap.
+  let delta = (actual - deadline + 1440) % 1440
+  // If delta is large (> 12h), actual is actually earlier on the clock
+  if (delta > 720) return 0 // treated as earlier → not late
+  return delta
+}
+
+/**
+ * ONE-SIDED time scoring for "earlier is better".
+ * - At or before the late edge → hit
+ * - Up to 20 min past late edge → near
+ * - More than 20 min past → miss
+ * Being *much earlier* is always a hit.
+ */
+function scoreEarlierIsBetter(
+  value: number,
+  lateEdge: number
+): HitResult {
+  const lateBy = minutesLate(value, lateEdge)
+  if (lateBy === 0) return 'hit'
+  if (lateBy <= 20) return 'near'
+  return 'miss'
 }
 
 export function scoreMetric(
@@ -269,37 +288,30 @@ export function scoreMetric(
   const window = phase.windows[key]
   if (!window) return 'near'
 
+  const baseline = OBSERVED_BASELINES[key]
+
+  // ── Time metrics: earlier is better ───────────────────────
   if (key === 'bedtime' || key === 'wake') {
-    if (isTimeInWindow(value, window)) return 'hit'
-    // near = within 20 minutes of either edge
-    const distToMin = Math.min(
-      Math.abs(value - window.min),
-      Math.abs(value + 1440 - window.min),
-      Math.abs(value - window.min - 1440)
-    )
-    const distToMax = Math.min(
-      Math.abs(value - window.max),
-      Math.abs(value + 1440 - window.max),
-      Math.abs(value - window.max - 1440)
-    )
-    const nearest = Math.min(distToMin, distToMax)
-    if (nearest <= 20) return 'near'
-    return 'miss'
+    // max = the late edge you must not exceed
+    return scoreEarlierIsBetter(value, window.max)
   }
 
-  // Higher-is-better or lower-is-better simple bounds
-  const baseline = OBSERVED_BASELINES[key]
+  // ── Higher is better (sleep, stand, energy, HRV) ──────────
+  // Meeting or exceeding the floor is a hit. No upper penalty.
   if (baseline.improveDirection === 'higher') {
     if (value >= window.min) return 'hit'
     if (value >= window.min * 0.9) return 'near'
     return 'miss'
   }
+
+  // ── Lower is better (resting HR) ──────────────────────────
+  // At or below the ceiling is a hit. No lower penalty.
   if (baseline.improveDirection === 'lower') {
     if (value <= window.max) return 'hit'
     if (value <= window.max * 1.1) return 'near'
     return 'miss'
   }
-  // earlier/later already handled by time windows
+
   return 'near'
 }
 
@@ -308,6 +320,8 @@ export type DailyTier = 'Excellent' | 'Good' | 'Neutral' | 'Poor' | 'Bad'
 /**
  * Aggregate a night/day into a tier using personal phase windows.
  * Sleep timing + duration are primary; recovery signals are secondary modifiers.
+ *
+ * Better-than-target never counts against you.
  */
 export function scorePersonalDay(
   input: {
