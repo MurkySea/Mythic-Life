@@ -29,21 +29,21 @@ function revalidateModePaths() {
 
 // ─── Vacation / Recovery ───────────────────────────────────
 
-export async function actionEnterVacation(_formData?: FormData) {
+export async function actionEnterVacation(_formData: FormData) {
   const { mode } = await loadPlayerState()
   const { mode: next } = enterVacation(mode)
   await saveModeState(next)
   revalidateModePaths()
 }
 
-export async function actionEnterRecovery(_formData?: FormData) {
+export async function actionEnterRecovery(_formData: FormData) {
   const { mode } = await loadPlayerState()
   const { mode: next } = enterRecovery(mode)
   await saveModeState(next)
   revalidateModePaths()
 }
 
-export async function actionExitRestMode(_formData?: FormData) {
+export async function actionExitRestMode(_formData: FormData) {
   const { mode } = await loadPlayerState()
   if (mode.mode !== 'vacation' && mode.mode !== 'recovery') return
   const { mode: next } = exitRestMode(mode)
@@ -52,12 +52,11 @@ export async function actionExitRestMode(_formData?: FormData) {
 }
 
 /** Call once per real calendar day (can be hooked to cron or manual). */
-export async function actionAdvanceDay(_formData?: FormData) {
+export async function actionAdvanceDay(_formData: FormData) {
   const state = await loadPlayerState()
-  const { mode: nextMode, debtDecayFraction, trustDrift } = advanceDay(state.mode)
+  const { mode: nextMode } = advanceDay(state.mode)
   await saveModeState(nextMode)
   revalidateModePaths()
-  return { debtDecayFraction, trustDrift }
 }
 
 // ─── Active Party ──────────────────────────────────────────
@@ -68,7 +67,7 @@ export async function actionJoinParty(formData: FormData) {
 
   const { party } = await loadPlayerState()
   const next = joinParty(party, slug)
-  if (!next) return // full, locked, or already present
+  if (!next) return
   await savePartyState(next)
   revalidateModePaths()
 }
@@ -95,14 +94,14 @@ export async function actionSetLeader(formData: FormData) {
   revalidateModePaths()
 }
 
-export async function actionTogglePartyLock(_formData?: FormData) {
+export async function actionTogglePartyLock(_formData: FormData) {
   const { party } = await loadPlayerState()
   const next = setPartyLocked(party, !party.locked)
   await savePartyState(next)
   revalidateModePaths()
 }
 
-export async function actionResetParty(_formData?: FormData) {
+export async function actionResetParty(_formData: FormData) {
   await savePartyState(createEmptyParty())
   revalidateModePaths()
 }
