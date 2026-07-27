@@ -4,15 +4,15 @@ export const dynamic = 'force-dynamic'
 
 const ITEMS = [
   {
-    href: '/',
+    href: '/today',
     title: 'Today',
-    blurb: 'What you’re focusing on right now.',
+    blurb: 'Routine · Must-dos · Master list · Calendar.',
     icon: '⚔',
   },
   {
     href: '/mother-list',
     title: 'Master List',
-    blurb: 'All tasks — add to Today, review, delete.',
+    blurb: 'All tasks — plan Today, review, delete.',
     icon: '📜',
   },
   {
