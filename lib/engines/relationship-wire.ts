@@ -9,12 +9,17 @@
  * 2. Apply effects back onto affinity_score / bond_xp
  * 3. Expose helpers for outreach responses and light chat
  *
- * Designed 2026-07-24.
+ * Designed 2026-07-24. Response-loop completion 2026-07-27.
+ *
+ * Optional companion columns (run once):
+ *   alter table companion add column if not exists consecutive_bad_days int default 0;
+ *   alter table companion add column if not exists consecutive_good_days int default 0;
+ *   alter table companion add column if not exists trust_score numeric;
+ *   alter table companion add column if not exists intimacy_score numeric;
  */
 
 import {
   getRelationshipStage,
-  getPatienceModifier,
   getResponseEffect,
   getInteractionEffect,
   updateTrustWithPatience,
@@ -127,6 +132,77 @@ export function deriveDualAxis(c: LiveCompanionScores): {
 }
 
 // ─────────────────────────────────────────────
+// Check-in / concern detection (UI gate)
+// ─────────────────────────────────────────────
+
+/**
+ * Heuristic: last companion message is a check-in / concern style outreach
+ * rather than casual chat. Used to gate ResponseChoices so the four
+ * answers only appear when the dual-axis effects are meant to fire.
+ */
+export function isCheckInMessage(text: string | null | undefined): boolean {
+  if (!text || !text.trim()) return false
+  const t = text.toLowerCase()
+
+  const urgent = [
+    'worried',
+    'disappearing',
+    'too long',
+    'are you safe',
+    'falling apart',
+    'not like you',
+    "isn't like you",
+    'talk to me',
+    "what's going on",
+    'whats going on',
+    'carrying something',
+    'three days',
+    'been quiet',
+    'gone quiet',
+    'miss you',
+    'missing you',
+    'where are you',
+    'check in',
+    'checking in',
+    'still there',
+    'you okay',
+    'you alright',
+    'how are you holding',
+    'been off',
+    'slipping',
+  ]
+
+  return urgent.some((k) => t.includes(k))
+}
+
+export function intensityFromMessage(
+  text: string | null | undefined
+): 'gentle' | 'direct' | 'urgent' {
+  const t = (text || '').toLowerCase()
+  if (
+    t.includes('worried') ||
+    t.includes('disappearing') ||
+    t.includes('too long') ||
+    t.includes('are you safe') ||
+    t.includes('falling apart')
+  ) {
+    return 'urgent'
+  }
+  if (
+    t.includes('three days') ||
+    t.includes("isn't like you") ||
+    t.includes('not like you') ||
+    t.includes('talk to me') ||
+    t.includes("what's going on") ||
+    t.includes('whats going on') ||
+    t.includes('carrying something')
+  ) {
+    return 'direct'
+  }
+  return 'gentle'
+}
+
+// ─────────────────────────────────────────────
 // Apply effects back onto live scores
 // ─────────────────────────────────────────────
 
@@ -221,7 +297,12 @@ export function applyRhythmToCompanion(
   outreachIntensity: 'gentle' | 'direct' | 'urgent' | null
 } {
   const dual = deriveDualAxis(companion)
-  const updated = updateTrustWithPatience(dual.trust, tier as RhythmTier, dual.stage, date)
+  const updated = updateTrustWithPatience(
+    dual.trust,
+    tier as RhythmTier,
+    dual.stage,
+    date
+  )
   const trustDelta = updated.value - dual.trust.value
   const live = dualDeltasToLive({ trustDelta, intimacyDelta: 0 })
 
@@ -235,6 +316,39 @@ export function applyRhythmToCompanion(
     stage: getRelationshipStage(updated.value, dual.intimacy.value),
     outreachIntensity: intensity,
   }
+}
+
+/**
+ * Build a Supabase update payload for companion score writes.
+ * Always includes affinity + bond. Includes consecutive / dual-axis
+ * fields when we have values (columns may not exist yet — callers
+ * should catch or use a soft write).
+ */
+export function companionScorePatch(opts: {
+  affinity: number
+  bondXp: number
+  consecutiveBadDays?: number
+  consecutiveGoodDays?: number
+  trustScore?: number
+  intimacyScore?: number
+}): Record<string, number> {
+  const patch: Record<string, number> = {
+    affinity_score: opts.affinity,
+    bond_xp: opts.bondXp,
+  }
+  if (typeof opts.consecutiveBadDays === 'number') {
+    patch.consecutive_bad_days = opts.consecutiveBadDays
+  }
+  if (typeof opts.consecutiveGoodDays === 'number') {
+    patch.consecutive_good_days = opts.consecutiveGoodDays
+  }
+  if (typeof opts.trustScore === 'number') {
+    patch.trust_score = opts.trustScore
+  }
+  if (typeof opts.intimacyScore === 'number') {
+    patch.intimacy_score = opts.intimacyScore
+  }
+  return patch
 }
 
 // ─────────────────────────────────────────────

@@ -3,7 +3,9 @@
 import { useRouter } from 'next/navigation'
 import { useRef, useState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
-import ResponseChoices from '@/components/ResponseChoices'
+import ResponseChoices, {
+  type ResponseResult,
+} from '@/components/ResponseChoices'
 
 function SendButton() {
   const { pending } = useFormStatus()
@@ -28,12 +30,17 @@ export default function ChatComposer({
   action,
   responseAction,
   lastMessageIsCompanion = false,
+  lastCompanionContent = null,
 }: {
   companionSlug: string
   displayName: string
   action: (formData: FormData) => Promise<void>
-  responseAction?: (formData: FormData) => Promise<void>
+  responseAction?: (
+    formData: FormData
+  ) => Promise<ResponseResult | void>
   lastMessageIsCompanion?: boolean
+  /** Content of the last companion message — gates check-in choices */
+  lastCompanionContent?: string | null
 }) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -74,10 +81,13 @@ export default function ChatComposer({
     startPoll()
   }
 
-  async function onResponseChoice(formData: FormData) {
+  async function onResponseChoice(
+    formData: FormData
+  ): Promise<ResponseResult | void> {
     if (!responseAction) return
-    await responseAction(formData)
+    const result = await responseAction(formData)
     startPoll()
+    return result
   }
 
   return (
@@ -87,6 +97,7 @@ export default function ChatComposer({
           companionSlug={companionSlug}
           action={onResponseChoice}
           visible={lastMessageIsCompanion && !waitingReply}
+          lastCompanionContent={lastCompanionContent}
         />
       )}
 
