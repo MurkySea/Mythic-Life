@@ -6,6 +6,7 @@
  * segment as the night's bedtime.
  * Live-day date fixed 2026-07-27: date = local date of wakeTime
  * (America/Chicago) so mornings feel live.
+ * Most-recent overnight fixed 2026-07-27: prefer newest wake-day, not longest overall.
  *
  * Targets:
  *   Bedtime window  22:45 – 23:15  (aim ~11:00 PM)
@@ -103,7 +104,6 @@ export function getDeviationMinutes(
   const start = parseTimeToMinutes(windowStart)
   const end = parseTimeToMinutes(windowEnd)
 
-  // Inside window (non-wrapping)
   if (start <= end) {
     if (actualMin >= start && actualMin <= end) return 0
     const distStart = Math.min(
@@ -117,7 +117,6 @@ export function getDeviationMinutes(
     return Math.min(distStart, distEnd)
   }
 
-  // Window wraps midnight
   if (actualMin >= start || actualMin <= end) return 0
   const distStart = Math.min(
     Math.abs(actualMin - start),
@@ -219,14 +218,10 @@ function sessionDurationHours(s: RawSession): number {
   return ms > 0 ? ms / (1000 * 60 * 60) : 0
 }
 
-/**
- * Local hour 0–23 from an ISO-ish timestamp (best-effort).
- */
 function localHourFromIso(iso: string): number {
   try {
     const d = new Date(iso)
     if (!Number.isNaN(d.getTime())) {
-      // Use America/Chicago wall time for Mythic Life
       const h = parseInt(
         new Intl.DateTimeFormat('en-US', {
           timeZone: 'America/Chicago',
@@ -243,15 +238,10 @@ function localHourFromIso(iso: string): number {
   return parseTimeToMinutes(iso) / 60
 }
 
-/**
- * Local YYYY-MM-DD of an ISO timestamp in America/Chicago.
- * This is the live-day key (date of the wake).
- */
 function localDateFromIso(iso: string): string | null {
   try {
     const d = new Date(iso)
     if (Number.isNaN(d.getTime())) return null
-    // en-CA gives YYYY-MM-DD
     return new Intl.DateTimeFormat('en-CA', {
       timeZone: 'America/Chicago',
       year: 'numeric',
@@ -264,20 +254,28 @@ function localDateFromIso(iso: string): string | null {
 }
 
 /**
- * Pick the true overnight session.
+ * Pick the primary overnight session for "today".
  *
- * Health Auto Export often emits a short morning re-sleep segment
- * (e.g. 5:06 → 10:24 after a night waking) as the *last* row.
- * Using that as bedtime produces insane bed deviation and false Bad tiers.
- *
- * Rules:
- * 1. Prefer sessions whose start is in the evening / night (hour >= 19 or hour < 4).
- * 2. Among candidates, take the longest.
- * 3. If none qualify, fall back to the longest session overall.
- * 4. Never prefer a sub-2h morning-only block when a longer prior night exists.
+ * Rules (2026-07-27):
+ * 1. Prefer the *most recent* session by end time.
+ * 2. Prefer true overnight starts (hour >= 19 or hour < 4).
+ * 3. Among candidates that share the same wake-day, take the longest.
+ * 4. Reject short morning-only re-sleeps when a real overnight exists.
  */
 export function pickPrimarySleepSession(sessions: RawSession[]): RawSession | null {
   if (!sessions.length) return null
+
+  type Scored = {
+    s: RawSession
+    start: string
+    end: string
+    hours: number
+    endMs: number
+    startHour: number
+    isOvernightStart: boolean
+    isMorningOnly: boolean
+    wakeDate: string | null
+  }
 
   const scored = sessions
     .map((s) => {
@@ -285,35 +283,49 @@ export function pickPrimarySleepSession(sessions: RawSession[]): RawSession | nu
       const end = sessionEndIso(s)
       const hours = sessionDurationHours(s)
       if (!start || !end || hours <= 0) return null
-      const hour = localHourFromIso(start)
-      const isOvernightStart = hour >= 19 || hour < 4
-      const isMorningOnly = hour >= 4 && hour < 12
-      return { s, start, end, hours, hour, isOvernightStart, isMorningOnly }
+      const startHour = localHourFromIso(start)
+      const isOvernightStart = startHour >= 19 || startHour < 4
+      const isMorningOnly = startHour >= 4 && startHour < 12 && hours < 3
+      const endMs = new Date(end).getTime()
+      const wakeDate = localDateFromIso(end)
+      return { s, start, end, hours, endMs, startHour, isOvernightStart, isMorningOnly, wakeDate }
     })
-    .filter(Boolean) as {
-    s: RawSession
-    start: string
-    end: string
-    hours: number
-    hour: number
-    isOvernightStart: boolean
-    isMorningOnly: boolean
-  }[]
+    .filter(Boolean) as Scored[]
 
   if (!scored.length) return sessions[sessions.length - 1] || null
 
-  const overnight = scored.filter((x) => x.isOvernightStart)
-  if (overnight.length) {
-    overnight.sort((a, b) => b.hours - a.hours)
-    return overnight[0].s
+  scored.sort((a, b) => b.endMs - a.endMs)
+
+  const byWake = new Map<string, Scored[]>()
+  for (const row of scored) {
+    const key = row.wakeDate || 'unknown'
+    const list = byWake.get(key) ?? []
+    list.push(row)
+    byWake.set(key, list)
   }
 
-  // No clear overnight start — prefer longest non-trivial session
-  const substantial = scored.filter((x) => x.hours >= 2)
-  const pool = substantial.length ? substantial : scored
-  pool.sort((a, b) => b.hours - a.hours)
+  const wakeDates = [...byWake.keys()].sort((a, b) => {
+    if (a === 'unknown') return 1
+    if (b === 'unknown') return -1
+    return b.localeCompare(a)
+  })
 
-  return pool[0].s
+  for (const wakeDate of wakeDates) {
+    const group = byWake.get(wakeDate)!
+
+    const overnight = group.filter((x) => x.isOvernightStart && !x.isMorningOnly)
+    if (overnight.length) {
+      overnight.sort((a, b) => b.hours - a.hours)
+      return overnight[0].s
+    }
+
+    const substantial = group.filter((x) => x.hours >= 2 && !x.isMorningOnly)
+    const pool = substantial.length ? substantial : group
+    pool.sort((a, b) => b.hours - a.hours)
+    return pool[0].s
+  }
+
+  return scored[0].s
 }
 
 export function extractSleep(metrics: any[]): ExtractedSleep | null {
@@ -328,7 +340,6 @@ export function extractSleep(metrics: any[]): ExtractedSleep | null {
   const wakeTime = sessionEndIso(session)
   if (!bedtime || !wakeTime) return null
 
-  // Live-day rule: date = local date of the wake
   const date = localDateFromIso(wakeTime)
 
   return {
@@ -383,7 +394,6 @@ export function recoveryFromSignals(
   return 'fair'
 }
 
-/** Full result shape produced from a Health Auto Export payload */
 export interface RhythmExportResult {
   success: true
   date: string | null
@@ -419,12 +429,6 @@ export interface RhythmExportResult {
   message: string
 }
 
-/**
- * Process a raw Health Auto Export body into a full Rhythm result.
- * Returns null if no usable sleep session is present.
- *
- * date is always the local date of the wake (live day).
- */
 export function processHealthExportPayload(body: any): RhythmExportResult | null {
   const metrics = body?.data?.metrics || []
   const sleep = extractSleep(metrics)
@@ -439,7 +443,7 @@ export function processHealthExportPayload(body: any): RhythmExportResult | null
 
   return {
     success: true,
-    date: sleep.date, // already wake-date from extractSleep
+    date: sleep.date,
     sleep: {
       bedtime: sleep.bedtime,
       wakeTime: sleep.wakeTime,
@@ -479,7 +483,6 @@ export function processHealthExportPayload(body: any): RhythmExportResult | null
   }
 }
 
-/** Map DailyTier → relationship RhythmTier vocabulary */
 export function dailyTierToRhythmTier(
   tier: DailyTier
 ): 'Excellent' | 'Good' | 'Neutral' | 'Poor' | 'Bad' {
