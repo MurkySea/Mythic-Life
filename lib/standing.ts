@@ -12,6 +12,10 @@ export interface StandingResult {
   success: boolean
   date?: string
   sleep?: {
+    /** ISO timestamp of bedtime (from export) */
+    bedtime?: string
+    /** ISO timestamp of wake (from export) */
+    wakeTime?: string
     bedtimeDisplay?: string
     wakeDisplay?: string
     totalHours?: number
@@ -62,17 +66,25 @@ export async function fetchLatestStanding(): Promise<StandingResult | null> {
 }
 
 /** Human label + color for a Rhythm tier */
-export function tierStyle(tier?: RhythmTier): { label: string; color: string } {
+export function tierStyle(tier?: RhythmTier | string | null): {
+  label: string
+  color: string
+} {
   switch (tier) {
     case 'Excellent':
+    case 'Elite':
       return { label: 'Excellent', color: 'text-emerald-400' }
     case 'Good':
+    case 'Strong':
       return { label: 'Good', color: 'text-sky-400' }
     case 'Neutral':
+    case 'Steady':
       return { label: 'Neutral', color: 'text-zinc-300' }
     case 'Poor':
+    case 'Fragile':
       return { label: 'Poor', color: 'text-amber-400' }
     case 'Bad':
+    case 'Broken':
       return { label: 'Bad', color: 'text-red-400' }
     default:
       return { label: '—', color: 'text-zinc-500' }
