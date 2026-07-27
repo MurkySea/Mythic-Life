@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 
 export type GalleryImage = {
   id: string
@@ -13,22 +14,40 @@ export type GalleryImage = {
 
 type Props = {
   images: GalleryImage[]
+  /** Current companion.image_url for this character (marks the active avatar) */
+  currentAvatarUrl?: string | null
+  /** Server action: set gallery image as companion avatar */
+  setAvatarAction?: (formData: FormData) => Promise<{ ok: boolean; error?: string }>
+  /** Server action: clear custom avatar */
+  clearAvatarAction?: (formData: FormData) => Promise<{ ok: boolean; error?: string }>
 }
 
-export default function GalleryGrid({ images }: Props) {
+export default function GalleryGrid({
+  images,
+  currentAvatarUrl = null,
+  setAvatarAction,
+  clearAvatarAction,
+}: Props) {
+  const router = useRouter()
   const [activeIndex, setActiveIndex] = useState<number | null>(null)
+  const [pending, startTransition] = useTransition()
+  const [status, setStatus] = useState<string | null>(null)
 
-  const close = useCallback(() => setActiveIndex(null), [])
+  const close = useCallback(() => {
+    setActiveIndex(null)
+    setStatus(null)
+  }, [])
 
   const goPrev = useCallback(() => {
     setActiveIndex((i) => (i === null ? null : (i - 1 + images.length) % images.length))
+    setStatus(null)
   }, [images.length])
 
   const goNext = useCallback(() => {
     setActiveIndex((i) => (i === null ? null : (i + 1) % images.length))
+    setStatus(null)
   }, [images.length])
 
-  // Keyboard + body scroll lock
   useEffect(() => {
     if (activeIndex === null) return
 
@@ -51,39 +70,87 @@ export default function GalleryGrid({ images }: Props) {
   if (!images.length) return null
 
   const active = activeIndex !== null ? images[activeIndex] : null
+  const isCurrentAvatar =
+    !!active &&
+    !!currentAvatarUrl &&
+    active.image_url === currentAvatarUrl
+
+  function onSetAvatar() {
+    if (!active || !setAvatarAction || pending) return
+    const fd = new FormData()
+    fd.set('image_url', active.image_url)
+    fd.set('character_name', active.character_name)
+    fd.set('gallery_id', active.id)
+    startTransition(async () => {
+      const result = await setAvatarAction(fd)
+      if (result.ok) {
+        setStatus('Avatar updated')
+        router.refresh()
+      } else {
+        setStatus(result.error || 'Failed')
+      }
+    })
+  }
+
+  function onClearAvatar() {
+    if (!active || !clearAvatarAction || pending) return
+    const fd = new FormData()
+    fd.set('character_name', active.character_name)
+    startTransition(async () => {
+      const result = await clearAvatarAction(fd)
+      if (result.ok) {
+        setStatus('Avatar cleared — using default')
+        router.refresh()
+      } else {
+        setStatus(result.error || 'Failed')
+      }
+    })
+  }
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
-        {images.map((img, index) => (
-          <button
-            key={img.id}
-            type="button"
-            onClick={() => setActiveIndex(index)}
-            className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden text-left active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={img.image_url}
-              alt={`${img.character_name} scene`}
-              className="w-full aspect-[3/4] object-cover"
-              loading="lazy"
-            />
-            <div className="p-2.5">
-              {img.intimacyLabel && (
-                <p className="text-[10px] text-violet-400/80 uppercase tracking-wider">
-                  {img.intimacyLabel}
-                </p>
+        {images.map((img, index) => {
+          const isAvatar =
+            !!currentAvatarUrl && img.image_url === currentAvatarUrl
+          return (
+            <button
+              key={img.id}
+              type="button"
+              onClick={() => setActiveIndex(index)}
+              className={`bg-zinc-900 border rounded-xl overflow-hidden text-left active:scale-[0.98] transition-transform focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 relative ${
+                isAvatar
+                  ? 'border-violet-500 ring-1 ring-violet-500/40'
+                  : 'border-zinc-800'
+              }`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.image_url}
+                alt={`${img.character_name} scene`}
+                className="w-full aspect-[3/4] object-cover"
+                loading="lazy"
+              />
+              {isAvatar && (
+                <span className="absolute top-2 left-2 text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-violet-600 text-white font-medium shadow">
+                  Avatar
+                </span>
               )}
-              <p className="text-[10px] text-zinc-600 mt-0.5">
-                {new Date(img.created_at).toLocaleDateString()}
-              </p>
-            </div>
-          </button>
-        ))}
+              <div className="p-2.5">
+                {img.intimacyLabel && (
+                  <p className="text-[10px] text-violet-400/80 uppercase tracking-wider">
+                    {img.intimacyLabel}
+                  </p>
+                )}
+                <p className="text-[10px] text-zinc-600 mt-0.5">
+                  {new Date(img.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </button>
+          )
+        })}
       </div>
 
-      {/* Full-size lightbox */}
       {active && activeIndex !== null && (
         <div
           className="fixed inset-0 z-[100] flex flex-col bg-black/95"
@@ -91,7 +158,6 @@ export default function GalleryGrid({ images }: Props) {
           aria-modal="true"
           aria-label="Full size scene"
         >
-          {/* Top bar */}
           <div className="flex items-center justify-between gap-3 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 shrink-0">
             <div className="min-w-0">
               <p className="text-white font-medium truncate">{active.character_name}</p>
@@ -102,6 +168,7 @@ export default function GalleryGrid({ images }: Props) {
                   month: 'short',
                   day: 'numeric',
                 })}
+                {isCurrentAvatar ? ' · Avatar' : ''}
               </p>
             </div>
             <button
@@ -114,11 +181,9 @@ export default function GalleryGrid({ images }: Props) {
             </button>
           </div>
 
-          {/* Image stage */}
           <div
             className="flex-1 relative flex items-center justify-center min-h-0 px-2"
             onClick={(e) => {
-              // click empty space closes; ignore clicks on img/buttons
               if (e.target === e.currentTarget) close()
             }}
           >
@@ -130,7 +195,6 @@ export default function GalleryGrid({ images }: Props) {
               draggable={false}
             />
 
-            {/* Nav arrows (desktop / larger) */}
             {images.length > 1 && (
               <>
                 <button
@@ -159,29 +223,64 @@ export default function GalleryGrid({ images }: Props) {
             )}
           </div>
 
-          {/* Bottom controls for mobile */}
-          <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 flex items-center justify-between gap-3">
-            <p className="text-xs text-zinc-500 tabular-nums">
-              {activeIndex + 1} / {images.length}
-            </p>
-            {images.length > 1 && (
-              <div className="flex gap-2 sm:hidden">
-                <button
-                  type="button"
-                  onClick={goPrev}
-                  className="px-4 py-2 rounded-full bg-zinc-900 border border-zinc-700 text-sm text-zinc-200"
-                >
-                  Prev
-                </button>
-                <button
-                  type="button"
-                  onClick={goNext}
-                  className="px-4 py-2 rounded-full bg-zinc-900 border border-zinc-700 text-sm text-zinc-200"
-                >
-                  Next
-                </button>
+          <div className="shrink-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 space-y-3">
+            {setAvatarAction && (
+              <div className="flex flex-wrap gap-2 items-center">
+                {isCurrentAvatar ? (
+                  <>
+                    <span className="text-xs text-violet-300 px-3 py-2 rounded-full border border-violet-600/50 bg-violet-950/40">
+                      Current avatar
+                    </span>
+                    {clearAvatarAction && (
+                      <button
+                        type="button"
+                        disabled={pending}
+                        onClick={onClearAvatar}
+                        className="px-3.5 py-2 rounded-full text-xs border border-zinc-700 text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
+                      >
+                        {pending ? '…' : 'Use default'}
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={onSetAvatar}
+                    className="px-4 py-2.5 rounded-full text-sm font-medium bg-violet-600 hover:bg-violet-500 text-white active:scale-95 transition disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {pending ? 'Setting…' : 'Set as avatar'}
+                  </button>
+                )}
+                {status && (
+                  <span className="text-xs text-zinc-400">{status}</span>
+                )}
               </div>
             )}
+
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-zinc-500 tabular-nums">
+                {activeIndex + 1} / {images.length}
+              </p>
+              {images.length > 1 && (
+                <div className="flex gap-2 sm:hidden">
+                  <button
+                    type="button"
+                    onClick={goPrev}
+                    className="px-4 py-2 rounded-full bg-zinc-900 border border-zinc-700 text-sm text-zinc-200"
+                  >
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={goNext}
+                    className="px-4 py-2 rounded-full bg-zinc-900 border border-zinc-700 text-sm text-zinc-200"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

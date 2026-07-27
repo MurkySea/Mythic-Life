@@ -1,5 +1,10 @@
 /**
  * Pre-made portraits — embedded locked headshots + chibis (no image upload required).
+ *
+ * Resolution order (2026-07-27):
+ *   1. Explicit companion.image_url (user-picked avatar from gallery)
+ *   2. Embedded static for starter companions (Seraphine, etc.)
+ *   3. null → emoji fallback in CompanionAvatar
  */
 import { SERAPHINE_HEADSHOT_JPEG_BASE64 } from './avatarData/seraphine'
 import { SERAPHINE_CHIBI_JPEG_BASE64 } from './avatarData/seraphineChibi'
@@ -31,22 +36,30 @@ export function hasStaticChibi(slug: string): boolean {
   return slug in EMBEDDED_CHIBIS
 }
 
+/**
+ * Profile / list headshot.
+ * User-picked `dbImageUrl` always wins so gallery "Set as avatar" works
+ * even for companions that ship with an embedded default.
+ */
 export function resolveHeadshot(
   slug: string,
   dbImageUrl?: string | null
 ): string | null {
-  if (EMBEDDED_HEADSHOTS[slug]) return EMBEDDED_HEADSHOTS[slug]
   if (dbImageUrl) return dbImageUrl
+  if (EMBEDDED_HEADSHOTS[slug]) return EMBEDDED_HEADSHOTS[slug]
   return null
 }
 
+/**
+ * Small list / inbox icon.
+ * Prefer explicit avatar, then embedded chibi, then embedded headshot, then db.
+ */
 export function resolveChibi(
   slug: string,
   dbImageUrl?: string | null
 ): string | null {
-  if (EMBEDDED_CHIBIS[slug]) return EMBEDDED_CHIBIS[slug]
-  // Fallback: headshot, then DB image
-  if (EMBEDDED_HEADSHOTS[slug]) return EMBEDDED_HEADSHOTS[slug]
   if (dbImageUrl) return dbImageUrl
+  if (EMBEDDED_CHIBIS[slug]) return EMBEDDED_CHIBIS[slug]
+  if (EMBEDDED_HEADSHOTS[slug]) return EMBEDDED_HEADSHOTS[slug]
   return null
 }
