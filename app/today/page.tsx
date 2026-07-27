@@ -85,6 +85,26 @@ export default async function TodayPage() {
           accent="gold"
         />
 
+        {master.length > 0 && (
+          <>
+            <TaskLane
+              label="Master list"
+              hint={`${master.length} open`}
+              tasks={master.slice(0, 12)}
+              empty="Master list is clear."
+              accent="violet"
+            />
+            {master.length > 12 && (
+              <Link
+                href="/mother-list"
+                className="block text-center text-xs text-zinc-500 hover:text-violet-400 py-1 -mt-3"
+              >
+                View all {master.length} on Master List →
+              </Link>
+            )}
+          </>
+        )}
+
         <TaskLane
           label="Routine"
           hint={routine.length ? `${routine.length}` : undefined}
@@ -92,23 +112,6 @@ export default async function TodayPage() {
           empty="No recurring tasks scheduled today."
           accent="zinc"
         />
-
-        <TaskLane
-          label="Master list"
-          hint={master.length ? `${master.length} open` : undefined}
-          tasks={master.slice(0, 12)}
-          empty="Master list is clear."
-          accent="violet"
-        />
-
-        {master.length > 12 && (
-          <Link
-            href="/mother-list"
-            className="block text-center text-xs text-zinc-500 hover:text-violet-400 py-1"
-          >
-            View all {master.length} on Master List →
-          </Link>
-        )}
 
         {/* Calendar — reserved for Google / Apple calendar connection */}
         <section className="space-y-2 pt-2">
