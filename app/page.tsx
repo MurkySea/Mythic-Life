@@ -3,93 +3,19 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import Link from 'next/link'
 import { ensureRecurringTasks } from './actions'
-import { completeTask } from './complete-task'
 import { maybeCompanionCheckIn } from './check-in-actions'
 import { claimDailyMuster } from './muster-actions'
 import { readFeedback } from '@/lib/feedback'
-import { PendingCircleButton } from '@/components/PendingSubmit'
 import FeedbackBanners from '@/components/FeedbackBanners'
 import MusterCard from '@/components/MusterCard'
-import { Plate, TileIcon, QuestRow } from '@/components/FantasyFrame'
+import { Plate, TileIcon } from '@/components/FantasyFrame'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { loadStanding } from '@/lib/engines/standing-store'
 import { chicagoYmd } from '@/lib/engines/muster'
-import { MUST_DO_CAP, splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
+import { splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
 import type { ModuleIconKey } from '@/components/MythicIcons'
 
 export const dynamic = 'force-dynamic'
-
-function formatAnchor(time: string | null | undefined): string | null {
-  if (!time || typeof time !== 'string') return null
-  const m = time.trim().match(/^(\d{1,2}):(\d{2})$/)
-  if (!m) return time
-  let h = parseInt(m[1], 10)
-  const min = m[2]
-  const ampm = h >= 12 ? 'PM' : 'AM'
-  h = h % 12 || 12
-  return `${h}:${min} ${ampm}`
-}
-
-function TaskLane({
-  label,
-  hint,
-  tasks,
-  empty,
-  accent,
-}: {
-  label: string
-  hint?: string
-  tasks: TaskRow[]
-  empty?: string
-  accent?: 'gold' | 'violet' | 'zinc'
-}) {
-  const kicker =
-    accent === 'gold'
-      ? 'text-amber-400/90'
-      : accent === 'violet'
-        ? 'text-violet-400/90'
-        : 'text-zinc-500'
-
-  return (
-    <section className="space-y-2">
-      <div className="flex items-baseline justify-between px-1 gap-2">
-        <h2 className={`section-label ${kicker}`}>{label}</h2>
-        {hint && <span className="text-[10px] text-zinc-600 tabular-nums">{hint}</span>}
-      </div>
-
-      {tasks.length > 0 ? (
-        <div className="space-y-2">
-          {tasks.map((task) => {
-            const timeLabel = formatAnchor(task.anchor_time)
-            return (
-              <QuestRow key={task.id}>
-                <form action={completeTask} className="shrink-0">
-                  <input type="hidden" name="id" value={task.id} />
-                  <PendingCircleButton />
-                </form>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="quest-row-title truncate">{task.title}</p>
-                    {timeLabel && <span className="quest-row-time">{timeLabel}</span>}
-                  </div>
-                  {(task.streak_count || 0) >= 2 && (
-                    <p className="quest-row-streak">{task.streak_count} day streak</p>
-                  )}
-                </div>
-              </QuestRow>
-            )
-          })}
-        </div>
-      ) : (
-        empty && (
-          <div className="rounded-xl border border-dashed border-zinc-800/80 px-4 py-4">
-            <p className="text-xs text-zinc-600 text-center">{empty}</p>
-          </div>
-        )
-      )}
-    </section>
-  )
-}
 
 export default async function HubPage() {
   if (!hasSupabaseEnv()) {
@@ -118,7 +44,6 @@ export default async function HubPage() {
   ])
   const supabase = await createClient()
 
-  // Pull open + today's completed so progress is accurate; lanes use incomplete only
   const { data: allTasks } = await supabase
     .from('tasks')
     .select('*')
@@ -126,24 +51,18 @@ export default async function HubPage() {
     .limit(200)
 
   const rows = (allTasks || []) as TaskRow[]
-  const { routine, mustDos, master } = splitTaskLanes(rows)
+  const { routine, mustDos } = splitTaskLanes(rows)
 
-  // Progress = routine + must-dos (the committed day), not the whole master backlog
   const focusPool = rows.filter((t) => {
-    if (t.is_completed) {
-      // count completed today-ish focus items
-      return t.is_today || t.must_do || isRecurringToday(t)
-    }
-    return false
+    if (!t.is_completed) return false
+    const r = (t.recurrence || '').toLowerCase()
+    return t.is_today || t.must_do || ((r === 'daily' || r === 'weekly') && t.is_today)
   })
   const focusOpen = routine.length + mustDos.length
   const focusDone = focusPool.length
   const focusTotal = focusOpen + focusDone
 
-  const bestStreak = Math.max(
-    0,
-    ...rows.map((t) => t.streak_count || 0)
-  )
+  const bestStreak = Math.max(0, ...rows.map((t) => t.streak_count || 0))
 
   const rhythm = standingUi?.rhythm
   const tier = tierStyle(rhythm?.tier)
@@ -152,7 +71,7 @@ export default async function HubPage() {
   const musterClaimed = standingRow.last_muster_date === today
 
   const modules: { href: string; label: ModuleIconKey; sub: string; disabled?: boolean }[] = [
-    { href: '/tasks', label: 'Quests', sub: 'Task log' },
+    { href: '/today', label: 'Quests', sub: 'Today' },
     { href: '/skills', label: 'Skills', sub: 'Growth' },
     { href: '/companions', label: 'Party', sub: 'Allies' },
     { href: '/messages', label: 'Letters', sub: 'Messages' },
@@ -173,32 +92,13 @@ export default async function HubPage() {
             <p className="mt-1.5 text-[11px] font-medium text-muted">The Unconventional Advisor</p>
           </div>
           <div className="flex items-start gap-2 shrink-0">
-            <div
-              className="orb shrink-0"
-              title={
-                focusTotal === 0
-                  ? 'No focus tasks'
-                  : focusOpen === 0
-                    ? 'Focus complete'
-                    : `${focusOpen} remaining`
-              }
-              style={{
-                background:
-                  focusTotal > 0 && focusOpen === 0
-                    ? 'linear-gradient(160deg, rgba(52, 211, 153, 0.22) 0%, rgba(16, 24, 20, 0.9) 100%)'
-                    : undefined,
-                borderColor:
-                  focusTotal > 0 && focusOpen === 0
-                    ? 'rgba(52, 211, 153, 0.4)'
-                    : undefined,
-              }}
-            >
+            <Link href="/today" className="orb shrink-0" title="Open Today">
               <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Today</span>
               <span className="text-sm font-bold font-display tabular-nums">
                 {focusDone}
                 <span className="text-[10px] opacity-60 font-semibold">/{focusTotal || '—'}</span>
               </span>
-            </div>
+            </Link>
             {bestStreak > 0 && (
               <div className="orb orb-gold shrink-0">
                 <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Streak</span>
@@ -220,48 +120,25 @@ export default async function HubPage() {
         />
       )}
 
-      {/* ── Today lanes ───────────────────────────────────── */}
-      <div className="space-y-5">
-        <div className="flex items-center justify-between px-1">
-          <h2 className="section-label text-zinc-300">Today</h2>
-          <Link href="/mother-list" className="text-xs font-semibold text-gold">
-            + Plan
-          </Link>
-        </div>
-
-        <TaskLane
-          label="Routine"
-          hint={routine.length ? `${routine.length}` : undefined}
-          tasks={routine}
-          empty="No recurring tasks scheduled today."
-          accent="zinc"
-        />
-
-        <TaskLane
-          label="Must-dos"
-          hint={`${mustDos.length}/${MUST_DO_CAP}`}
-          tasks={mustDos}
-          empty="Pull up to 5 one-time tasks onto Today from the Master List."
-          accent="gold"
-        />
-
-        <TaskLane
-          label="Master list"
-          hint={master.length ? `${master.length} open` : undefined}
-          tasks={master.slice(0, 8)}
-          empty="Master list is clear."
-          accent="violet"
-        />
-
-        {master.length > 8 && (
-          <Link
-            href="/mother-list"
-            className="block text-center text-xs text-zinc-500 hover:text-violet-400 py-1"
-          >
-            View all {master.length} on Master List →
-          </Link>
-        )}
-      </div>
+      {/* Today entry — full board lives on /today */}
+      <Link href="/today" className="block">
+        <Plate emphasis className="px-5 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="ml-kicker text-violet">Today</p>
+              <p className="mt-1 text-[15px] font-semibold text-white">
+                {focusOpen === 0
+                  ? 'Focus clear — open the board'
+                  : `${focusOpen} open · Routine · Must-dos`}
+              </p>
+              <p className="text-[11px] text-muted mt-1">
+                Tasks · calendar (soon) · plan from Master List
+              </p>
+            </div>
+            <span className="text-dim text-lg opacity-70">→</span>
+          </div>
+        </Plate>
+      </Link>
 
       <Link href="/standing" className="block">
         <Plate gold className="px-5 py-3.5">
@@ -305,9 +182,4 @@ export default async function HubPage() {
       </section>
     </main>
   )
-}
-
-function isRecurringToday(t: TaskRow): boolean {
-  const r = (t.recurrence || '').toLowerCase()
-  return (r === 'daily' || r === 'weekly') && !!t.is_today
 }
