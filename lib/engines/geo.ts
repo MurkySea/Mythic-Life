@@ -30,13 +30,15 @@ export interface GeoEvent {
   lng?: number
 }
 
-export interface GeoParseResult {
-  ok: true
-  event: GeoEvent
-} | {
-  ok: false
-  error: string
-}
+export type GeoParseResult =
+  | {
+      ok: true
+      event: GeoEvent
+    }
+  | {
+      ok: false
+      error: string
+    }
 
 const VALID_EVENTS = new Set<GeoEventKind>(['arrive', 'leave', 'checkin'])
 const VALID_SOURCES = new Set<GeoSource>(['manual', 'shortcut', 'browser', 'unknown'])
