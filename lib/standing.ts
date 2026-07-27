@@ -3,7 +3,7 @@
  * Fetches the latest Rhythm / health result from the mythic_life_data service.
  *
  * Set MYTHIC_DATA_URL in Vercel env (e.g. https://mythic-life-data.vercel.app)
- * Optional: MYTHIC_DATA_SECRET if the health endpoint is protected.
+ * Optional: MYTHIC_DATA_SECRET — sent as Authorization: Bearer … when set.
  */
 
 export type RhythmTier = 'Excellent' | 'Good' | 'Neutral' | 'Poor' | 'Bad'
@@ -45,13 +45,20 @@ export interface StandingResult {
 }
 
 const DATA_URL = process.env.MYTHIC_DATA_URL || ''
+const DATA_SECRET = process.env.MYTHIC_DATA_SECRET || ''
 
 export async function fetchLatestStanding(): Promise<StandingResult | null> {
   if (!DATA_URL) return null
 
   try {
+    const headers: HeadersInit = {}
+    if (DATA_SECRET) {
+      headers.Authorization = `Bearer ${DATA_SECRET}`
+    }
+
     const res = await fetch(`${DATA_URL.replace(/\/$/, '')}/api/latest`, {
-      next: { revalidate: 60 }, // cache ~1 min
+      headers,
+      next: { revalidate: 60 },
     })
 
     if (!res.ok) return null
