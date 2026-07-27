@@ -14,8 +14,20 @@ import { loadStanding } from '@/lib/engines/standing-store'
 import { chicagoYmd } from '@/lib/engines/muster'
 import { splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
 import type { ModuleIconKey } from '@/components/MythicIcons'
+import { listGoals, PILLAR_LABELS } from '@/lib/engines/goals-store'
+import type { GoalPillar } from '@/lib/engines/goals'
 
 export const dynamic = 'force-dynamic'
+
+const PILLAR_EMOJI: Record<GoalPillar, string> = {
+  stewardship: '💼',
+  faith: '✝️',
+  marriage: '💍',
+  body: '🏃',
+  homestead: '🏡',
+  legacy: '🏛️',
+  self: '🎹',
+}
 
 export default async function HubPage() {
   if (!hasSupabaseEnv()) {
@@ -38,9 +50,10 @@ export default async function HubPage() {
   })
 
   const feedback = await readFeedback()
-  const [standingUi, standingRow] = await Promise.all([
+  const [standingUi, standingRow, activeGoals] = await Promise.all([
     fetchLatestStanding(),
     loadStanding(),
+    listGoals({ status: 'active' }),
   ])
   const supabase = await createClient()
 
@@ -70,6 +83,8 @@ export default async function HubPage() {
   const today = chicagoYmd()
   const musterClaimed = standingRow.last_muster_date === today
 
+  const topGoals = activeGoals.slice(0, 3)
+
   const modules: { href: string; label: ModuleIconKey; sub: string; disabled?: boolean }[] = [
     { href: '/today', label: 'Quests', sub: 'Today' },
     { href: '/skills', label: 'Skills', sub: 'Growth' },
@@ -78,7 +93,7 @@ export default async function HubPage() {
     { href: '/companion-profile', label: 'Mirror', sub: 'Profile' },
     { href: '/settings', label: 'Codex', sub: 'Settings' },
     { href: '/standing', label: 'Standing', sub: rhythm ? tier.label : 'Status' },
-    { href: '/goals', label: 'Goals', sub: 'Direction' },
+    { href: '/goals', label: 'Goals', sub: activeGoals.length ? `${activeGoals.length} active` : 'Direction' },
     { href: '#', label: 'Map', sub: 'Soon', disabled: true },
   ]
 
@@ -140,6 +155,52 @@ export default async function HubPage() {
         </Plate>
       </Link>
 
+      {/* Active goals strip */}
+      <Link href="/goals" className="block">
+        <Plate className="px-5 py-3.5">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <p className="ml-kicker">Goals</p>
+            <span className="text-[11px] text-muted">
+              {activeGoals.length === 0
+                ? 'Set direction →'
+                : `${activeGoals.length} active →`}
+            </span>
+          </div>
+          {topGoals.length === 0 ? (
+            <p className="text-sm text-muted">No active goals. Weight what matters.</p>
+          ) : (
+            <div className="space-y-2.5">
+              {topGoals.map((g) => {
+                const pct =
+                  g.target > 0 ? Math.min(100, Math.round((g.progress / g.target) * 100)) : 0
+                return (
+                  <div key={g.id}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-sm shrink-0" aria-hidden>
+                        {PILLAR_EMOJI[g.pillar] || '🎯'}
+                      </span>
+                      <p className="text-[13px] text-white truncate flex-1">{g.title}</p>
+                      <span className="text-[10px] text-dim tabular-nums shrink-0">
+                        {g.progress}/{g.target}
+                      </span>
+                    </div>
+                    <div className="mt-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-violet-500/80"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <p className="text-[10px] text-dim mt-0.5">
+                      {PILLAR_LABELS[g.pillar]} · {g.horizon}
+                    </p>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </Plate>
+      </Link>
+
       <Link href="/standing" className="block">
         <Plate gold className="px-5 py-3.5">
           <div className="flex items-center justify-between">
@@ -148,6 +209,9 @@ export default async function HubPage() {
               {rhythm ? (
                 <p className={`font-display text-[14px] font-semibold mt-1 ${tier.color}`}>
                   Rhythm · {tier.label}
+                  {standingRow.baseline_phase
+                    ? ` · Phase ${standingRow.baseline_phase}`
+                    : ''}
                 </p>
               ) : (
                 <p className="text-sm font-medium mt-1 text-muted">Self · Consistency · Shadow Debt</p>

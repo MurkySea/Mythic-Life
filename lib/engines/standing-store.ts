@@ -16,6 +16,8 @@
  *   last_muster_date text,
  *   muster_streak int not null default 0,
  *   world_integrity numeric,
+ *   baseline_phase int not null default 1,
+ *   baseline_good_streak int not null default 0,
  *   updated_at timestamptz default now()
  * );
  *
@@ -24,6 +26,8 @@
  * alter table player_standing add column if not exists last_muster_date text;
  * alter table player_standing add column if not exists muster_streak int not null default 0;
  * alter table player_standing add column if not exists world_integrity numeric;
+ * alter table player_standing add column if not exists baseline_phase int not null default 1;
+ * alter table player_standing add column if not exists baseline_good_streak int not null default 0;
  *
  * insert into player_standing (id) values ('solo') on conflict do nothing;
  */
@@ -44,6 +48,10 @@ export interface PlayerStandingRow {
   muster_streak: number
   /** 0–100 realm climate; optional until column exists */
   world_integrity: number | null
+  /** Personal baseline phase 1–5 (sleep ladder) */
+  baseline_phase: number
+  /** Consecutive Good+ rhythm days toward next phase */
+  baseline_good_streak: number
   updated_at?: string
 }
 
@@ -60,6 +68,8 @@ const DEFAULT: PlayerStandingRow = {
   last_muster_date: null,
   muster_streak: 0,
   world_integrity: null,
+  baseline_phase: 1,
+  baseline_good_streak: 0,
 }
 
 export async function loadStanding(): Promise<PlayerStandingRow> {
@@ -86,6 +96,8 @@ export async function loadStanding(): Promise<PlayerStandingRow> {
       muster_streak: Number(data.muster_streak) || 0,
       world_integrity:
         data.world_integrity != null ? Number(data.world_integrity) : null,
+      baseline_phase: Math.max(1, Number(data.baseline_phase) || 1),
+      baseline_good_streak: Math.max(0, Number(data.baseline_good_streak) || 0),
       updated_at: data.updated_at,
     }
   } catch {
@@ -118,6 +130,8 @@ export async function saveStanding(
       date_coins: next.date_coins,
       last_muster_date: next.last_muster_date,
       muster_streak: next.muster_streak,
+      baseline_phase: next.baseline_phase,
+      baseline_good_streak: next.baseline_good_streak,
       updated_at: next.updated_at,
     }
     if (next.world_integrity != null) {

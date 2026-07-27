@@ -4,6 +4,7 @@
  * Responsibilities:
  * 1. Safe per-task incremental rewards using Layer 0 multipliers
  * 2. Idempotent daily Rhythm → Debt / Trust application (once per rhythm date)
+ *    — uses personal baseline ladder when sleep times are available
  * 3. Push Trust deltas into active party companions
  * 4. Trigger reactive companions when a new rhythm day is applied
  * 5. Refresh World Integrity after daily rhythm
@@ -25,29 +26,88 @@ import {
 import { applyRhythmToCompanion } from '@/lib/engines/relationship-wire'
 import { reactCompanionsToLayer0 } from '@/lib/engines/reactive-companions'
 import { refreshWorldIntegrity } from '@/lib/engines/world-integrity-wire'
+import { scoreNightWithLadder } from '@/lib/engines/baseline-wire'
 import type { LifeDomain } from '@/lib/engines/types'
+
+function asRhythmTier(t: string | null | undefined): RhythmTier | null {
+  if (!t) return null
+  const allowed: RhythmTier[] = [
+    'Excellent',
+    'Elite',
+    'Good',
+    'Strong',
+    'Neutral',
+    'Steady',
+    'Poor',
+    'Fragile',
+    'Bad',
+    'Broken',
+  ]
+  return (allowed as string[]).includes(t) ? (t as RhythmTier) : null
+}
 
 async function applyDailyRhythmIfNeeded(): Promise<{
   applied: boolean
   tier: RhythmTier | null
   trustDeltas: { slug: string; bondXpDelta: number; affinityDelta: number }[]
+  usedLadder: boolean
 }> {
   const standing = await loadStanding()
   const health = await fetchLatestStanding()
-  const tier = (health?.rhythm?.tier as RhythmTier | undefined) || null
   const rhythmDate = health?.date || null
 
+  // Prefer ladder score when we have sleep timestamps
+  let tier: RhythmTier | null = null
+  let debtDelta = 0
+  let usedLadder = false
+  let nextPhase = standing.baseline_phase
+  let nextStreak = standing.baseline_good_streak
+
+  if (health?.sleep?.bedtime && health?.sleep?.wakeTime && rhythmDate) {
+    const ladder = scoreNightWithLadder(
+      standing,
+      {
+        bedtimeIso: health.sleep.bedtime,
+        wakeIso: health.sleep.wakeTime,
+        totalSleepHours: health.sleep.totalHours ?? null,
+        restingHeartRate: health.signals?.restingHeartRate ?? null,
+        hrvMs: health.signals?.hrv ?? null,
+        activeEnergyKcal: health.signals?.activeEnergyKcal ?? null,
+      },
+      rhythmDate
+    )
+    if (ladder) {
+      usedLadder = true
+      tier = ladder.tier as RhythmTier
+      debtDelta = ladder.effects.shadowDebtDelta
+      nextPhase = ladder.nextProgress.currentPhase
+      nextStreak = ladder.nextProgress.goodStreak
+    }
+  }
+
+  if (!tier) {
+    tier = asRhythmTier(health?.rhythm?.tier) || null
+    // Legacy fixed bumps when ladder unavailable
+    if (tier === 'Bad' || tier === 'Broken') debtDelta = 4
+    else if (tier === 'Poor' || tier === 'Fragile') debtDelta = 2
+    else debtDelta = 0
+  }
+
   if (!tier || !rhythmDate) {
-    return { applied: false, tier: null, trustDeltas: [] }
+    return { applied: false, tier: null, trustDeltas: [], usedLadder: false }
   }
 
   if (standing.last_rhythm_date === rhythmDate) {
-    return { applied: false, tier, trustDeltas: [] }
+    return { applied: false, tier, trustDeltas: [], usedLadder }
   }
 
+  // Apply debt delta (positive = more debt, negative = burn)
   let debt = standing.shadow_debt
-  if (tier === 'Bad' || tier === 'Broken') debt = debt + 4
-  else if (tier === 'Poor' || tier === 'Fragile') debt = debt + 2
+  if (debtDelta > 0) {
+    debt = debt + debtDelta
+  } else if (debtDelta < 0) {
+    debt = Math.max(0, debt + debtDelta)
+  }
 
   const { party } = await loadPlayerState()
   const supabase = await createClient()
@@ -102,6 +162,8 @@ async function applyDailyRhythmIfNeeded(): Promise<{
     shadow_debt: Number(debt.toFixed(1)),
     last_rhythm_tier: tier,
     last_rhythm_date: rhythmDate,
+    baseline_phase: nextPhase,
+    baseline_good_streak: nextStreak,
   })
 
   try {
@@ -116,7 +178,7 @@ async function applyDailyRhythmIfNeeded(): Promise<{
     console.error('world integrity refresh failed', e)
   }
 
-  return { applied: true, tier, trustDeltas }
+  return { applied: true, tier, trustDeltas, usedLadder }
 }
 
 export async function runLayer0Evaluation(opts?: {
@@ -137,8 +199,8 @@ export async function runLayer0Evaluation(opts?: {
     const health = await fetchLatestStanding()
     const tier: RhythmTier =
       daily.tier ||
-      (health?.rhythm?.tier as RhythmTier | undefined) ||
-      (standing.last_rhythm_tier as RhythmTier | undefined) ||
+      asRhythmTier(health?.rhythm?.tier) ||
+      asRhythmTier(standing.last_rhythm_tier) ||
       'Neutral'
 
     const supabase = await createClient()
@@ -213,7 +275,6 @@ export async function runLayer0Evaluation(opts?: {
       last_self_neglect: neglect.severity,
     })
 
-    // Keep integrity current even on task-only paths
     try {
       await refreshWorldIntegrity()
     } catch {

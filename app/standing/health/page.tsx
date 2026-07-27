@@ -5,6 +5,11 @@ import { aggregateDomains, detectSelfNeglect } from '@/lib/engines/ontology'
 import { createClient } from '@/utils/supabase/server'
 import { parseDomains } from '@/lib/skills'
 import { StandingTabs } from '../StandingTabs'
+import {
+  scoreNightWithLadder,
+  progressFromStanding,
+} from '@/lib/engines/baseline-wire'
+import { getPhase } from '@/lib/engines/personal-baseline'
 
 export const dynamic = 'force-dynamic'
 
@@ -28,7 +33,64 @@ export default async function StandingHealthPage() {
   const rhythm = health?.rhythm
   const sleep = health?.sleep
   const signals = health?.signals
-  const tier = tierStyle(rhythm?.tier)
+
+  // Re-score with ladder for display when possible
+  let ladderTier = rhythm?.tier
+  let ladderSummary: string | null = null
+  let phaseName = 'Meet Yourself'
+  let phaseNum = persisted.baseline_phase || 1
+  let phaseLabel = ''
+  let ladderEffects = rhythm
+    ? {
+        rewardEfficiency: rhythm.rewardEfficiency,
+        consistencyTokenMultiplier: rhythm.consistencyTokenMultiplier,
+        shadowDebtDelta: rhythm.shadowDebtDelta,
+        leaderTrustDelta: rhythm.leaderTrustDelta,
+      }
+    : null
+
+  if (sleep?.bedtime && sleep?.wakeTime && health?.date) {
+    const ladder = scoreNightWithLadder(
+      persisted,
+      {
+        bedtimeIso: sleep.bedtime,
+        wakeIso: sleep.wakeTime,
+        totalSleepHours: sleep.totalHours ?? null,
+        restingHeartRate: signals?.restingHeartRate ?? null,
+        hrvMs: signals?.hrv ?? null,
+        activeEnergyKcal: signals?.activeEnergyKcal ?? null,
+      },
+      health.date
+    )
+    if (ladder) {
+      ladderTier = ladder.tier
+      ladderSummary = ladder.summary
+      phaseName = ladder.phaseName
+      phaseNum = ladder.phase
+      phaseLabel = ladder.phaseLabel
+      ladderEffects = {
+        rewardEfficiency: ladder.effects.rewardEfficiency,
+        consistencyTokenMultiplier: ladder.effects.tokenMultiplier,
+        shadowDebtDelta: ladder.effects.shadowDebtDelta,
+        leaderTrustDelta: ladder.effects.leaderTrustDelta,
+      }
+    }
+  } else {
+    const progress = progressFromStanding(persisted)
+    const phase = getPhase(progress)
+    phaseName = phase.name
+    phaseNum = phase.phase
+    const bedWindow = phase.windows.bedtime
+    const wakeWindow = phase.windows.wake
+    phaseLabel = [
+      bedWindow ? `bed ${bedWindow.label}` : null,
+      wakeWindow ? `wake ${wakeWindow.label}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+  }
+
+  const tier = tierStyle(ladderTier as any)
 
   const supabase = await createClient()
   const since = new Date()
@@ -68,8 +130,29 @@ export default async function StandingHealthPage() {
       <StandingTabs active="health" />
 
       <div className="space-y-4">
+        {/* Phase ladder */}
+        <section className="rounded-2xl border border-violet-900/40 bg-violet-950/20 p-4 space-y-1">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] uppercase tracking-wider text-violet-400/80">
+              Baseline phase
+            </p>
+            <p className="text-[11px] text-zinc-500 tabular-nums">
+              streak {persisted.baseline_good_streak || 0}
+            </p>
+          </div>
+          <p className="text-sm font-medium text-violet-100">
+            Phase {phaseNum} · {phaseName}
+          </p>
+          {phaseLabel && (
+            <p className="text-[11px] text-zinc-500 leading-relaxed">{phaseLabel}</p>
+          )}
+          {ladderSummary && (
+            <p className="text-[11px] text-zinc-400 pt-0.5">{ladderSummary}</p>
+          )}
+        </section>
+
         {/* Rhythm + sleep */}
-        {rhythm ? (
+        {rhythm || ladderTier ? (
           <section className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 space-y-4">
             <div className="flex items-start justify-between">
               <div>
@@ -79,8 +162,8 @@ export default async function StandingHealthPage() {
               <div className="text-right">
                 <p className="text-[11px] uppercase tracking-wider text-zinc-500">Contribution</p>
                 <p className="text-lg font-medium text-white tabular-nums">
-                  {rhythm.contribution > 0 ? '+' : ''}
-                  {rhythm.contribution}
+                  {rhythm && rhythm.contribution > 0 ? '+' : ''}
+                  {rhythm?.contribution ?? '—'}
                 </p>
               </div>
             </div>
@@ -96,11 +179,15 @@ export default async function StandingHealthPage() {
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
                     <p className="text-[10px] text-zinc-500">Bed deviation</p>
-                    <p className="text-zinc-200 tabular-nums">{fmtDev(rhythm.bedDeviationMinutes)}</p>
+                    <p className="text-zinc-200 tabular-nums">
+                      {fmtDev(rhythm?.bedDeviationMinutes)}
+                    </p>
                   </div>
                   <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
                     <p className="text-[10px] text-zinc-500">Wake deviation</p>
-                    <p className="text-zinc-200 tabular-nums">{fmtDev(rhythm.wakeDeviationMinutes)}</p>
+                    <p className="text-zinc-200 tabular-nums">
+                      {fmtDev(rhythm?.wakeDeviationMinutes)}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -108,69 +195,83 @@ export default async function StandingHealthPage() {
 
             {hasSleepStages && (
               <div>
-                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Sleep stages</p>
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
+                  Sleep stages
+                </p>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-2 py-2">
                     <p className="text-[10px] text-zinc-500">Deep</p>
-                    <p className="text-sm text-indigo-300 tabular-nums">{fmtNum(sleep?.deep, 1, 'h')}</p>
+                    <p className="text-sm text-indigo-300 tabular-nums">
+                      {fmtNum(sleep?.deep, 1, 'h')}
+                    </p>
                   </div>
                   <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-2 py-2">
                     <p className="text-[10px] text-zinc-500">REM</p>
-                    <p className="text-sm text-violet-300 tabular-nums">{fmtNum(sleep?.rem, 1, 'h')}</p>
+                    <p className="text-sm text-violet-300 tabular-nums">
+                      {fmtNum(sleep?.rem, 1, 'h')}
+                    </p>
                   </div>
                   <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-2 py-2">
                     <p className="text-[10px] text-zinc-500">Core</p>
-                    <p className="text-sm text-sky-300 tabular-nums">{fmtNum(sleep?.core, 1, 'h')}</p>
+                    <p className="text-sm text-sky-300 tabular-nums">
+                      {fmtNum(sleep?.core, 1, 'h')}
+                    </p>
                   </div>
                 </div>
               </div>
             )}
 
-            <div>
-              <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">Rhythm effects</p>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                  <p className="text-[10px] text-zinc-500">Reward efficiency</p>
-                  <p className="text-zinc-200 tabular-nums">{rhythm.rewardEfficiency.toFixed(2)}×</p>
-                </div>
-                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                  <p className="text-[10px] text-zinc-500">Token multiplier</p>
-                  <p className="text-zinc-200 tabular-nums">
-                    {rhythm.consistencyTokenMultiplier.toFixed(2)}×
-                  </p>
-                </div>
-                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                  <p className="text-[10px] text-zinc-500">Shadow debt Δ</p>
-                  <p
-                    className={`tabular-nums ${
-                      rhythm.shadowDebtDelta > 0
-                        ? 'text-amber-400'
-                        : rhythm.shadowDebtDelta < 0
+            {ladderEffects && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mb-2">
+                  Rhythm effects (ladder)
+                </p>
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
+                    <p className="text-[10px] text-zinc-500">Reward efficiency</p>
+                    <p className="text-zinc-200 tabular-nums">
+                      {ladderEffects.rewardEfficiency.toFixed(2)}×
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
+                    <p className="text-[10px] text-zinc-500">Token multiplier</p>
+                    <p className="text-zinc-200 tabular-nums">
+                      {ladderEffects.consistencyTokenMultiplier.toFixed(2)}×
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
+                    <p className="text-[10px] text-zinc-500">Shadow debt Δ</p>
+                    <p
+                      className={`tabular-nums ${
+                        ladderEffects.shadowDebtDelta > 0
+                          ? 'text-amber-400'
+                          : ladderEffects.shadowDebtDelta < 0
+                            ? 'text-emerald-400'
+                            : 'text-zinc-200'
+                      }`}
+                    >
+                      {ladderEffects.shadowDebtDelta > 0 ? '+' : ''}
+                      {ladderEffects.shadowDebtDelta}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
+                    <p className="text-[10px] text-zinc-500">Leader trust Δ</p>
+                    <p
+                      className={`tabular-nums ${
+                        ladderEffects.leaderTrustDelta > 0
                           ? 'text-emerald-400'
-                          : 'text-zinc-200'
-                    }`}
-                  >
-                    {rhythm.shadowDebtDelta > 0 ? '+' : ''}
-                    {rhythm.shadowDebtDelta}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2">
-                  <p className="text-[10px] text-zinc-500">Leader trust Δ</p>
-                  <p
-                    className={`tabular-nums ${
-                      rhythm.leaderTrustDelta > 0
-                        ? 'text-emerald-400'
-                        : rhythm.leaderTrustDelta < 0
-                          ? 'text-red-400'
-                          : 'text-zinc-200'
-                    }`}
-                  >
-                    {rhythm.leaderTrustDelta > 0 ? '+' : ''}
-                    {rhythm.leaderTrustDelta}
-                  </p>
+                          : ladderEffects.leaderTrustDelta < 0
+                            ? 'text-red-400'
+                            : 'text-zinc-200'
+                      }`}
+                    >
+                      {ladderEffects.leaderTrustDelta > 0 ? '+' : ''}
+                      {ladderEffects.leaderTrustDelta}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </section>
         ) : (
           <section className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/40 px-5 py-6 text-center">
@@ -188,11 +289,15 @@ export default async function StandingHealthPage() {
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2.5">
                 <p className="text-[10px] text-zinc-500">Stress</p>
-                <p className="text-sm font-medium text-zinc-200 capitalize">{signals.stressProxy}</p>
+                <p className="text-sm font-medium text-zinc-200 capitalize">
+                  {signals.stressProxy}
+                </p>
               </div>
               <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2.5">
                 <p className="text-[10px] text-zinc-500">Recovery</p>
-                <p className="text-sm font-medium text-zinc-200 capitalize">{signals.recoveryProxy}</p>
+                <p className="text-sm font-medium text-zinc-200 capitalize">
+                  {signals.recoveryProxy}
+                </p>
               </div>
               <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/80 px-3 py-2.5">
                 <p className="text-[10px] text-zinc-500">HRV</p>
