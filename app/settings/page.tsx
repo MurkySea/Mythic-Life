@@ -93,8 +93,7 @@ export default async function SettingsPage() {
                 </form>
                 <form action={actionEnterRecovery}>
                   <button
-                    type="submit"
-                    className="w-full py-3 rounded-xl bg-sky-900/80 border border-sky-700/50 text-sky-100 text-sm font-medium hover:border-sky-500 active:scale-[0.99] transition"
+                    type="submit"iguratively className="w-full py-3 rounded-xl bg-sky-900/80 border border-sky-700/50 text-sky-100 text-sm font-medium hover:border-sky-500 active:scale-[0.99] transition"
                   >
                     Recovery Day
                   </button>
@@ -211,6 +210,9 @@ export default async function SettingsPage() {
 
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-3">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">Progression</p>
+          <Link href="/places" className="block text-violet-300 text-sm hover:text-violet-200">
+            Places (life signal) →
+          </Link>
           <Link href="/skills" className="block text-violet-300 text-sm hover:text-violet-200">
             Skill tree →
           </Link>
@@ -269,12 +271,27 @@ create table if not exists conversation_reads (
   companion_slug text primary key,
   last_read_at timestamptz not null default now()
 );
+
+create table if not exists geo_events (
+  id uuid primary key default gen_random_uuid(),
+  place_id text not null,
+  event text not null,
+  source text default 'manual',
+  lat double precision,
+  lng double precision,
+  occurred_at timestamptz not null default now(),
+  created_at timestamptz default now()
+);
+
+create index if not exists geo_events_occurred_idx
+  on geo_events (occurred_at desc);
 `}</pre>
         </div>
 
         <p className="text-xs text-zinc-600 leading-relaxed px-1 pt-2">
           Skills level from task domains. Companions unlock on skill milestones. Outreach + chat
-          replies can push. Inbox shows unread with a blue dot.
+          replies can push. Inbox shows unread with a blue dot. Places feed life signal for
+          companions and Rhythm.
         </p>
       </div>
     </main>
