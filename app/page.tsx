@@ -110,40 +110,54 @@ export default async function HubPage() {
             <h1 className="ml-title mt-1 text-[1.35rem]">Mark Zito</h1>
             <p className="mt-1.5 text-[11px] font-medium text-muted">The Unconventional Advisor</p>
           </div>
-          {bestStreak > 0 && (
-            <div className="orb orb-gold shrink-0">
-              <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Streak</span>
-              <span className="text-sm font-bold font-display">{bestStreak}</span>
+          <div className="flex items-start gap-2 shrink-0">
+            {/* Today's progress — compact orb like streak */}
+            <div
+              className="orb shrink-0"
+              title={
+                totalToday === 0
+                  ? 'No quests today'
+                  : doneToday === totalToday
+                    ? 'All quests complete'
+                    : `${totalToday - doneToday} remaining`
+              }
+              style={{
+                background:
+                  totalToday > 0 && doneToday === totalToday
+                    ? 'linear-gradient(160deg, rgba(52, 211, 153, 0.22) 0%, rgba(16, 24, 20, 0.9) 100%)'
+                    : undefined,
+                borderColor:
+                  totalToday > 0 && doneToday === totalToday
+                    ? 'rgba(52, 211, 153, 0.4)'
+                    : undefined,
+              }}
+            >
+              <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Today</span>
+              <span className="text-sm font-bold font-display tabular-nums">
+                {doneToday}
+                <span className="text-[10px] opacity-60 font-semibold">/{totalToday || '—'}</span>
+              </span>
             </div>
-          )}
+            {bestStreak > 0 && (
+              <div className="orb orb-gold shrink-0">
+                <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Streak</span>
+                <span className="text-sm font-bold font-display">{bestStreak}</span>
+              </div>
+            )}
+          </div>
         </div>
       </Plate>
 
       {feedback && <FeedbackBanners feedback={feedback} />}
 
-      <div className="progress-strip">
-        <div>
-          <p className="progress-strip-label">Today's progress</p>
-          <p className="text-[11px] text-muted mt-0.5">
-            {doneToday === 0 && totalToday === 0
-              ? 'No quests on the board'
-              : doneToday === totalToday && totalToday > 0
-                ? 'All quests complete'
-                : `${totalToday - doneToday} remaining`}
-          </p>
-        </div>
-        <span className="progress-strip-value">
-          {doneToday}
-          <span className="text-dim text-base font-semibold">/{totalToday || '—'}</span>
-        </span>
-      </div>
-
-      <MusterCard
-        claimed={musterClaimed}
-        streak={standingRow.muster_streak || 0}
-        dateCoins={standingRow.date_coins || 0}
-        action={claimDailyMuster}
-      />
+      {!musterClaimed && (
+        <MusterCard
+          claimed={false}
+          streak={standingRow.muster_streak || 0}
+          dateCoins={standingRow.date_coins || 0}
+          action={claimDailyMuster}
+        />
+      )}
 
       <section className="space-y-2.5">
         <div className="flex items-center justify-between px-1">
