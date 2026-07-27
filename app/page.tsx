@@ -85,8 +85,6 @@ export default async function HubPage() {
 
   const rhythm = standingUi?.rhythm
   const tier = tierStyle(rhythm?.tier)
-  const nextTask = incompleteTasks[0] || null
-  const nextTime = nextTask ? formatAnchor(nextTask.anchor_time) : null
 
   const today = chicagoYmd()
   const musterClaimed = standingRow.last_muster_date === today
@@ -140,35 +138,6 @@ export default async function HubPage() {
         </span>
       </div>
 
-      {nextTask && (
-        <Plate emphasis className="quest-hero">
-          <div className="quest-hero-rail" />
-          <div className="flex items-start justify-between gap-3 pl-1">
-            <div className="min-w-0">
-              <p className="ml-kicker text-violet">Active quest</p>
-              <p className="quest-hero-title mt-1.5">{nextTask.title}</p>
-              {(nextTask.streak_count || 0) >= 2 && (
-                <p className="quest-row-streak mt-1">{nextTask.streak_count} day streak</p>
-              )}
-            </div>
-            {nextTime && <span className="quest-hero-meta">{nextTime}</span>}
-          </div>
-          <form action={completeTask} className="mt-3 pl-1">
-            <input type="hidden" name="id" value={nextTask.id} />
-            <button
-              type="submit"
-              className="w-full rounded-xl py-2.5 text-sm font-semibold tracking-wide text-ink"
-              style={{
-                background: 'linear-gradient(180deg, rgba(124,92,191,0.45) 0%, rgba(80,55,140,0.55) 100%)',
-                border: '1px solid rgba(167,139,250,0.45)',
-              }}
-            >
-              Complete quest
-            </button>
-          </form>
-        </Plate>
-      )}
-
       <MusterCard
         claimed={musterClaimed}
         streak={standingRow.muster_streak || 0}
@@ -186,7 +155,7 @@ export default async function HubPage() {
 
         {incompleteTasks.length > 0 ? (
           <div className="space-y-2">
-            {incompleteTasks.slice(nextTask ? 1 : 0, 5).map(
+            {incompleteTasks.slice(0, 6).map(
               (task: {
                 id: string
                 title: string
