@@ -2,6 +2,7 @@ import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { getIntimacyLabel } from '@/lib/scenes'
 import GalleryGrid, { type GalleryImage } from '@/components/GalleryGrid'
+import { setAsAvatar, clearAvatar } from '@/app/avatar-actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,11 +34,20 @@ export default async function GalleryPage({
 
   const activeCharacter = params.character || characters[0] || 'Seraphine'
 
-  const { data: images } = await supabase
-    .from('gallery_images')
-    .select('*')
-    .eq('character_name', activeCharacter)
-    .order('created_at', { ascending: false })
+  const [{ data: images }, { data: companion }] = await Promise.all([
+    supabase
+      .from('gallery_images')
+      .select('*')
+      .eq('character_name', activeCharacter)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('companion')
+      .select('image_url, name, slug')
+      .eq('name', activeCharacter)
+      .maybeSingle(),
+  ])
+
+  const currentAvatarUrl = companion?.image_url || null
 
   const prepared: GalleryImage[] = (images || []).map(
     (img: {
@@ -94,7 +104,18 @@ export default async function GalleryPage({
       )}
 
       {prepared.length > 0 ? (
-        <GalleryGrid images={prepared} />
+        <>
+          <p className="text-[11px] text-zinc-500 px-0.5">
+            Open any image → <span className="text-zinc-400">Set as avatar</span> to use it
+            on profiles and messages.
+          </p>
+          <GalleryGrid
+            images={prepared}
+            currentAvatarUrl={currentAvatarUrl}
+            setAvatarAction={setAsAvatar}
+            clearAvatarAction={clearAvatar}
+          />
+        </>
       ) : characters.length > 0 ? (
         <div className="text-center py-16 text-zinc-500 text-sm">
           No scenes for {activeCharacter} yet.
