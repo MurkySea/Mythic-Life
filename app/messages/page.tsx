@@ -243,6 +243,10 @@ export default async function MessagesPage({
 
   const lastMsg = thread[thread.length - 1]
   const lastMessageIsCompanion = lastMsg?.role === 'companion'
+  const lastCompanionContent =
+    lastMessageIsCompanion && typeof lastMsg?.content === 'string'
+      ? lastMsg.content
+      : null
 
   return (
     <main className="max-w-md mx-auto h-[100dvh] flex flex-col pb-20">
@@ -282,6 +286,7 @@ export default async function MessagesPage({
         action={sendMessage}
         responseAction={respondWithChoice}
         lastMessageIsCompanion={lastMessageIsCompanion}
+        lastCompanionContent={lastCompanionContent}
       />
     </main>
   )

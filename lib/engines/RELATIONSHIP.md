@@ -1,6 +1,6 @@
 # Dual-Axis Relationship System
 
-Added 2026-07-24.
+Added 2026-07-24. Response-loop wire completed 2026-07-27.
 
 ## Core idea
 
@@ -36,7 +36,7 @@ This is the mechanical expression of "more patience and understanding."
 
 ## Player responses to outreach
 
-When a companion reaches out because the rhythm has been off:
+When a companion reaches out because the rhythm has been off (check-in / concern style message):
 
 | Choice | Effect |
 |--------|--------|
@@ -46,6 +46,10 @@ When a companion reaches out because the rhythm has been off:
 | `deflect` | Damage to both (less severe if she already loves you) |
 
 Honesty is the primary long-term driver of Intimacy.
+
+**UI gate:** ResponseChoices only appear when the last companion message matches check-in heuristics (`isCheckInMessage`). Casual chat does not surface the four buttons.
+
+**Feedback:** After a choice, the mechanical note is shown briefly in the composer, and the companion reply is seeded with that note so her tone lands correctly.
 
 ## Light interactions
 
@@ -64,9 +68,26 @@ Seraphine starts near Devoted territory and carries the patience modifiers from 
 ## Implementation
 
 Pure logic lives in `lib/engines/relationship.ts`.
+Wire layer: `lib/engines/relationship-wire.ts`.
 
-Wire points still needed:
-- Persist Trust + Intimacy per companion (alongside or replacing pure affinity_score)
-- Surface response choices in the message / outreach UI
-- Feed Rhythm tier into `updateTrustWithPatience`
-- Call interaction effects from chat / check-in flows
+### Wire status (2026-07-27)
+
+| Item | Status |
+|------|--------|
+| Surface response choices in messages UI | **Done** — gated to check-in messages |
+| `respondWithChoice` applies dual-axis + natural line + reply seed | **Done** |
+| Feed Rhythm tier into `updateTrustWithPatience` | **Done** via layer0-wire |
+| Persist consecutive_bad/good_days on Rhythm apply | **Done** (soft write; needs columns) |
+| Dedicated trust_score / intimacy_score columns | **Optional** — derived fallback still works |
+| Call light interaction effects from free-form chat | **Not yet** |
+
+### Companion columns (run once in Supabase)
+
+```sql
+alter table companion add column if not exists consecutive_bad_days int default 0;
+alter table companion add column if not exists consecutive_good_days int default 0;
+alter table companion add column if not exists trust_score numeric;
+alter table companion add column if not exists intimacy_score numeric;
+```
+
+Without these columns the core affinity/bond path still works; streaks and dual-axis writes fall back gracefully.

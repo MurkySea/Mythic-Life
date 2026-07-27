@@ -1,8 +1,9 @@
 'use client'
 
-import { useTransition } from 'react'
+import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { ResponseChoice } from '@/lib/engines/relationship'
+import { isCheckInMessage } from '@/lib/engines/relationship-wire'
 
 const CHOICES: {
   id: ResponseChoice
@@ -31,20 +32,31 @@ const CHOICES: {
   },
 ]
 
+export type ResponseResult = {
+  note?: string
+  stage?: string
+}
+
 export default function ResponseChoices({
   companionSlug,
   action,
   visible,
+  lastCompanionContent,
 }: {
   companionSlug: string
-  action: (formData: FormData) => Promise<void>
-  /** Only show when the last message is from the companion */
+  action: (formData: FormData) => Promise<ResponseResult | void>
+  /** Parent already thinks last message is from companion */
   visible: boolean
+  /** Last companion message text — used to gate check-in style only */
+  lastCompanionContent?: string | null
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [note, setNote] = useState<string | null>(null)
 
-  if (!visible) return null
+  // Only show the four answers when the last line is a check-in / concern
+  const isCheckIn = isCheckInMessage(lastCompanionContent)
+  if (!visible || !isCheckIn) return null
 
   function onPick(choice: ResponseChoice) {
     if (pending) return
@@ -52,16 +64,27 @@ export default function ResponseChoices({
     fd.set('choice', choice)
     fd.set('companion_slug', companionSlug)
     startTransition(async () => {
-      await action(fd)
+      const result = await action(fd)
+      if (result?.note) {
+        setNote(result.note)
+        // Clear the note after she starts writing / page refreshes
+        setTimeout(() => setNote(null), 6000)
+      }
       router.refresh()
     })
   }
 
   return (
     <div className="px-4 pb-2">
-      <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2 px-0.5">
-        How do you answer?
-      </p>
+      {note ? (
+        <p className="text-[12px] text-violet-300/90 mb-2 px-0.5 leading-snug">
+          {note}
+        </p>
+      ) : (
+        <p className="text-[10px] uppercase tracking-wider text-zinc-600 mb-2 px-0.5">
+          How do you answer?
+        </p>
+      )}
       <div className="flex flex-wrap gap-2">
         {CHOICES.map((c) => (
           <button
