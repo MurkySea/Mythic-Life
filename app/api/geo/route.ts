@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServiceClient } from '@/utils/supabase/server'
 import { parseGeoEvent } from '@/lib/engines/geo'
+import { maybeSchedulePartyUnitReaction } from '@/lib/outreach'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,7 +18,6 @@ export const dynamic = 'force-dynamic'
  * }
  *
  * Auth: Authorization: Bearer <GEO_SECRET or CRON_SECRET>
- * (If neither env is set, the route accepts requests — set a secret in production.)
  */
 export async function POST(request: Request) {
   const secret = process.env.GEO_SECRET || process.env.CRON_SECRET
@@ -65,11 +65,27 @@ export async function POST(request: Request) {
       )
     }
 
+    let partyScheduled = false
+    try {
+      const signal =
+        ev.event === 'leave'
+          ? ('place_leave' as const)
+          : ('place_arrive' as const)
+      partyScheduled = await maybeSchedulePartyUnitReaction({
+        signal,
+        detail: ev.placeId,
+        moodInput: { recentTier: 'Neutral' },
+      })
+    } catch (e) {
+      console.error('party unit after geo api', e)
+    }
+
     return NextResponse.json({
       ok: true,
       place: ev.placeId,
       event: ev.event,
       at: ev.occurredAt,
+      partyScheduled,
     })
   } catch (e) {
     console.error('geo route', e)
