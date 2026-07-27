@@ -1,4 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
 
 export function hasSupabaseEnv(): boolean {
@@ -8,6 +9,7 @@ export function hasSupabaseEnv(): boolean {
   )
 }
 
+/** Standard RLS-aware client (anon key). Use for normal reads/writes. */
 export async function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -34,6 +36,29 @@ export async function createClient() {
           // Called from a Server Component — safe to ignore when middleware refreshes sessions.
         }
       },
+    },
+  })
+}
+
+/**
+ * Service-role client — bypasses RLS.
+ * ONLY use on the server for privileged operations (e.g. Storage uploads).
+ * Never import this into client components or expose the key.
+ */
+export function createServiceClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!url || !key) {
+    throw new Error(
+      'MISSING_SERVICE_ROLE: Set SUPABASE_SERVICE_ROLE_KEY in Vercel → Settings → Environment Variables (Production + Preview). This key is server-only — do not prefix with NEXT_PUBLIC_.'
+    )
+  }
+
+  return createSupabaseClient(url, key, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
     },
   })
 }
