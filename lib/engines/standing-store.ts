@@ -15,6 +15,7 @@
  *   date_coins int not null default 0,
  *   last_muster_date text,
  *   muster_streak int not null default 0,
+ *   world_integrity numeric,
  *   updated_at timestamptz default now()
  * );
  *
@@ -22,6 +23,7 @@
  * alter table player_standing add column if not exists date_coins int not null default 0;
  * alter table player_standing add column if not exists last_muster_date text;
  * alter table player_standing add column if not exists muster_streak int not null default 0;
+ * alter table player_standing add column if not exists world_integrity numeric;
  *
  * insert into player_standing (id) values ('solo') on conflict do nothing;
  */
@@ -40,6 +42,8 @@ export interface PlayerStandingRow {
   date_coins: number
   last_muster_date: string | null
   muster_streak: number
+  /** 0–100 realm climate; optional until column exists */
+  world_integrity: number | null
   updated_at?: string
 }
 
@@ -55,6 +59,7 @@ const DEFAULT: PlayerStandingRow = {
   date_coins: 0,
   last_muster_date: null,
   muster_streak: 0,
+  world_integrity: null,
 }
 
 export async function loadStanding(): Promise<PlayerStandingRow> {
@@ -79,6 +84,8 @@ export async function loadStanding(): Promise<PlayerStandingRow> {
       date_coins: Number(data.date_coins) || 0,
       last_muster_date: data.last_muster_date ?? null,
       muster_streak: Number(data.muster_streak) || 0,
+      world_integrity:
+        data.world_integrity != null ? Number(data.world_integrity) : null,
       updated_at: data.updated_at,
     }
   } catch {
@@ -99,77 +106,29 @@ export async function saveStanding(
 
   try {
     const supabase = await createClient()
-    await supabase.from('player_standing').upsert(
-      {
-        id: 'solo',
-        shadow_debt: next.shadow_debt,
-        consistency_tokens: next.consistency_tokens,
-        total_xp: next.total_xp,
-        total_gold: next.total_gold,
-        last_rhythm_tier: next.last_rhythm_tier,
-        last_rhythm_date: next.last_rhythm_date,
-        last_self_neglect: next.last_self_neglect,
-        date_coins: next.date_coins,
-        last_muster_date: next.last_muster_date,
-        muster_streak: next.muster_streak,
-        updated_at: next.updated_at,
-      },
-      { onConflict: 'id' }
-    )
+    const row: Record<string, unknown> = {
+      id: 'solo',
+      shadow_debt: next.shadow_debt,
+      consistency_tokens: next.consistency_tokens,
+      total_xp: next.total_xp,
+      total_gold: next.total_gold,
+      last_rhythm_tier: next.last_rhythm_tier,
+      last_rhythm_date: next.last_rhythm_date,
+      last_self_neglect: next.last_self_neglect,
+      date_coins: next.date_coins,
+      last_muster_date: next.last_muster_date,
+      muster_streak: next.muster_streak,
+      updated_at: next.updated_at,
+    }
+    if (next.world_integrity != null) {
+      row.world_integrity = next.world_integrity
+    }
+    await supabase.from('player_standing').upsert(row, { onConflict: 'id' })
   } catch (e) {
     console.error('saveStanding failed', e)
   }
 
   return next
-}
-
-export async function applyTaskToStanding(opts: {
-  domainCount: number
-  rhythmRewardEfficiency: number
-  rhythmTokenMultiplier: number
-  rhythmDebtDelta: number
-  rhythmDate: string | null
-  selfMultiplier: number
-  selfNeglectSeverity: string
-  rhythmTier: string | null
-}): Promise<PlayerStandingRow> {
-  const current = await loadStanding()
-
-  const debtMul = Math.max(0.6, 1 - current.shadow_debt * 0.004)
-  const combined = Math.max(
-    0.55,
-    opts.rhythmRewardEfficiency * debtMul * opts.selfMultiplier
-  )
-
-  const baseXp = 12 * Math.max(1, opts.domainCount)
-  const baseGold = 6 * Math.max(1, opts.domainCount)
-
-  const xpGain = Math.round(baseXp * combined)
-  const goldGain = Math.round(baseGold * combined)
-
-  let tokenGain = 0
-  if (opts.rhythmTokenMultiplier > 0 && combined >= 0.85) {
-    tokenGain = Number((0.35 * opts.rhythmTokenMultiplier * opts.selfMultiplier).toFixed(2))
-  }
-
-  let debtDelta = 0
-  let nextRhythmDate = current.last_rhythm_date
-  if (opts.rhythmDate && opts.rhythmDate !== current.last_rhythm_date) {
-    debtDelta = opts.rhythmDebtDelta
-    nextRhythmDate = opts.rhythmDate
-  }
-
-  const nextDebt = Math.max(0, Number((current.shadow_debt + debtDelta).toFixed(1)))
-
-  return saveStanding({
-    shadow_debt: nextDebt,
-    consistency_tokens: Number((current.consistency_tokens + tokenGain).toFixed(2)),
-    total_xp: current.total_xp + xpGain,
-    total_gold: current.total_gold + goldGain,
-    last_rhythm_tier: opts.rhythmTier,
-    last_rhythm_date: nextRhythmDate,
-    last_self_neglect: opts.selfNeglectSeverity,
-  })
 }
 
 export async function spendTokens(amount: number): Promise<boolean> {

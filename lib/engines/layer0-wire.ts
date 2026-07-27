@@ -6,8 +6,7 @@
  * 2. Idempotent daily Rhythm → Debt / Trust application (once per rhythm date)
  * 3. Push Trust deltas into active party companions
  * 4. Trigger reactive companions when a new rhythm day is applied
- *
- * Pure scoring stays in layer0.ts. This file only loads, calls, and persists.
+ * 5. Refresh World Integrity after daily rhythm
  */
 
 import { createClient } from '@/utils/supabase/server'
@@ -25,13 +24,9 @@ import {
 } from '@/lib/engines/layer0'
 import { applyRhythmToCompanion } from '@/lib/engines/relationship-wire'
 import { reactCompanionsToLayer0 } from '@/lib/engines/reactive-companions'
+import { refreshWorldIntegrity } from '@/lib/engines/world-integrity-wire'
 import type { LifeDomain } from '@/lib/engines/types'
 
-/**
- * Apply today's finalized Rhythm to Shadow Debt and to every active party member's Trust.
- * Runs at most once per last_rhythm_date (idempotent).
- * On first apply for the day, also triggers reactive companion outreach.
- */
 async function applyDailyRhythmIfNeeded(): Promise<{
   applied: boolean
   tier: RhythmTier | null
@@ -46,17 +41,14 @@ async function applyDailyRhythmIfNeeded(): Promise<{
     return { applied: false, tier: null, trustDeltas: [] }
   }
 
-  // Already applied this rhythm day
   if (standing.last_rhythm_date === rhythmDate) {
     return { applied: false, tier, trustDeltas: [] }
   }
 
-  // ── Debt from severe rhythm (once per day) ──────────────────────────────
   let debt = standing.shadow_debt
   if (tier === 'Bad' || tier === 'Broken') debt = debt + 4
   else if (tier === 'Poor' || tier === 'Fragile') debt = debt + 2
 
-  // ── Trust → active party ────────────────────────────────────────────────
   const { party } = await loadPlayerState()
   const supabase = await createClient()
   const trustDeltas: { slug: string; bondXpDelta: number; affinityDelta: number }[] =
@@ -112,20 +104,21 @@ async function applyDailyRhythmIfNeeded(): Promise<{
     last_rhythm_date: rhythmDate,
   })
 
-  // ── Reactive companions (Layer 1) — once when the day first lands ───────
   try {
     await reactCompanionsToLayer0({ force: false })
   } catch (e) {
     console.error('reactive companions after rhythm', e)
   }
 
+  try {
+    await refreshWorldIntegrity()
+  } catch (e) {
+    console.error('world integrity refresh failed', e)
+  }
+
   return { applied: true, tier, trustDeltas }
 }
 
-/**
- * Incremental reward for a single completed task, using Layer 0 multipliers.
- * Does not re-score the whole day — only this task's contribution.
- */
 export async function runLayer0Evaluation(opts?: {
   extraDomains?: string[]
   extraTitles?: string[]
@@ -138,7 +131,6 @@ export async function runLayer0Evaluation(opts?: {
   rhythmTier: RhythmTier | null
 } | null> {
   try {
-    // 1. Daily rhythm / trust / reactive pass (idempotent)
     const daily = await applyDailyRhythmIfNeeded()
 
     const standing = await loadStanding()
@@ -149,7 +141,6 @@ export async function runLayer0Evaluation(opts?: {
       (standing.last_rhythm_tier as RhythmTier | undefined) ||
       'Neutral'
 
-    // 2. Self-neglect from recent window (for multiplier only)
     const supabase = await createClient()
     const since = new Date()
     since.setDate(since.getDate() - 3)
@@ -173,7 +164,6 @@ export async function runLayer0Evaluation(opts?: {
     >
     const neglect = detectSelfNeglect(aggregates)
 
-    // Optional: add self-neglect debt once when severity is non-none and we just applied rhythm
     let debt = standing.shadow_debt
     if (daily.applied && neglect.recommendedDebtWeight > 0) {
       debt = accumulateShadowDebt(
@@ -182,14 +172,12 @@ export async function runLayer0Evaluation(opts?: {
       ).current
     }
 
-    // 3. Truth (light bump when external health present)
     const truth = createDefaultTruth()
     if (health?.success && health?.rhythm) {
       truth.multiplier = 1.05
       truth.source = 'health-export'
     }
 
-    // 4. Multiplier stack from Layer 0
     const stack = buildMultiplierStack({
       rhythmTier: tier,
       truth: truth.multiplier,
@@ -197,14 +185,12 @@ export async function runLayer0Evaluation(opts?: {
       selfNeglect: neglect.selfMultiplier,
     })
 
-    // 5. Incremental award for *this* task only
     const domainCount = Math.max(1, (opts?.extraDomains || []).length)
     const baseXp = 12 * domainCount
     const baseGold = 6 * domainCount
     const xpGain = Math.round(baseXp * stack.combined)
     const goldGain = Math.round(baseGold * stack.combined)
 
-    // Tokens: small incremental; full gate still respects Rhythm
     let tokenGain = 0
     if (stack.combined >= 0.85) {
       const gated = earnConsistencyTokens({
@@ -227,6 +213,13 @@ export async function runLayer0Evaluation(opts?: {
       last_self_neglect: neglect.severity,
     })
 
+    // Keep integrity current even on task-only paths
+    try {
+      await refreshWorldIntegrity()
+    } catch {
+      /* non-fatal */
+    }
+
     return {
       xpGain,
       goldGain,
@@ -241,7 +234,6 @@ export async function runLayer0Evaluation(opts?: {
   }
 }
 
-/** Explicit daily close — call from cron or end-of-day path if desired. */
 export async function runLayer0DailyClose(): Promise<void> {
   await applyDailyRhythmIfNeeded()
 }
