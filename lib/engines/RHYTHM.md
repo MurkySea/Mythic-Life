@@ -1,8 +1,20 @@
 # Rhythm Engine & Health Data Sync
 
-Finalized 2026-07-25.
+Updated 2026-07-27 (live-day policy).
 
-## Policy
+## Core Policy – Live Day
+
+**A Rhythm Day is the local calendar date of the wake-up.**
+
+- The sleep that ends this morning **is today’s sleep**.
+- Everything you do while awake today accumulates under that same day.
+- In the evening the app analyzes **today’s** activity.
+- Only when the *next* overnight sleep ends does the previous day close and become yesterday.
+
+Calendar midnight is irrelevant. The sleep boundary itself is the day boundary.
+This is what makes every day feel live instead of lagged (“I woke up and the app is scoring yesterday”).
+
+## Sync Policy
 
 | Setting | Value |
 |---------|-------|
@@ -14,14 +26,14 @@ Finalized 2026-07-25.
 | Night finalization | Provisional until clean wake **or** hard cutoff (14:00 local) |
 | Ideal sleep window | 6.5 h – 9 h (390–540 min) |
 
-## Core loop (now closed)
+## Core loop
 
 ```
 HealthKit / export
        ↓
 planSync → incremental pull (“from last sync”)
        ↓
-processNewSamples → RhythmDay[]
+processNewSamples → RhythmDay[]   (date = local date of wake)
        ↓
 finalize nights past cutoff
        ↓
@@ -56,9 +68,9 @@ Devoted companions still receive the patience multiplier (bad days only ~45 % da
 - `recordFailedAttempt(prev, at?)`
 - `backoffMinutes(failures)`
 
-**Night construction**
+**Night construction (live-day)**
 - `evaluateNightStatus(samples, date, now)`
-- `processNewSamples(samples, now, getLocalDate)`
+- `processNewSamples(samples, now, getLocalDate)` → keys each night by the local date of its **end** (wake)
 
 **Bridge to relationship engine**
 - `rhythmDayToTier(day)` → `RhythmTier`
@@ -69,7 +81,7 @@ Devoted companions still receive the patience multiplier (bad days only ~45 % da
 1. Background job / hybrid bridge calls `planSync`.
 2. Real HealthKit (or export) query uses the returned window.
 3. Upsert samples by ID.
-4. `processNewSamples` → `RhythmDay[]`.
+4. `processNewSamples` → `RhythmDay[]` (date = wake date).
 5. At the daily roll-up (or immediately after a force-finalize), call `finalizedTiersFromDays`.
 6. For each result feed `updateTrustWithPatience` for every companion.
 7. Only then advance the success cursor.

@@ -4,6 +4,8 @@
  * Ported from mythic_life_data (locked rules 2026-07-23 / 2026-07-25).
  * Session selection fixed 2026-07-26: do not treat a morning re-sleep
  * segment as the night's bedtime.
+ * Live-day date fixed 2026-07-27: date = local date of wakeTime
+ * (America/Chicago) so mornings feel live.
  *
  * Targets:
  *   Bedtime window  22:45 – 23:15  (aim ~11:00 PM)
@@ -183,6 +185,7 @@ export interface ExtractedSleep {
   rem: number | null
   core: number | null
   awake: number | null
+  /** Local YYYY-MM-DD of the wake (live day) */
   date: string | null
 }
 
@@ -221,7 +224,6 @@ function sessionDurationHours(s: RawSession): number {
  */
 function localHourFromIso(iso: string): number {
   try {
-    // Prefer explicit offset / Z; fall back to parsing HH from string
     const d = new Date(iso)
     if (!Number.isNaN(d.getTime())) {
       // Use America/Chicago wall time for Mythic Life
@@ -239,6 +241,26 @@ function localHourFromIso(iso: string): number {
     /* fall through */
   }
   return parseTimeToMinutes(iso) / 60
+}
+
+/**
+ * Local YYYY-MM-DD of an ISO timestamp in America/Chicago.
+ * This is the live-day key (date of the wake).
+ */
+function localDateFromIso(iso: string): string | null {
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return null
+    // en-CA gives YYYY-MM-DD
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/Chicago',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d)
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -291,7 +313,6 @@ export function pickPrimarySleepSession(sessions: RawSession[]): RawSession | nu
   const pool = substantial.length ? substantial : scored
   pool.sort((a, b) => b.hours - a.hours)
 
-  // If the longest is a short morning block and something else is longer at night-ish, already handled
   return pool[0].s
 }
 
@@ -307,6 +328,9 @@ export function extractSleep(metrics: any[]): ExtractedSleep | null {
   const wakeTime = sessionEndIso(session)
   if (!bedtime || !wakeTime) return null
 
+  // Live-day rule: date = local date of the wake
+  const date = localDateFromIso(wakeTime)
+
   return {
     bedtime,
     wakeTime,
@@ -315,7 +339,7 @@ export function extractSleep(metrics: any[]): ExtractedSleep | null {
     rem: session.rem ?? null,
     core: session.core ?? null,
     awake: session.awake ?? null,
-    date: session.date?.slice(0, 10) ?? null,
+    date,
   }
 }
 
@@ -398,6 +422,8 @@ export interface RhythmExportResult {
 /**
  * Process a raw Health Auto Export body into a full Rhythm result.
  * Returns null if no usable sleep session is present.
+ *
+ * date is always the local date of the wake (live day).
  */
 export function processHealthExportPayload(body: any): RhythmExportResult | null {
   const metrics = body?.data?.metrics || []
@@ -413,7 +439,7 @@ export function processHealthExportPayload(body: any): RhythmExportResult | null
 
   return {
     success: true,
-    date: sleep.date,
+    date: sleep.date, // already wake-date from extractSleep
     sleep: {
       bedtime: sleep.bedtime,
       wakeTime: sleep.wakeTime,

@@ -1,7 +1,9 @@
 /**
  * Mythic Life – Health Data Sync + Rhythm Day → Tier bridge
  *
- * Policy (finalized 2026-07-25):
+ * Policy (live-day update 2026-07-27):
+ * - A Rhythm Day is the local calendar date of the *wake-up*.
+ *   The sleep that ends this morning is *today’s* sleep.
  * - Cadence: every 12 hours
  * - Query model: incremental “from last sync”
  * - Bootstrap: last 7 days when no prior successful sync exists
@@ -59,7 +61,7 @@ export interface HealthSyncResult {
 export type DayStatus = 'provisional' | 'finalized' | 'missing' | 'manual'
 
 export interface RhythmDay {
-  /** Local calendar date YYYY-MM-DD */
+  /** Local calendar date YYYY-MM-DD of the *wake-up* (live day) */
   date: string
   status: DayStatus
   bedtime?: string
@@ -199,7 +201,7 @@ export function planSync(
   }
 }
 
-// ─── Night status / RhythmDay construction ──────────────────────────────────
+// ─── Night status / RhythmDay construction (live-day) ───────────────────────
 
 /**
  * Decide whether a night can be finalized or must stay provisional.
@@ -224,16 +226,18 @@ export function evaluateNightStatus(
 }
 
 /**
- * Group samples by local calendar date (YYYY-MM-DD).
- * Caller supplies the timezone-aware date extractor.
+ * Group samples into candidate nights keyed by the local date of the *end*
+ * (wake) of the sample. This is the live-day rule:
+ *   sleep that ends Tuesday morning belongs to Tuesday.
  */
-export function groupSamplesByLocalDate(
+export function groupSamplesByWakeDate(
   samples: SleepSample[],
   getLocalDate: (iso: string) => string
 ): Map<string, SleepSample[]> {
   const map = new Map<string, SleepSample[]>()
   for (const s of samples) {
-    const dateKey = getLocalDate(s.startDate)
+    // Key on endDate so the night is attributed to the day you wake into
+    const dateKey = getLocalDate(s.endDate)
     const list = map.get(dateKey) ?? []
     list.push(s)
     map.set(dateKey, list)
@@ -242,7 +246,7 @@ export function groupSamplesByLocalDate(
 }
 
 /**
- * Build a RhythmDay from samples for one local calendar date.
+ * Build a RhythmDay from samples that belong to one wake-date.
  */
 export function buildRhythmDay(
   localDate: string,
@@ -274,7 +278,7 @@ export function buildRhythmDay(
   }
 
   return {
-    date: localDate,
+    date: localDate, // wake date = live day
     status,
     bedtime: first?.startDate,
     wakeTime: last?.endDate,
@@ -285,6 +289,9 @@ export function buildRhythmDay(
 /**
  * Main entry after a successful “from last sync” pull:
  * turn new samples into RhythmDay updates.
+ *
+ * Each resulting RhythmDay.date is the local calendar date of the wake-up,
+ * so the night that just ended is attributed to *today*.
  */
 export function processNewSamples(
   samples: SleepSample[],
@@ -292,10 +299,10 @@ export function processNewSamples(
   getLocalDate: (iso: string) => string,
   config: RhythmScoreConfig = DEFAULT_RHYTHM_CONFIG
 ): RhythmDay[] {
-  const byDate = groupSamplesByLocalDate(samples, getLocalDate)
+  const byWakeDate = groupSamplesByWakeDate(samples, getLocalDate)
   const days: RhythmDay[] = []
 
-  for (const [date, daySamples] of byDate) {
+  for (const [date, daySamples] of byWakeDate) {
     days.push(buildRhythmDay(date, daySamples, now, config))
   }
 
