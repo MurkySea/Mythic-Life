@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { PILLAR_LABELS } from '@/lib/engines/goals'
+import { MythicIcon } from '@/components/MythicIcons'
 import { createGoalAction } from '../actions'
+import styles from './new-goal.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,10 +17,10 @@ const HORIZONS = [
 ]
 
 const ERR: Record<string, string> = {
-  title: 'Give the goal a clear title.',
-  pillar: 'Pick a pillar.',
-  horizon: 'Pick a horizon.',
-  save: 'Could not save — check the goals table exists in Supabase.',
+  title: 'Give the campaign a clear title.',
+  pillar: 'Choose the pillar this campaign serves.',
+  horizon: 'Choose the horizon you intend to hold.',
+  save: 'The campaign could not be recorded. Check that the goals table exists in Supabase.',
 }
 
 export default async function NewGoalPage({
@@ -30,125 +32,115 @@ export default async function NewGoalPage({
   const err = params.err ? ERR[params.err] || 'Something went wrong.' : null
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/goals"
-          className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
-        >
-          ←
-        </Link>
+    <main className={styles.page}>
+      <div className={styles.texture} aria-hidden />
+
+      <header className={styles.header}>
+        <Link href="/goals" className={styles.backButton} aria-label="Back to Campaign Atlas">‹</Link>
         <div>
-          <p className="text-zinc-500 text-xs tracking-wide uppercase">Direction</p>
-          <h1 className="text-xl font-medium text-white tracking-tight">New goal</h1>
+          <p className={styles.eyebrow}>Strategic direction</p>
+          <h1 className={styles.title}>Plot New Campaign</h1>
         </div>
-      </div>
-
-      {err && (
-        <div className="mb-4 rounded-2xl border border-rose-800/50 bg-rose-950/30 px-4 py-3 text-sm text-rose-200">
-          {err}
+        <div className={styles.headerSeal} aria-hidden>
+          <MythicIcon name="plan" size={23} />
         </div>
-      )}
+      </header>
 
-      <form action={createGoalAction} className="space-y-5">
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
-            Title
-          </label>
-          <input
-            name="title"
-            required
-            placeholder="e.g. 12 client review calls this month"
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600"
-          />
-        </div>
+      {err && <div className={styles.error}>{err}</div>}
 
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
-            Pillar
-          </label>
-          <select
-            name="pillar"
-            defaultValue="stewardship"
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:outline-none focus:border-violet-600"
-          >
-            {PILLARS.map(([id, label]) => (
-              <option key={id} value={id}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
+      <section className={styles.manifesto}>
+        <p className={styles.manifestoTitle}>Name the direction before chasing motion</p>
+        <p className={styles.manifestoBody}>
+          A campaign should be important enough to shape decisions and concrete enough to advance through visible work.
+        </p>
+      </section>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
-              Horizon
-            </label>
+      <form action={createGoalAction} className={styles.form}>
+        <div className={styles.fields}>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="goal-title">Campaign title</label>
+            <input
+              id="goal-title"
+              name="title"
+              required
+              placeholder="e.g. Complete 12 client review calls this month"
+              className={styles.input}
+            />
+          </div>
+
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="goal-pillar">Pillar served</label>
             <select
-              name="horizon"
-              defaultValue="weekly"
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:outline-none focus:border-violet-600"
+              id="goal-pillar"
+              name="pillar"
+              defaultValue="stewardship"
+              className={styles.select}
             >
-              {HORIZONS.map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.label}
-                </option>
+              {PILLARS.map(([id, label]) => (
+                <option key={id} value={id}>{label}</option>
               ))}
             </select>
           </div>
-          <div>
-            <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
-              Weight (1–5)
-            </label>
-            <select
-              name="weight"
-              defaultValue="3"
-              className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:outline-none focus:border-violet-600"
-            >
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+
+          <div className={styles.fieldGroup}>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="goal-horizon">Horizon</label>
+              <select
+                id="goal-horizon"
+                name="horizon"
+                defaultValue="weekly"
+                className={styles.select}
+              >
+                {HORIZONS.map((horizon) => (
+                  <option key={horizon.id} value={horizon.id}>{horizon.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="goal-weight">Campaign weight</label>
+              <select
+                id="goal-weight"
+                name="weight"
+                defaultValue="3"
+                className={styles.select}
+              >
+                {[1, 2, 3, 4, 5].map((weight) => (
+                  <option key={weight} value={weight}>{weight} of 5</option>
+                ))}
+              </select>
+            </div>
           </div>
-        </div>
 
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
-            Target count
-          </label>
-          <input
-            name="target"
-            type="number"
-            min={1}
-            defaultValue={4}
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white focus:outline-none focus:border-violet-600"
-          />
-          <p className="text-[11px] text-zinc-600 mt-1.5">
-            How many units until complete (calls, weeks, nights, sessions…).
-          </p>
-        </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="goal-target">Territory required</label>
+            <input
+              id="goal-target"
+              name="target"
+              type="number"
+              min={1}
+              defaultValue={4}
+              className={styles.input}
+            />
+            <p className={styles.help}>The count that marks victory: calls, weeks, nights, sessions, milestones, or another real unit.</p>
+          </div>
 
-        <div>
-          <label className="block text-[11px] uppercase tracking-wider text-zinc-500 mb-1.5">
-            Notes <span className="normal-case text-zinc-600">(optional)</span>
-          </label>
-          <textarea
-            name="notes"
-            rows={3}
-            placeholder="Why this matters…"
-            className="w-full rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3 text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600 resize-none"
-          />
-        </div>
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor="goal-notes">Campaign doctrine · optional</label>
+            <textarea
+              id="goal-notes"
+              name="notes"
+              rows={3}
+              placeholder="Why this matters, what winning changes, and what must not be sacrificed…"
+              className={styles.textarea}
+            />
+          </div>
 
-        <button
-          type="submit"
-          className="w-full rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-medium py-3.5 transition active:scale-[0.98]"
-        >
-          Set goal
-        </button>
+          <button type="submit" className={styles.submit}>
+            <MythicIcon name="map" size={17} />
+            <span>Mark the atlas</span>
+          </button>
+        </div>
       </form>
     </main>
   )
