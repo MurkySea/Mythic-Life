@@ -76,7 +76,65 @@ const TAG_PATTERNS: { tag: VisualPrefTag; test: RegExp; visualLine: string }[] =
   },
 ]
 
-/** Date idea ids that match a preference tag (soft boost only). */
+/** Spoken reason she picked this kind of night (only when memory matched). */
+const TAG_DATE_LINES: Record<VisualPrefTag, string[]> = {
+  water: [
+    'You talked about the water like it still calls you. I picked this on purpose.',
+    'I remembered the way you light up near the water. So I brought us here.',
+    'Shore and open air — because I was listening when you talked about fishing.',
+  ],
+  music: [
+    'You carry music quieter than most people notice. I wanted a night that holds that.',
+    'I remembered the piano — the way you talk about it. This felt right.',
+    'Sound and stillness together. I chose it because of you.',
+  ],
+  faith: [
+    'You treat faith like something lived, not performed. I wanted a night that matches that quiet.',
+    'I remembered what steadies you. No spectacle — just room to breathe.',
+    'Something still and honest. Because that is what you reach for when it matters.',
+  ],
+  books: [
+    'You light up around ideas more than most people. I picked a place that respects that.',
+    'Books, quiet corners — I was paying attention when you talked about learning.',
+    'I wanted us somewhere your mind could rest without going empty.',
+  ],
+  kitchen: [
+    'You soften in ordinary rooms more than fancy ones. So I chose something simple and shared.',
+    'Food, hands busy, no performance. I thought that might feel like home for you.',
+    'I remembered you talking about meals that are just… good. This is that.',
+  ],
+  outdoors: [
+    'You come alive under open sky. I was not going to ignore that.',
+    'Land, air, no walls for a while — because I know what that does for you.',
+    'I picked outside on purpose. You have said enough for me to hear it.',
+  ],
+  rain: [
+    'Rain makes you stay. I wanted permission for both of us to not rush.',
+    'I remembered how the weather slows you down in a good way. So I let it.',
+    'Glass, water, time. I chose a night that does not hurry you.',
+  ],
+  home: [
+    'Not a show. Just us, somewhere that feels kept. I thought you might need that.',
+    'I picked home-shaped quiet on purpose. You carry enough of the outside world.',
+    'Something private and ordinary. Because that is where you actually rest.',
+  ],
+  stars: [
+    'You look up more than you admit. I saved a clear night for that.',
+    'Stars first, words second. I remembered you noticing the sky.',
+    'I wanted the horizon with you — the kind you actually mean when you talk about it.',
+  ],
+  fire: [
+    'Fire and no schedule. I thought that might match how you actually recover.',
+    'Warmth without a crowd. I chose it because of what you have said about slowing down.',
+    'Something grounded. Sparks, quiet, you — that was the whole plan.',
+  ],
+  quiet: [
+    'You do not need more noise. I picked a night that stays soft on purpose.',
+    'Quiet is not empty with you. I wanted that kind of space.',
+    'I listened. So this is slower than a performance date would be.',
+  ],
+}
+
 export const DATE_IDS_FOR_TAG: Record<VisualPrefTag, string[]> = {
   water: ['pier_sunset', 'boat_harbor', 'hot_springs'],
   music: ['jazz_booth', 'concert_hall'],
@@ -96,7 +154,6 @@ function parseMemoryText(raw: string): string {
   return (match ? match[3] : raw).trim()
 }
 
-/** Pure: memories → unique tags + short visual lines (max 2). */
 export function extractVisualHints(memoryTexts: string[]): {
   tags: VisualPrefTag[]
   lines: string[]
@@ -123,7 +180,6 @@ export function extractVisualHints(memoryTexts: string[]): {
   return { tags, lines }
 }
 
-/** Load recent companion memories and extract visual preference hints. */
 export async function loadVisualMemoryHints(companionSlug: string): Promise<{
   tags: VisualPrefTag[]
   lines: string[]
@@ -145,7 +201,6 @@ export async function loadVisualMemoryHints(companionSlug: string): Promise<{
   }
 }
 
-/** Soft weight multiplier for a date idea given preference tags. */
 export function datePreferenceBoost(
   ideaId: string,
   tags: VisualPrefTag[]
@@ -157,4 +212,38 @@ export function datePreferenceBoost(
     if (ids.includes(ideaId)) boost += 0.85
   }
   return Math.min(boost, 3.2)
+}
+
+/** Tags that actually match this date idea. */
+export function matchingTagsForDate(
+  ideaId: string,
+  tags: VisualPrefTag[]
+): VisualPrefTag[] {
+  return tags.filter((t) => (DATE_IDS_FOR_TAG[t] || []).includes(ideaId))
+}
+
+/**
+ * Companion spoken line for a date.
+ * If memory tags match the chosen idea → she names why she picked it.
+ * Otherwise → fallback static line from the date idea.
+ */
+export function dateLineForMemory(
+  ideaId: string,
+  fallbackLine: string,
+  tags: VisualPrefTag[]
+): { line: string; fromMemory: boolean } {
+  const matched = matchingTagsForDate(ideaId, tags)
+  if (matched.length === 0) {
+    return { line: fallbackLine, fromMemory: false }
+  }
+
+  // Prefer strongest tag order as passed (already ranked by extractVisualHints)
+  const tag = matched[0]
+  const pool = TAG_DATE_LINES[tag] || []
+  if (pool.length === 0) {
+    return { line: fallbackLine, fromMemory: false }
+  }
+
+  const line = pool[Math.floor(Math.random() * pool.length)]
+  return { line, fromMemory: true }
 }
