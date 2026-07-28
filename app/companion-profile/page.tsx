@@ -17,6 +17,8 @@ import TakeOnDateButton from '@/components/TakeOnDateButton'
 import DualAxisStats, { DualAxisStageLine } from '@/components/DualAxisStats'
 import { persistGeneratedImage } from '@/lib/persistImage'
 import { insertGalleryImage, isAffinitySceneRow } from '@/lib/galleryKind'
+import { loadVisualMemoryHints } from '@/lib/memory-visual'
+import { recordSceneMemory } from '@/lib/memory'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,7 +55,17 @@ async function generateCompanionImage(formData: FormData) {
   }
 
   const sceneIndex = used
-  const prompt = buildScenePrompt(affinity, def, sceneIndex)
+  let prompt = buildScenePrompt(affinity, def, sceneIndex)
+
+  // Soft history flavor from what she has learned about him
+  try {
+    const visual = await loadVisualMemoryHints(slug)
+    if (visual.lines.length > 0) {
+      prompt += `. Shared history flavor (subtle, do not override the scene): ${visual.lines.join('; ')}`
+    }
+  } catch {
+    /* non-fatal */
+  }
 
   try {
     const response = await fetch('https://api.x.ai/v1/images/generations', {
@@ -95,6 +107,12 @@ async function generateCompanionImage(formData: FormData) {
       prompt_used: prompt,
       kind: 'scene',
     })
+
+    try {
+      await recordSceneMemory(slug, sceneIndex + 1)
+    } catch {
+      /* non-fatal */
+    }
 
     revalidatePath('/companion-profile')
     revalidatePath('/companions')
