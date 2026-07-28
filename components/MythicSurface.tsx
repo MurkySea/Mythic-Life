@@ -6,42 +6,18 @@ function join(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(' ')
 }
 
-export function MythicPage({
-  children,
-  className = '',
-}: {
-  children: ReactNode
-  className?: string
-}) {
-  return (
-    <main className={join(styles.page, className)}>
-      <div className={styles.atmosphere} aria-hidden />
-      {children}
-    </main>
-  )
+export function MythicPage({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <main className={join(styles.page, className)}><div className={styles.atmosphere} aria-hidden />{children}</main>
 }
 
 export function MythicPageHeader({
-  eyebrow,
-  title,
-  subtitle,
-  backHref = '/',
-  backLabel = 'Home',
-  aside,
+  eyebrow, title, subtitle, backHref = '/', backLabel = 'Home', aside,
 }: {
-  eyebrow: string
-  title: string
-  subtitle?: string
-  backHref?: string
-  backLabel?: string
-  aside?: ReactNode
+  eyebrow: string; title: string; subtitle?: string; backHref?: string; backLabel?: string; aside?: ReactNode
 }) {
   return (
     <header className={styles.header}>
-      <Link href={backHref} className={styles.backLink}>
-        <span aria-hidden>‹</span>
-        {backLabel}
-      </Link>
+      <Link href={backHref} className={styles.backLink}><span aria-hidden>‹</span>{backLabel}</Link>
       <div className={styles.headerRow}>
         <div className={styles.headerCopy}>
           <p className={styles.eyebrow}>{eyebrow}</p>
@@ -54,46 +30,17 @@ export function MythicPageHeader({
   )
 }
 
-export function MythicPanel({
-  children,
-  tone = 'neutral',
-  emphasis = false,
-  className = '',
-}: {
-  children: ReactNode
-  tone?: 'neutral' | 'gold' | 'blue' | 'violet'
-  emphasis?: boolean
-  className?: string
+export function MythicPanel({ children, tone = 'neutral', emphasis = false, className = '' }: {
+  children: ReactNode; tone?: 'neutral' | 'gold' | 'blue' | 'violet'; emphasis?: boolean; className?: string
 }) {
-  return (
-    <div
-      className={join(
-        styles.panel,
-        tone !== 'neutral' && styles[tone],
-        emphasis && styles.emphasis,
-        className
-      )}
-    >
-      <div className={styles.panelContent}>{children}</div>
-    </div>
-  )
+  return <div className={join(styles.panel, tone !== 'neutral' && styles[tone], emphasis && styles.emphasis, className)}><div className={styles.panelContent}>{children}</div></div>
 }
 
-export function MythicSectionHeader({
-  title,
-  hint,
-  sigil = '✦',
-}: {
-  title: string
-  hint?: string
-  sigil?: string
-}) {
+export function MythicSectionHeader({ title, hint, sigil }: { title: string; hint?: string; sigil?: ReactNode }) {
   return (
     <div className={styles.sectionHeader}>
       <div className={styles.sectionTitleWrap}>
-        <span className={styles.sectionSigil} aria-hidden>
-          <span>{sigil}</span>
-        </span>
+        <span className={styles.sectionSigil} aria-hidden><span>{sigil || '✦'}</span></span>
         <h2 className={styles.sectionTitle}>{title}</h2>
       </div>
       {hint && <span className={styles.sectionHint}>{hint}</span>}
@@ -101,36 +48,16 @@ export function MythicSectionHeader({
   )
 }
 
-export function MythicEmptyState({
-  title,
-  body,
-  mark = '◇',
-}: {
-  title: string
-  body?: string
-  mark?: string
-}) {
+export function MythicEmptyState({ title, body, mark }: { title: string; body?: string; mark?: ReactNode }) {
   return (
     <div className={styles.empty}>
-      <div className={styles.emptyMark} aria-hidden>
-        {mark}
-      </div>
+      <div className={styles.emptyMark} aria-hidden>{mark || '◇'}</div>
       <p className={styles.emptyTitle}>{title}</p>
       {body && <p className={styles.emptyBody}>{body}</p>}
     </div>
   )
 }
 
-export function MythicSeal({
-  children,
-  label,
-}: {
-  children: ReactNode
-  label?: string
-}) {
-  return (
-    <div className={styles.seal} aria-label={label}>
-      {children}
-    </div>
-  )
+export function MythicSeal({ children, label }: { children: ReactNode; label?: string }) {
+  return <div className={styles.seal} aria-label={label}>{children}</div>
 }
