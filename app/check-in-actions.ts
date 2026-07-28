@@ -4,13 +4,69 @@ import { createClient } from '@/utils/supabase/server'
 import { getCompanionDef } from '@/lib/companions'
 import { generateCompanionResponse } from './actions'
 import { sendPushToAll } from '@/lib/push'
+import {
+  buildCampfireFollowUpSeed,
+  loadPendingCampfireFollowUp,
+  markCampfireFollowUpSent,
+} from '@/lib/campfire-director'
+
+async function pushCompanionMessage(opts: {
+  slug: string
+  name: string
+  emoji: string
+  message: string | null
+}) {
+  const preview =
+    typeof opts.message === 'string' && opts.message.trim()
+      ? opts.message.trim().slice(0, 120)
+      : 'She reached out — open Messages.'
+
+  try {
+    await sendPushToAll({
+      title: `${opts.emoji} ${opts.name}`,
+      body: preview,
+      url: `/messages?c=${opts.slug}`,
+      tag: `companion-${opts.slug}`,
+    })
+  } catch (error) {
+    console.error('push after check-in', error)
+  }
+}
 
 /**
- * Occasional companion-initiated message when Mark opens the app.
- * ~18% chance; skips companions who already spoke in ~16h.
- * Writes to Messages and attempts Web Push if subscriptions exist.
+ * Companion-initiated contact when Mark opens the app.
+ * A pending Campfire follow-up gets first priority the next morning.
+ * Otherwise the existing occasional in-character check-in remains.
  */
 export async function maybeCompanionCheckIn(): Promise<{ sent: boolean; slug?: string }> {
+  const pending = await loadPendingCampfireFollowUp()
+
+  if (pending) {
+    const slug = pending.companionSlug || 'seraphine'
+    const def = getCompanionDef(slug)
+    const name = def?.name || 'Companion'
+    const emoji = def?.emoji || '✦'
+
+    try {
+      const message = await generateCompanionResponse(
+        buildCampfireFollowUpSeed(pending),
+        'campfire-follow-up',
+        {
+          force: true,
+          isConversation: true,
+          companionSlug: slug,
+        }
+      )
+
+      await markCampfireFollowUpSent(pending.id, slug)
+      await pushCompanionMessage({ slug, name, emoji, message })
+      return { sent: true, slug }
+    } catch (error) {
+      console.error('campfire follow-up generate failed', error)
+      return { sent: false }
+    }
+  }
+
   if (Math.random() > 0.18) return { sent: false }
 
   const supabase = await createClient()
@@ -19,7 +75,7 @@ export async function maybeCompanionCheckIn(): Promise<{ sent: boolean; slug?: s
     .select('slug, name, is_unlocked, affinity_score')
     .or('is_unlocked.eq.true,is_unlocked.is.null')
 
-  const party = (unlocked || []).filter((c) => c.is_unlocked !== false)
+  const party = (unlocked || []).filter((companion) => companion.is_unlocked !== false)
   if (party.length === 0) return { sent: false }
 
   const cutoff = new Date(Date.now() - 16 * 60 * 60 * 1000).toISOString()
@@ -30,16 +86,16 @@ export async function maybeCompanionCheckIn(): Promise<{ sent: boolean; slug?: s
     .gte('created_at', cutoff)
     .limit(40)
 
-  const recentSlugs = new Set((recent || []).map((m) => m.companion_slug || 'seraphine'))
+  const recentSlugs = new Set((recent || []).map((message) => message.companion_slug || 'seraphine'))
 
-  const candidates = party.filter((c) => {
-    const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
-    return s && !recentSlugs.has(s)
+  const candidates = party.filter((companion) => {
+    const slug = companion.slug || (companion.name === 'Seraphine' ? 'seraphine' : '')
+    return slug && !recentSlugs.has(slug)
   })
 
   const pool = candidates.length > 0 ? candidates : party
   const pick = pool[Math.floor(Math.random() * pool.length)]
-  const slug = pick.slug || (pick.name === 'Seraphine' ? 'seraphine' : 'seraphine')
+  const slug = pick.slug || 'seraphine'
   const def = getCompanionDef(slug)
   const name = def?.name || pick.name || 'Companion'
   const emoji = def?.emoji || '✦'
@@ -58,25 +114,10 @@ export async function maybeCompanionCheckIn(): Promise<{ sent: boolean; slug?: s
       companionSlug: slug,
     })
 
-    const preview =
-      typeof message === 'string' && message.trim()
-        ? message.trim().slice(0, 120)
-        : 'She reached out — open Messages.'
-
-    try {
-      await sendPushToAll({
-        title: `${emoji} ${name}`,
-        body: preview,
-        url: `/messages?c=${slug}`,
-        tag: `companion-${slug}`,
-      })
-    } catch (e) {
-      console.error('push after check-in', e)
-    }
-
+    await pushCompanionMessage({ slug, name, emoji, message })
     return { sent: true, slug }
-  } catch (e) {
-    console.error('check-in generate failed', e)
+  } catch (error) {
+    console.error('check-in generate failed', error)
     return { sent: false }
   }
 }
