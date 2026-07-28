@@ -14,6 +14,7 @@ import ChatComposer from '@/components/ChatComposer'
 import CompanionAvatar from '@/components/CompanionAvatar'
 import MarkReadOnOpen from '@/components/MarkReadOnOpen'
 import { respondWithChoice } from '@/app/response-actions'
+import { maybeGenerateCompanionImageGift } from '@/lib/companion-image-gifts'
 
 export const dynamic = 'force-dynamic'
 
@@ -75,6 +76,38 @@ async function sendMessage(formData: FormData) {
         const def = getCompanionDef(companionSlug)
         const name = def?.name || 'Companion'
         const emoji = def?.emoji || '✦'
+
+        try {
+          const { data: companion } = await supabase
+            .from('companion')
+            .select('name, affinity_score')
+            .or(`slug.eq.${companionSlug},name.eq.${def?.name || 'Seraphine'}`)
+            .maybeSingle()
+
+          const gift = await maybeGenerateCompanionImageGift({
+            supabase,
+            companionSlug,
+            characterName: companion?.name || name,
+            affinity: Number(companion?.affinity_score) || 1,
+            userText: text,
+            companionReply: reply,
+            def,
+          })
+
+          if (gift) {
+            await supabase.from('messages').insert({
+              role: 'companion',
+              content: `${gift.caption}\n[image:${gift.imageUrl}]`,
+              companion_slug: companionSlug,
+            })
+            revalidatePath('/messages')
+            revalidatePath('/gallery')
+            revalidatePath('/companion-profile')
+          }
+        } catch (imageError) {
+          console.error('companion image gift pipeline failed', imageError)
+        }
+
         const messageCreatedAt = new Date().toISOString()
         // Push only if still unread ~5s later (user left the thread)
         await pushIfStillUnread({
