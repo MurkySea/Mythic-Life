@@ -1,0 +1,362 @@
+.profileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.profileCard {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 1.05rem;
+  text-decoration: none;
+  transition: transform 170ms ease, box-shadow 170ms ease;
+}
+
+.profileCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.38);
+}
+
+.rosterLink,
+.headerAction {
+  color: #b99bdc;
+  font-family: var(--font-display);
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.contentStack {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.heroWrap {
+  position: relative;
+}
+
+.heroActions {
+  position: relative;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.55rem;
+  margin: -0.65rem 0.75rem 0;
+}
+
+.actionPrimary,
+.actionSecondary,
+.claimButton {
+  display: inline-flex;
+  min-height: 2.65rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(212, 168, 83, 0.32);
+  border-radius: 0.82rem;
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, background 160ms ease, color 160ms ease;
+}
+
+.actionPrimary {
+  border-color: rgba(143, 116, 213, 0.54);
+  background: linear-gradient(180deg, rgba(104, 76, 163, 0.82), rgba(55, 38, 89, 0.92));
+  color: #eee7f9;
+  box-shadow: 0 10px 22px rgba(54, 33, 94, 0.28);
+}
+
+.actionSecondary {
+  background: rgba(6, 9, 14, 0.94);
+  color: #d0ad63;
+}
+
+.actionPrimary:hover,
+.actionSecondary:hover,
+.claimButton:hover {
+  border-color: rgba(225, 184, 91, 0.66);
+  color: #f1d78f;
+}
+
+.presenceStatement {
+  margin: 0.8rem 0.4rem 0;
+  color: #898f9c;
+  font-size: 0.65rem;
+  font-style: italic;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.relationshipIntro {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.8rem;
+}
+
+.panelKicker {
+  color: #c69c4c;
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.panelTitle {
+  margin-top: 0.25rem;
+  color: #f0e8da;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.stageSeal {
+  display: grid;
+  min-width: 4rem;
+  min-height: 4rem;
+  place-items: center;
+  border: 1px solid rgba(176, 139, 217, 0.42);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 30%, rgba(152, 117, 208, 0.19), transparent 45%),
+    rgba(6, 9, 14, 0.92);
+  color: #cbb1e8;
+  font-family: var(--font-display);
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: 0 0 18px rgba(137, 95, 190, 0.1);
+}
+
+.storyGrid,
+.experienceGrid {
+  display: grid;
+  gap: 0.72rem;
+}
+
+.storyGrid {
+  grid-template-columns: 1.15fr 0.85fr;
+}
+
+.storyBlock,
+.experienceCard {
+  min-width: 0;
+}
+
+.storyText,
+.worldText,
+.panelCopy,
+.emptyCopy {
+  color: #a5aab4;
+  font-size: 0.7rem;
+  line-height: 1.62;
+}
+
+.worldText {
+  margin-top: 0.52rem;
+  color: #c3ab73;
+  font-family: var(--font-display);
+  font-size: 0.63rem;
+  line-height: 1.55;
+}
+
+.worldLabel {
+  color: #676e7a;
+  font-size: 0.48rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.38rem;
+  margin-top: 0.72rem;
+}
+
+.chip {
+  padding: 0.3rem 0.52rem;
+  border: 1px solid rgba(126, 134, 149, 0.2);
+  border-radius: 999px;
+  background: rgba(6, 10, 15, 0.64);
+  color: #858c98;
+  font-size: 0.5rem;
+}
+
+.experienceGrid {
+  grid-template-columns: 1fr 1fr;
+}
+
+.experienceCard {
+  position: relative;
+  overflow: hidden;
+  padding: 1rem;
+  border: 1px solid rgba(116, 124, 139, 0.2);
+  border-radius: 1.05rem;
+  background:
+    radial-gradient(circle at 88% 10%, rgba(126, 90, 179, 0.12), transparent 38%),
+    linear-gradient(160deg, rgba(18, 22, 30, 0.98), rgba(6, 9, 14, 0.98));
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.34);
+}
+
+.experienceCardGold {
+  background:
+    radial-gradient(circle at 88% 10%, rgba(212, 168, 83, 0.13), transparent 38%),
+    linear-gradient(160deg, rgba(22, 20, 18, 0.98), rgba(7, 8, 11, 0.98));
+}
+
+.experienceValue {
+  margin-top: 0.55rem;
+  color: #f0e8dc;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+}
+
+.experienceValue span {
+  color: #686f7c;
+  font-family: var(--font-body);
+  font-size: 0.56rem;
+}
+
+.panelCopy {
+  margin-top: 0.35rem;
+  font-size: 0.58rem;
+  line-height: 1.48;
+}
+
+.milestones {
+  display: flex;
+  gap: 0.24rem;
+  margin-top: 0.72rem;
+}
+
+.milestone {
+  height: 0.25rem;
+  flex: 1;
+  border-radius: 999px;
+  background: rgba(95, 102, 116, 0.22);
+}
+
+.milestoneClaimed {
+  background: linear-gradient(90deg, #8d63cc, #c397e8);
+  box-shadow: 0 0 8px rgba(151, 104, 207, 0.22);
+}
+
+.milestoneAvailable {
+  background: rgba(143, 99, 204, 0.38);
+}
+
+.claimButton {
+  width: 100%;
+  margin-top: 0.82rem;
+  background: rgba(82, 53, 128, 0.44);
+  color: #d8c8ec;
+}
+
+.dateButtonWrap {
+  margin-top: 0.7rem;
+}
+
+.galleryLink {
+  display: block;
+  margin-top: 0.68rem;
+  color: #b495df;
+  font-family: var(--font-display);
+  font-size: 0.53rem;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.memoryList {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.memoryCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.9rem;
+  border: 1px solid rgba(115, 124, 139, 0.17);
+  border-radius: 0.95rem;
+  background:
+    linear-gradient(135deg, rgba(19, 23, 31, 0.9), rgba(7, 10, 15, 0.94));
+}
+
+.memoryMark {
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  place-items: center;
+  border: 1px solid rgba(181, 142, 217, 0.3);
+  border-radius: 50%;
+  color: #b79ad7;
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+}
+
+.memoryText {
+  color: #c3c5cb;
+  font-size: 0.68rem;
+  line-height: 1.58;
+}
+
+.notice {
+  margin-bottom: 0.75rem;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid rgba(116, 124, 139, 0.25);
+  border-radius: 0.9rem;
+  background: rgba(8, 11, 16, 0.88);
+  color: #b5bac4;
+  font-size: 0.65rem;
+  line-height: 1.45;
+}
+
+.noticeSuccess {
+  border-color: rgba(82, 178, 126, 0.34);
+  color: #a9ddbd;
+}
+
+.noticeGold {
+  border-color: rgba(212, 168, 83, 0.38);
+  color: #e1c582;
+}
+
+.noticeDanger {
+  border-color: rgba(200, 91, 114, 0.36);
+  color: #e1a4b0;
+}
+
+.emptyCopy {
+  padding: 1.25rem 0.5rem;
+  color: #6e7582;
+  text-align: center;
+}
+
+@media (max-width: 390px) {
+  .storyGrid,
+  .experienceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .profileGrid {
+    gap: 0.55rem;
+  }
+
+  .heroActions {
+    margin-inline: 0.5rem;
+  }
+}
