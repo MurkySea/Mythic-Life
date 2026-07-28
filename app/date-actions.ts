@@ -9,17 +9,11 @@ import { DATE_GOLD_COST, dateRewards } from '@/lib/engines/loot'
 import { pickDateIdea, buildDatePromptFromIdea } from '@/lib/engines/dates'
 import { persistGeneratedImage } from '@/lib/persistImage'
 import { insertGalleryImage } from '@/lib/galleryKind'
+import { recordDateMemory } from '@/lib/memory'
 
 /**
  * Spend a date coin (preferred) or gold to take a companion on a date.
- * Picks one of ~25 date ideas, with adult probability scaled by intimacy.
- * Image is persisted to Storage.
  * Does NOT consume affinity scene slots.
- *
- * Intimacy scaling (2026-07-25):
- * Uses affinity_score as a temporary proxy for the dual-axis Intimacy value
- * until Trust + Intimacy are fully persisted per companion.
- * Higher intimacy → higher chance of adult / exclusive date ideas.
  */
 export async function takeCompanionOnDate(formData: FormData) {
   const slug = (formData.get('slug') as string) || 'seraphine'
@@ -49,7 +43,6 @@ export async function takeCompanionOnDate(formData: FormData) {
     'elegant adult woman, distinctive feminine features, graceful figure'
   const characterName = companion.name || def?.name || 'Companion'
 
-  // affinity_score currently ranges roughly 1–100+; clamp to 0–100 for the curve
   const intimacyProxy = Math.max(0, Math.min(100, companion.affinity_score || 30))
 
   const idea = pickDateIdea(intimacyProxy)
@@ -123,6 +116,12 @@ export async function takeCompanionOnDate(formData: FormData) {
     prompt_used: `${idea.title} — ${prompt}`,
     kind: 'date',
   })
+
+  try {
+    await recordDateMemory(slug, idea.title)
+  } catch (e) {
+    console.error('date memory failed', e)
+  }
 
   const content = `${idea.line}\\n\\n— ${idea.title} —\\n\\n[image:${imageUrl}]`
 
