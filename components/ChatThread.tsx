@@ -1,40 +1,52 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { MythicIcon } from '@/components/MythicIcons'
+import { companionTone } from '@/lib/companion-tone'
+import styles from './chat-thread.module.css'
 
 type Msg = {
   id: string
   role: string
   content: string
+  created_at?: string | null
+}
+
+function formatMessageTime(iso: string | null | undefined): string {
+  if (!iso) return ''
+  return new Intl.DateTimeFormat('en-US', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'America/Chicago',
+  }).format(new Date(iso))
 }
 
 function MessageBody({ content, isUser }: { content: string; isUser: boolean }) {
-  // Support [image:url] markers from proactive share_moment messages
   const parts = content.split(/(\[image:[^\]]+\])/g)
 
   return (
-    <div className="space-y-2">
+    <div className={styles.body}>
       {parts.map((part, i) => {
         const match = part.match(/^\[image:(.+)\]$/)
         if (match) {
           const src = match[1]
           return (
-            <div key={i} className="mt-1">
+            <figure key={i} className={styles.memoryFrame}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={src}
                 alt="Shared moment"
-                className="rounded-xl max-w-full max-h-72 object-cover border border-zinc-700/60"
+                className={styles.memoryImage}
                 loading="lazy"
               />
-            </div>
+            </figure>
           )
         }
         if (!part.trim()) return null
         return (
           <p
             key={i}
-            className={`whitespace-pre-wrap ${isUser ? 'text-white' : 'text-zinc-200'}`}
+            className={`${styles.text} ${isUser ? styles.userText : styles.companionText}`}
           >
             {part.trim()}
           </p>
@@ -54,12 +66,12 @@ export default function ChatThread({
   companionSlug: string
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
+  const tone = companionTone(companionSlug)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
   }, [messages.length, messages[messages.length - 1]?.id])
 
-  // While this thread is open, keep marking it read so delayed pushes are suppressed
   useEffect(() => {
     let cancelled = false
 
@@ -72,7 +84,7 @@ export default function ChatThread({
           body: JSON.stringify({ companion_slug: companionSlug }),
         })
       } catch {
-        // ignore offline / transient errors
+        // Ignore offline and transient read-heartbeat failures.
       }
     }
 
@@ -90,7 +102,6 @@ export default function ChatThread({
     }
   }, [companionSlug])
 
-  // Also mark read whenever a new companion message appears while we're here
   useEffect(() => {
     const last = messages[messages.length - 1]
     if (!last || last.role !== 'companion') return
@@ -103,39 +114,44 @@ export default function ChatThread({
 
   if (messages.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center text-zinc-500 px-4">
-        <div className="text-center py-16">
-          <p className="text-sm">No messages yet.</p>
-          <p className="mt-2 text-xs text-zinc-600">Say something — she is listening.</p>
+      <div className={styles.thread} data-tone={tone}>
+        <div className={styles.empty}>
+          <div className={styles.emptyCard}>
+            <div className={styles.emptyRune} aria-hidden>
+              <MythicIcon name="messages" size={24} />
+            </div>
+            <p className={styles.emptyTitle}>The chamber is quiet.</p>
+            <p className={styles.emptyBody}>Speak first. {companionName} is listening beyond the firelight.</p>
+          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto overscroll-contain px-4 space-y-5 pt-2 pb-4 min-h-0">
-      {messages.map((msg) => (
-        <div
-          key={msg.id}
-          className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-        >
-          <div
-            className={`max-w-[82%] rounded-2xl px-4 py-3 text-[15px] leading-relaxed ${
-              msg.role === 'user'
-                ? 'bg-violet-600 text-white rounded-br-md'
-                : 'bg-zinc-900/90 border border-zinc-800/80 text-zinc-200 rounded-bl-md'
-            }`}
-          >
-            {msg.role === 'companion' && (
-              <p className="text-violet-400/90 text-[11px] font-medium mb-1.5 tracking-wide">
-                {companionName}
-              </p>
-            )}
-            <MessageBody content={msg.content} isUser={msg.role === 'user'} />
-          </div>
-        </div>
-      ))}
-      <div ref={bottomRef} className="h-1" aria-hidden />
+    <div className={styles.thread} data-tone={tone}>
+      <div className={styles.messageList}>
+        {messages.map((msg) => {
+          const isUser = msg.role === 'user'
+          return (
+            <article
+              key={msg.id}
+              className={`${styles.row} ${isUser ? styles.userRow : styles.companionRow}`}
+            >
+              <div
+                className={`${styles.message} ${isUser ? styles.userMessage : styles.companionMessage}`}
+              >
+                {!isUser && <p className={styles.messageHeader}>{companionName}</p>}
+                <MessageBody content={msg.content} isUser={isUser} />
+                {msg.created_at && (
+                  <p className={styles.timestamp}>{formatMessageTime(msg.created_at)}</p>
+                )}
+              </div>
+            </article>
+          )
+        })}
+      </div>
+      <div ref={bottomRef} className={styles.bottomAnchor} aria-hidden />
     </div>
   )
 }
