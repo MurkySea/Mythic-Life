@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
@@ -8,25 +9,25 @@ import { claimDailyMuster } from './muster-actions'
 import { readFeedback } from '@/lib/feedback'
 import FeedbackBanners from '@/components/FeedbackBanners'
 import MusterCard from '@/components/MusterCard'
-import { Plate, TileIcon } from '@/components/FantasyFrame'
 import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { loadStanding } from '@/lib/engines/standing-store'
 import { chicagoYmd } from '@/lib/engines/muster'
 import { splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
-import type { ModuleIconKey } from '@/components/MythicIcons'
+import { MODULE_ICONS, type ModuleIconKey } from '@/components/MythicIcons'
 import { listGoals, PILLAR_LABELS } from '@/lib/engines/goals-store'
 import type { GoalPillar } from '@/lib/engines/goals'
+import styles from './home.module.css'
 
 export const dynamic = 'force-dynamic'
 
-const PILLAR_EMOJI: Record<GoalPillar, string> = {
-  stewardship: '💼',
-  faith: '✝️',
-  marriage: '💍',
-  body: '🏃',
-  homestead: '🏡',
-  legacy: '🏛️',
-  self: '🎹',
+const PILLAR_SIGIL: Record<GoalPillar, string> = {
+  stewardship: '♜',
+  faith: '✝',
+  marriage: '◇',
+  body: '⚔',
+  homestead: '⌂',
+  legacy: '♛',
+  self: '✦',
 }
 
 export default async function HubPage() {
@@ -74,6 +75,7 @@ export default async function HubPage() {
   const focusOpen = routine.length + mustDos.length
   const focusDone = focusPool.length
   const focusTotal = focusOpen + focusDone
+  const focusPct = focusTotal > 0 ? Math.round((focusDone / focusTotal) * 100) : 0
 
   const bestStreak = Math.max(0, ...rows.map((t) => t.streak_count || 0))
 
@@ -98,151 +100,196 @@ export default async function HubPage() {
   ]
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-5 space-y-4 safe-bottom">
-      <Plate gold className="px-5 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 pt-0.5">
-            <p className="ml-kicker">Mythic Life</p>
-            <h1 className="ml-title mt-1 text-[1.35rem]">Mark Zito</h1>
-            <p className="mt-1.5 text-[11px] font-medium text-muted">The Unconventional Advisor</p>
+    <main className={`${styles.home} safe-bottom`}>
+      <div className={styles.ambientGold} aria-hidden />
+      <div className={styles.ambientBlue} aria-hidden />
+      <div className={styles.embers} aria-hidden />
+
+      <section className={styles.hero} aria-label="Player profile">
+        <div className={styles.identityRow}>
+          <div className={styles.crest} aria-hidden>
+            <span className={styles.crestInitials}>MZ</span>
+            <span className={styles.crestRank}>Purpose</span>
           </div>
-          <div className="flex items-start gap-2 shrink-0">
-            <Link href="/today" className="orb shrink-0" title="Open Today">
-              <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Today</span>
-              <span className="text-sm font-bold font-display tabular-nums">
-                {focusDone}
-                <span className="text-[10px] opacity-60 font-semibold">/{focusTotal || '—'}</span>
+          <div>
+            <p className={styles.eyebrow}>Mythic Life</p>
+            <h1 className={styles.name}>Mark Zito</h1>
+            <p className={styles.subtitle}>The Unconventional Advisor</p>
+          </div>
+        </div>
+
+        <div className={styles.resourceRow}>
+          <Link href="/today" className={styles.resource}>
+            <span className={styles.resourceOrb}>Q</span>
+            <span className={styles.resourceText}>
+              <span className={styles.resourceValue}>
+                {focusDone}/{focusTotal || '—'}
               </span>
-            </Link>
-            {bestStreak > 0 && (
-              <div className="orb orb-gold shrink-0">
-                <span className="text-[7px] font-bold tracking-wider uppercase opacity-70">Streak</span>
-                <span className="text-sm font-bold font-display">{bestStreak}</span>
+              <span className={styles.resourceLabel}>Today</span>
+            </span>
+          </Link>
+          <div className={styles.resource}>
+            <span className={styles.resourceOrb}>R</span>
+            <span className={styles.resourceText}>
+              <span className={styles.resourceValue}>{rhythm ? tier.label : '—'}</span>
+              <span className={styles.resourceLabel}>Rhythm</span>
+            </span>
+          </div>
+          <div className={styles.resource}>
+            <span className={styles.resourceOrb}>F</span>
+            <span className={styles.resourceText}>
+              <span className={styles.resourceValue}>{bestStreak || '—'}</span>
+              <span className={styles.resourceLabel}>Streak</span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.rankPanel} aria-label="Rank and daily progress">
+        <div className={styles.rankCopy}>
+          <p className={styles.eyebrow}>Current mantle</p>
+          <h2 className={styles.rankTitle}>Knight of Purpose</h2>
+          <p className={styles.rankMeta}>Rank III</p>
+          <p className={styles.vow}>
+            Whatever you do, do it all for the glory of God.
+            <span className={styles.scripture}>1 Corinthians 10:31</span>
+          </p>
+        </div>
+        <div
+          className={styles.progressRing}
+          style={{ '--progress': `${focusPct}%` } as CSSProperties}
+          aria-label={`${focusPct}% of today's focus complete`}
+        >
+          <div>
+            <p className={styles.progressValue}>{focusPct}%</p>
+            <p className={styles.progressLabel}>Today</p>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.stack}>
+        {feedback && <FeedbackBanners feedback={feedback} />}
+
+        {!musterClaimed && (
+          <div className={styles.systemInset}>
+            <MusterCard
+              claimed={false}
+              streak={standingRow.muster_streak || 0}
+              dateCoins={standingRow.date_coins || 0}
+              action={claimDailyMuster}
+            />
+          </div>
+        )}
+
+        <Link href="/today" className={styles.featureCard}>
+          <div className={styles.featureContent}>
+            <div className={styles.cardHeader}>
+              <div>
+                <p className={styles.cardKicker}>What&apos;s next</p>
+                <p className={styles.cardTitle}>
+                  {focusOpen === 0
+                    ? 'The board is clear. Choose the next worthy thing.'
+                    : `${focusOpen} quest${focusOpen === 1 ? '' : 's'} await your hand.`}
+                </p>
+                <p className={styles.cardSub}>Routine · Must-dos · Master List</p>
+              </div>
+              <span className={styles.questBadge}>{focusOpen}</span>
+            </div>
+          </div>
+        </Link>
+
+        <Link href="/goals" className={styles.goalsCard}>
+          <div className={styles.goalsContent}>
+            <div className={styles.cardHeader}>
+              <div>
+                <p className={styles.cardKicker}>Long campaigns</p>
+                <p className={styles.cardTitle}>Active Goals</p>
+              </div>
+              <span className={styles.arrow}>›</span>
+            </div>
+
+            {topGoals.length === 0 ? (
+              <p className={styles.emptyText}>No active goals. Name the direction before chasing speed.</p>
+            ) : (
+              <div className={styles.goalList}>
+                {topGoals.map((g) => {
+                  const pct =
+                    g.target > 0 ? Math.min(100, Math.round((g.progress / g.target) * 100)) : 0
+                  return (
+                    <div className={styles.goalRow} key={g.id}>
+                      <span className={styles.goalSigil} aria-hidden>
+                        {PILLAR_SIGIL[g.pillar] || '✦'}
+                      </span>
+                      <p className={styles.goalName}>{g.title}</p>
+                      <span className={styles.goalCount}>
+                        {g.progress}/{g.target}
+                      </span>
+                      <div className={styles.goalTrack}>
+                        <div className={styles.goalFill} style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className={styles.goalMeta}>
+                        {PILLAR_LABELS[g.pillar]} · {g.horizon}
+                      </p>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
-        </div>
-      </Plate>
+        </Link>
 
-      {feedback && <FeedbackBanners feedback={feedback} />}
-
-      {!musterClaimed && (
-        <MusterCard
-          claimed={false}
-          streak={standingRow.muster_streak || 0}
-          dateCoins={standingRow.date_coins || 0}
-          action={claimDailyMuster}
-        />
-      )}
-
-      {/* Today entry — full board lives on /today */}
-      <Link href="/today" className="block">
-        <Plate emphasis className="px-5 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <p className="ml-kicker text-violet">Today</p>
-              <p className="mt-1 text-[15px] font-semibold text-white">
-                {focusOpen === 0
-                  ? 'Focus clear — open the board'
-                  : `${focusOpen} open · Routine · Must-dos`}
-              </p>
-              <p className="text-[11px] text-muted mt-1">
-                Tasks · calendar (soon) · plan from Master List
-              </p>
-            </div>
-            <span className="text-dim text-lg opacity-70">→</span>
-          </div>
-        </Plate>
-      </Link>
-
-      {/* Active goals strip */}
-      <Link href="/goals" className="block">
-        <Plate className="px-5 py-3.5">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <p className="ml-kicker">Goals</p>
-            <span className="text-[11px] text-muted">
-              {activeGoals.length === 0
-                ? 'Set direction →'
-                : `${activeGoals.length} active →`}
-            </span>
-          </div>
-          {topGoals.length === 0 ? (
-            <p className="text-sm text-muted">No active goals. Weight what matters.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {topGoals.map((g) => {
-                const pct =
-                  g.target > 0 ? Math.min(100, Math.round((g.progress / g.target) * 100)) : 0
-                return (
-                  <div key={g.id}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm shrink-0" aria-hidden>
-                        {PILLAR_EMOJI[g.pillar] || '🎯'}
-                      </span>
-                      <p className="text-[13px] text-white truncate flex-1">{g.title}</p>
-                      <span className="text-[10px] text-dim tabular-nums shrink-0">
-                        {g.progress}/{g.target}
-                      </span>
-                    </div>
-                    <div className="mt-1 h-1 rounded-full bg-zinc-800 overflow-hidden">
-                      <div
-                        className="h-full rounded-full bg-violet-500/80"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <p className="text-[10px] text-dim mt-0.5">
-                      {PILLAR_LABELS[g.pillar]} · {g.horizon}
-                    </p>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </Plate>
-      </Link>
-
-      <Link href="/standing" className="block">
-        <Plate gold className="px-5 py-3.5">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0">
-              <p className="ml-kicker">Standing</p>
-              {rhythm ? (
-                <p className={`font-display text-[14px] font-semibold mt-1 ${tier.color}`}>
-                  Rhythm · {tier.label}
-                  {standingRow.baseline_phase
-                    ? ` · Phase ${standingRow.baseline_phase}`
-                    : ''}
-                </p>
-              ) : (
-                <p className="text-sm font-medium mt-1 text-muted">Self · Consistency · Shadow Debt</p>
-              )}
-            </div>
-            <span className="text-dim text-lg opacity-70">→</span>
-          </div>
-        </Plate>
-      </Link>
-
-      <section className="section-quiet pt-1">
-        <p className="section-label mb-2.5 px-1">Grimoire</p>
-        <div className="grid grid-cols-3 gap-2.5">
-          {modules.map((m) =>
-            m.disabled ? (
-              <div key={m.label} className="grimoire-tile p-3 opacity-30 flex flex-col items-center">
-                <TileIcon label={m.label} icon={m.label} />
-                <span className="text-[9px] mt-0.5 text-dim">{m.sub}</span>
+        <Link href="/standing" className={styles.standingCard}>
+          <div className={styles.standingContent}>
+            <div className={styles.standingRow}>
+              <div>
+                <p className={styles.cardKicker}>World standing</p>
+                {rhythm ? (
+                  <p className={`${styles.cardTitle} ${tier.color}`}>
+                    Rhythm · {tier.label}
+                    {standingRow.baseline_phase ? ` · Phase ${standingRow.baseline_phase}` : ''}
+                  </p>
+                ) : (
+                  <p className={styles.cardTitle}>Self · Consistency · Shadow Debt</p>
+                )}
+                <p className={styles.cardSub}>Your condition changes how the world answers.</p>
               </div>
-            ) : (
-              <Link
-                key={m.label}
-                href={m.href}
-                className="grimoire-tile p-3 flex flex-col items-center gap-0.5"
-              >
-                <TileIcon label={m.label} icon={m.label} />
-                <span className="text-[9px] mt-0.5 text-muted">{m.sub}</span>
-              </Link>
-            )
-          )}
-        </div>
+              <span className={styles.standingSeal}>III</span>
+            </div>
+          </div>
+        </Link>
+      </div>
+
+      <div className={styles.sectionHeading}>
+        <span className={styles.sectionHeadingText}>The Grimoire</span>
+      </div>
+
+      <section className={styles.moduleGrid} aria-label="Game modules">
+        {modules.map((m) => {
+          const Icon = MODULE_ICONS[m.label]
+          const content = (
+            <div className={styles.moduleContent}>
+              <div className={styles.iconHalo}>
+                <Icon size={27} />
+              </div>
+              <p className={styles.moduleName}>{m.label}</p>
+              <p className={styles.moduleSub}>{m.sub}</p>
+            </div>
+          )
+
+          return m.disabled ? (
+            <div
+              key={m.label}
+              className={`${styles.moduleCard} ${styles.moduleDisabled}`}
+              aria-disabled="true"
+            >
+              {content}
+            </div>
+          ) : (
+            <Link key={m.label} href={m.href} className={styles.moduleCard}>
+              {content}
+            </Link>
+          )
+        })}
       </section>
     </main>
   )
