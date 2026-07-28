@@ -12,6 +12,7 @@ import {
   MythicSectionHeader,
 } from '@/components/MythicSurface'
 import { MythicIcon } from '@/components/MythicIcons'
+import { activateApprovedCampfireTasks } from '@/lib/campfire-actions'
 import { MUST_DO_CAP, splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
 import styles from './today.module.css'
 
@@ -37,7 +38,7 @@ export default async function TodayPage() {
     return <MythicPage><MythicPageHeader eyebrow="Daily command" title="Today" subtitle="Supabase environment configuration is missing." /></MythicPage>
   }
 
-  await ensureRecurringTasks()
+  await Promise.all([ensureRecurringTasks(), activateApprovedCampfireTasks()])
   const supabase = await createClient()
   const { data: allTasks } = await supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(200)
   const rows = (allTasks || []) as TaskRow[]
