@@ -19,6 +19,7 @@ import {
   isCompanionImageRequest,
   maybeGenerateCompanionImageGift,
 } from '@/lib/companion-image-gifts'
+import { buildSceneAwareImageRequest } from '@/lib/companion-scene-context'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -86,12 +87,33 @@ async function sendMessage(formData: FormData) {
       // An explicit image request is an action, not ordinary dialogue. This hard
       // branch prevents the companion from answering with hypothetical prose.
       if (explicitImageRequest) {
+        const recentBaseQuery = supabase
+          .from('messages')
+          .select('role, content, created_at')
+        const recentScopedQuery =
+          companionSlug === 'seraphine'
+            ? recentBaseQuery.or('companion_slug.is.null,companion_slug.eq.seraphine')
+            : recentBaseQuery.eq('companion_slug', companionSlug)
+        const { data: recentMessages, error: recentMessagesError } = await recentScopedQuery
+          .order('created_at', { ascending: false })
+          .limit(12)
+
+        if (recentMessagesError) {
+          console.error('recent scene context query failed', recentMessagesError)
+        }
+
+        const sceneAwareRequest = buildSceneAwareImageRequest({
+          currentRequest: text,
+          recentMessagesNewestFirst: recentMessages || [],
+          companionName: characterName,
+        })
+
         const result = await fulfillExplicitCompanionImageRequest({
           supabase,
           companionSlug,
           characterName,
           affinity,
-          userText: text,
+          userText: sceneAwareRequest,
           def,
         })
 
@@ -111,6 +133,7 @@ async function sendMessage(formData: FormData) {
             companionSlug,
             promptSource: result.promptSource,
             imageModel: result.imageModel,
+            recentSceneTurns: recentMessages?.length || 0,
           })
 
           revalidatePath('/messages')
