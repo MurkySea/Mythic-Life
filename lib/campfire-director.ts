@@ -44,6 +44,10 @@ function chicagoHour(): number {
   )
 }
 
+function quietSystemTimestamp(): string {
+  return new Date(Date.now() - 10 * 60 * 1000).toISOString()
+}
+
 function cleanText(value: unknown, max = 180): string {
   return String(value || '')
     .replace(/\s+/g, ' ')
@@ -128,6 +132,7 @@ function extractJson(raw: string): unknown {
 function normalizeDigest(raw: unknown, reflection: string, companionSlug: string): CampfireDigest {
   const value = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
   const fallback = fallbackDigest(reflection, companionSlug)
+  const whatMattered = cleanList(value.whatMattered, 3)
 
   return {
     version: 1,
@@ -136,7 +141,7 @@ function normalizeDigest(raw: unknown, reflection: string, companionSlug: string
     headline: cleanText(value.headline, 72) || fallback.headline,
     emotionalWeather: cleanText(value.emotionalWeather, 64) || fallback.emotionalWeather,
     energy: normalizeEnergy(value.energy),
-    whatMattered: cleanList(value.whatMattered, 3) || fallback.whatMattered,
+    whatMattered: whatMattered.length > 0 ? whatMattered : fallback.whatMattered,
     brightSpots: cleanList(value.brightSpots, 3),
     weight: cleanList(value.weight, 3),
     people: cleanList(value.people, 4, 80),
@@ -234,6 +239,7 @@ export async function saveCampfireDigest(digest: CampfireDigest): Promise<string
       role: 'system',
       content: encodeCampfireDigest(digest),
       companion_slug: digest.companionSlug,
+      created_at: quietSystemTimestamp(),
     })
     .select('id')
     .single()
@@ -292,6 +298,7 @@ export async function markCampfireFollowUpSent(
     role: 'system',
     content: `${FOLLOW_UP_PREFIX}${digestId}`,
     companion_slug: companionSlug,
+    created_at: quietSystemTimestamp(),
   })
   if (error) console.error('campfire follow-up marker failed', error)
 }
