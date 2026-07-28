@@ -1,5 +1,5 @@
 /**
- * Gallery image kinds: affinity scenes vs date nights vs muster specials.
+ * Gallery image kinds: affinity scenes, date nights, muster specials, and companion gifts.
  *
  * Supabase (run once):
  *   alter table gallery_images add column if not exists kind text not null default 'scene';
@@ -9,7 +9,7 @@
  *        or (prompt_used like '[%' and prompt_used not like '[[kind:scene]]%');
  */
 
-export type GalleryKind = 'scene' | 'date' | 'muster'
+export type GalleryKind = 'scene' | 'date' | 'muster' | 'gift'
 
 export function markPrompt(kind: GalleryKind, prompt: string): string {
   return `[[kind:${kind}]] ${prompt}`
@@ -20,11 +20,17 @@ export function isAffinitySceneRow(row: {
   prompt_used?: string | null
 }): boolean {
   if (row.kind === 'scene') return true
-  if (row.kind === 'date' || row.kind === 'muster') return false
+  if (row.kind === 'date' || row.kind === 'muster' || row.kind === 'gift') return false
 
   const p = (row.prompt_used || '').trimStart()
   if (p.startsWith('[[kind:scene]]')) return true
-  if (p.startsWith('[[kind:date]]') || p.startsWith('[[kind:muster]]')) return false
+  if (
+    p.startsWith('[[kind:date]]') ||
+    p.startsWith('[[kind:muster]]') ||
+    p.startsWith('[[kind:gift]]')
+  ) {
+    return false
+  }
   // Older date/muster rows used a single [Title] prefix
   if (p.startsWith('[')) return false
   // Legacy affinity scenes — no kind marker
