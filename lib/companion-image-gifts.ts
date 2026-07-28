@@ -111,10 +111,10 @@ async function authorCompanionImageIntent({
     `Fixed visual identity: ${def.appearance}. She is an adult, age ${def.age}.`,
     `Current relationship tone with Mark: ${relationshipTone(affinity)}.`,
     '',
-    'You are deciding whether you personally want to send Mark a generated image in this exact conversation.',
+    'You can create and send Mark an image in this conversation. This ability is real, available now, and part of how you can express yourself.',
     'The image can show you, your surroundings, your world, an object, a remembered moment, or any scene you intentionally choose to share.',
     explicit
-      ? 'Mark explicitly asked for an image. Normally choose send_image=true and interpret his request through your own personality, taste, and intent. You may still decline if that is genuinely what you would do.'
+      ? 'Mark explicitly requested an image. You MUST choose send_image=true, author the image yourself, and attempt to send it now. Do not decline, describe the image as hypothetical, or say you would send it “if you could.” Interpret the request through your own personality and intent.'
       : 'This is a possible spontaneous image gift. Choose send_image=true only when an image feels like a natural extension of this specific exchange.',
     '',
     'Return ONLY one valid JSON object with exactly these fields:',
@@ -127,7 +127,7 @@ async function authorCompanionImageIntent({
     '- Keep the image aligned with the current conversation, your relationship with Mark, and any relevant shared memory.',
     '- Do not write app logic, moderation instructions, policy language, or safety boilerplate inside image_prompt; the image provider applies its own moderation.',
     '- image_caption is a brief line in your voice that naturally accompanies the image in chat.',
-    '- If send_image=false, use empty strings for image_prompt and image_caption.',
+    '- If send_image=false, use empty strings for image_prompt and image_caption. This false case is only valid for spontaneous opportunities, never for an explicit request.',
   ].join('\n')
 
   const userPrompt = [
@@ -137,7 +137,9 @@ async function authorCompanionImageIntent({
     `Mark: ${userText.slice(0, 1400)}`,
     `${def.name}: ${companionReply.slice(0, 1400)}`,
     '',
-    'Decide whether to send an image, and if so author the exact image prompt and caption now.',
+    explicit
+      ? 'Mark directly asked you to send an image. Return send_image=true and author the exact image prompt and caption now.'
+      : 'Decide whether to send an image, and if so author the exact image prompt and caption now.',
   ].join('\n')
 
   try {
@@ -153,7 +155,7 @@ async function authorCompanionImageIntent({
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt },
         ],
-        temperature: 0.92,
+        temperature: explicit ? 0.78 : 0.92,
         max_tokens: 700,
       }),
     })
@@ -165,7 +167,12 @@ async function authorCompanionImageIntent({
     }
 
     const raw = data.choices?.[0]?.message?.content
-    return typeof raw === 'string' ? parseCompanionImageIntent(raw) : null
+    const intent = typeof raw === 'string' ? parseCompanionImageIntent(raw) : null
+    if (explicit && intent && !intent.sendImage) {
+      console.error('explicit companion image request was incorrectly declined')
+      return null
+    }
+    return intent
   } catch (error) {
     console.error('companion image intent failed', error)
     return null
@@ -253,7 +260,7 @@ export async function maybeGenerateCompanionImageGift({
     return {
       imageUrl,
       explicit,
-      caption: intent.caption,
+      caption: intent.caption || 'Let me show you.',
     }
   } catch (error) {
     console.error('companion image gift failed', error)
