@@ -3,23 +3,17 @@
 import { useRouter } from 'next/navigation'
 import { useRef, useState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
-import ResponseChoices, {
-  type ResponseResult,
-} from '@/components/ResponseChoices'
+import ResponseChoices, { type ResponseResult } from '@/components/ResponseChoices'
+import { MythicIcon } from '@/components/MythicIcons'
+import { companionTone } from '@/lib/companion-tone'
+import styles from './chat-composer.module.css'
 
 function SendButton() {
   const { pending } = useFormStatus()
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className={`px-5 py-2.5 rounded-xl text-white text-sm font-medium transition ${
-        pending
-          ? 'bg-violet-800 cursor-wait opacity-80'
-          : 'bg-violet-600 hover:bg-violet-500 active:scale-95'
-      }`}
-    >
-      {pending ? '…' : 'Send'}
+    <button type="submit" disabled={pending} className={styles.sendButton}>
+      <MythicIcon name="spark" size={16} />
+      <span>{pending ? 'Sending' : 'Send'}</span>
     </button>
   )
 }
@@ -35,11 +29,8 @@ export default function ChatComposer({
   companionSlug: string
   displayName: string
   action: (formData: FormData) => Promise<void>
-  responseAction?: (
-    formData: FormData
-  ) => Promise<ResponseResult | void>
+  responseAction?: (formData: FormData) => Promise<ResponseResult | void>
   lastMessageIsCompanion?: boolean
-  /** Content of the last companion message — gates check-in choices */
   lastCompanionContent?: string | null
 }) {
   const router = useRouter()
@@ -47,6 +38,7 @@ export default function ChatComposer({
   const [waitingReply, setWaitingReply] = useState(false)
   const [, startTransition] = useTransition()
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const tone = companionTone(companionSlug)
 
   function stopPoll() {
     if (pollRef.current) {
@@ -65,7 +57,6 @@ export default function ChatComposer({
       startTransition(() => {
         router.refresh()
       })
-      // ~20s of polling then stop
       if (ticks >= 12) stopPoll()
     }, 1600)
   }
@@ -77,13 +68,10 @@ export default function ChatComposer({
     await action(formData)
 
     if (inputRef.current) inputRef.current.value = ''
-    // User message is in DB; keep refreshing until her reply lands
     startPoll()
   }
 
-  async function onResponseChoice(
-    formData: FormData
-  ): Promise<ResponseResult | void> {
+  async function onResponseChoice(formData: FormData): Promise<ResponseResult | void> {
     if (!responseAction) return
     const result = await responseAction(formData)
     startPoll()
@@ -91,7 +79,7 @@ export default function ChatComposer({
   }
 
   return (
-    <div className="shrink-0 px-0 pt-2 pb-3 border-t border-zinc-900 bg-zinc-950/95 backdrop-blur-md">
+    <div className={styles.composer} data-tone={tone}>
       {responseAction && (
         <ResponseChoices
           companionSlug={companionSlug}
@@ -101,27 +89,33 @@ export default function ChatComposer({
         />
       )}
 
-      <div className="px-4">
-        {waitingReply && (
-          <p className="text-[11px] text-zinc-500 mb-1.5 px-1 animate-pulse">
-            {displayName} is writing…
-          </p>
-        )}
-        <form action={clientAction}>
-          <input type="hidden" name="companion_slug" value={companionSlug} />
-          <div className="flex gap-2 items-center bg-zinc-900 border border-zinc-800 rounded-2xl p-1.5">
-            <input
-              ref={inputRef}
-              type="text"
-              name="content"
-              placeholder={`Reply to ${displayName}...`}
-              className="flex-1 bg-transparent px-4 py-3 text-white placeholder:text-zinc-500 text-[15px] focus:outline-none"
-              autoComplete="off"
-            />
-            <SendButton />
-          </div>
-        </form>
-      </div>
+      {waitingReply && (
+        <div className={styles.waiting} role="status">
+          <span className={styles.runes} aria-hidden>
+            <span />
+            <span />
+            <span />
+          </span>
+          <span>{displayName} is shaping a reply…</span>
+        </div>
+      )}
+
+      <form action={clientAction}>
+        <input type="hidden" name="companion_slug" value={companionSlug} />
+        <div className={styles.formShell}>
+          <input
+            ref={inputRef}
+            type="text"
+            name="content"
+            placeholder={`Write to ${displayName}…`}
+            className={styles.input}
+            autoComplete="off"
+            aria-label={`Message ${displayName}`}
+          />
+          <SendButton />
+        </div>
+      </form>
+      <p className={styles.footerHint}>Speak plainly. The chamber remembers what matters.</p>
     </div>
   )
 }
