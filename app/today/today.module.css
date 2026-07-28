@@ -1,0 +1,296 @@
+.summarySeal {
+  display: grid;
+  place-items: center;
+  min-width: 3.25rem;
+  min-height: 3.25rem;
+  border-radius: 50%;
+  border: 1px solid rgba(211, 164, 77, 0.45);
+  background:
+    radial-gradient(circle at 35% 28%, rgba(212, 168, 83, 0.18), transparent 42%),
+    linear-gradient(145deg, #17202a, #070a0f);
+  box-shadow:
+    0 0 0 4px rgba(5, 8, 12, 0.72),
+    0 0 0 5px rgba(211, 164, 77, 0.12),
+    0 0 18px rgba(211, 164, 77, 0.08);
+  text-align: center;
+}
+
+.summaryValue {
+  color: #ecc66f;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.summaryLabel {
+  margin-top: 0.18rem;
+  color: #717785;
+  font-size: 0.42rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.commandPanel {
+  padding: 1rem;
+}
+
+.commandTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.commandLabel {
+  color: #b7883e;
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.commandText {
+  margin-top: 0.32rem;
+  color: #e8e1d4;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  line-height: 1.38;
+}
+
+.progressValue {
+  flex: 0 0 auto;
+  color: #d9ad55;
+  font-family: var(--font-display);
+  font-size: 0.86rem;
+}
+
+.progressTrack {
+  height: 0.26rem;
+  margin-top: 0.8rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(101, 108, 122, 0.2);
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #397fbd, #d4a853);
+  box-shadow: 0 0 14px rgba(75, 137, 194, 0.18);
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.58rem;
+  margin-top: 0.72rem;
+}
+
+.actionLink {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 3.2rem;
+  padding: 0.75rem 0.85rem;
+  overflow: hidden;
+  border: 1px solid rgba(91, 100, 116, 0.3);
+  border-radius: 0.88rem;
+  color: #a8adb7;
+  background: linear-gradient(145deg, rgba(18, 24, 32, 0.94), rgba(7, 10, 15, 0.97));
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: transform 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.actionLink:hover {
+  transform: translateY(-1px);
+  border-color: rgba(210, 165, 80, 0.5);
+  color: #e0bd72;
+}
+
+.actionLink:last-child {
+  border-color: rgba(76, 132, 190, 0.36);
+}
+
+.actionIcon {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 1px solid rgba(202, 154, 70, 0.3);
+  border-radius: 50%;
+  color: #d1a553;
+  background: rgba(7, 10, 15, 0.8);
+  font-size: 0.72rem;
+}
+
+.board {
+  display: grid;
+  gap: 1.15rem;
+  margin-top: 1.05rem;
+}
+
+.primaryWrap {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.primaryCard {
+  padding: 1.12rem;
+}
+
+.primaryHeader {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.8rem;
+  align-items: start;
+}
+
+.primaryKicker {
+  color: #c99745;
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.primaryTitle {
+  margin-top: 0.34rem;
+  color: #f0e7d5;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.primaryNotes {
+  margin-top: 0.5rem;
+  color: #8c929e;
+  font-size: 0.67rem;
+  line-height: 1.5;
+}
+
+.primaryComplete :global(button) {
+  width: 2.35rem;
+  height: 2.35rem;
+  border-color: rgba(226, 178, 83, 0.68);
+  background:
+    radial-gradient(circle at 38% 30%, rgba(212, 168, 83, 0.18), rgba(7, 10, 15, 0.9));
+  box-shadow:
+    0 0 0 4px rgba(5, 8, 12, 0.7),
+    0 0 18px rgba(212, 168, 83, 0.11);
+}
+
+.primaryComplete :global(button:hover) {
+  border-color: rgba(245, 202, 118, 0.94);
+  background: rgba(178, 127, 41, 0.28);
+}
+
+.domainRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.36rem;
+  margin-top: 0.72rem;
+}
+
+.domainTag {
+  padding: 0.25rem 0.48rem;
+  border: 1px solid rgba(69, 127, 185, 0.32);
+  border-radius: 999px;
+  color: #79b7ec;
+  background: rgba(35, 91, 145, 0.09);
+  font-family: var(--font-display);
+  font-size: 0.43rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.rewardRail {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.38rem;
+  margin-top: 0.82rem;
+  padding-top: 0.78rem;
+  border-top: 1px solid rgba(121, 100, 60, 0.18);
+}
+
+.reward {
+  min-width: 0;
+  padding: 0.52rem 0.42rem;
+  border: 1px solid rgba(95, 102, 116, 0.22);
+  border-radius: 0.7rem;
+  background: rgba(5, 8, 12, 0.54);
+  text-align: center;
+}
+
+.rewardValue {
+  color: #d6b264;
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.rewardLabel {
+  margin-top: 0.2rem;
+  color: #626975;
+  font-size: 0.43rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.calendarPanel {
+  padding: 1rem;
+  text-align: center;
+}
+
+.calendarSeal {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  margin: 0 auto 0.58rem;
+  border: 1px solid rgba(76, 132, 190, 0.35);
+  border-radius: 50%;
+  color: #70aee4;
+  background: rgba(35, 91, 145, 0.08);
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+}
+
+.calendarTitle {
+  color: #aeb4bf;
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+}
+
+.calendarBody {
+  margin-top: 0.3rem;
+  color: #606773;
+  font-size: 0.58rem;
+  line-height: 1.45;
+}
+
+.moreLink {
+  display: block;
+  margin-top: -0.45rem;
+  color: #666d79;
+  font-size: 0.57rem;
+  text-align: center;
+  text-decoration: none;
+}
+
+.moreLink:hover { color: #c79a49; }
+
+@media (max-width: 380px) {
+  .actions { grid-template-columns: 1fr; }
+  .rewardRail { gap: 0.28rem; }
+  .reward { padding-inline: 0.28rem; }
+}

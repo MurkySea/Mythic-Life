@@ -1,0 +1,121 @@
+.lane {
+  display: grid;
+  gap: 0.58rem;
+}
+
+.list {
+  display: grid;
+  gap: 0.52rem;
+}
+
+.row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 4.2rem;
+  padding: 0.72rem 0.78rem;
+  overflow: hidden;
+  border: 1px solid rgba(95, 103, 118, 0.27);
+  border-radius: 0.92rem;
+  background:
+    linear-gradient(90deg, rgba(18, 24, 33, 0.97), rgba(7, 10, 15, 0.985)),
+    radial-gradient(circle at 96% 10%, rgba(212, 168, 83, 0.08), transparent 34%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 9px 22px rgba(0, 0, 0, 0.28);
+}
+
+.row::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(212, 168, 83, 0.055);
+  pointer-events: none;
+}
+
+.gold { border-color: rgba(196, 145, 55, 0.34); }
+.violet { border-color: rgba(119, 83, 178, 0.34); }
+.zinc { border-color: rgba(72, 117, 160, 0.29); }
+
+.complete {
+  position: relative;
+  z-index: 1;
+  flex: 0 0 auto;
+}
+
+.complete :global(button) {
+  width: 1.9rem;
+  height: 1.9rem;
+  border-color: rgba(195, 151, 69, 0.46);
+  background: radial-gradient(circle at 38% 30%, rgba(212, 168, 83, 0.1), rgba(8, 11, 16, 0.82));
+  box-shadow: 0 0 0 3px rgba(5, 8, 12, 0.6);
+}
+
+.complete :global(button:hover) {
+  border-color: rgba(239, 194, 104, 0.84);
+  background: rgba(170, 119, 36, 0.24);
+  box-shadow: 0 0 14px rgba(212, 168, 83, 0.14);
+}
+
+.copy {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.title {
+  min-width: 0;
+  overflow: hidden;
+  color: #e9e2d5;
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time {
+  flex: 0 0 auto;
+  color: #7ab8ed;
+  font-family: var(--font-display);
+  font-size: 0.53rem;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+  margin-top: 0.32rem;
+}
+
+.tag {
+  color: #727985;
+  font-family: var(--font-display);
+  font-size: 0.45rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tag + .tag::before {
+  content: '·';
+  margin-right: 0.38rem;
+  color: #444a55;
+}
+
+.streak {
+  color: #c89a47;
+  font-size: 0.5rem;
+  font-weight: 650;
+}

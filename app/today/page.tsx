@@ -1,8 +1,18 @@
 import Link from 'next/link'
 import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { ensureRecurringTasks } from '@/app/actions'
+import { completeTask } from '@/app/complete-task'
 import TaskLane from '@/components/TaskLane'
+import { PendingCircleButton } from '@/components/PendingSubmit'
+import {
+  MythicEmptyState,
+  MythicPage,
+  MythicPageHeader,
+  MythicPanel,
+  MythicSectionHeader,
+} from '@/components/MythicSurface'
 import { MUST_DO_CAP, splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
+import styles from './today.module.css'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,13 +25,33 @@ function chicagoDateLabel(): string {
   }).format(new Date())
 }
 
+function taskDomains(task: TaskRow): string[] {
+  return String(task.domains || task.domain || '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+}
+
+function isTodayFocus(task: TaskRow): boolean {
+  const recurrence = String(task.recurrence || '').toLowerCase()
+  return Boolean(
+    task.is_today ||
+      task.must_do ||
+      ((recurrence === 'daily' || recurrence === 'weekly') && task.is_today)
+  )
+}
+
 export default async function TodayPage() {
   if (!hasSupabaseEnv()) {
     return (
-      <main className="max-w-md mx-auto p-6">
-        <h1 className="text-xl text-white pt-8">Today</h1>
-        <p className="text-zinc-500 text-sm mt-2">Supabase env missing.</p>
-      </main>
+      <MythicPage>
+        <MythicPageHeader
+          eyebrow="Daily command"
+          title="Today"
+          subtitle="Supabase environment configuration is missing."
+        />
+      </MythicPage>
     )
   }
 
@@ -38,96 +68,155 @@ export default async function TodayPage() {
   const { routine, mustDos, master } = splitTaskLanes(rows)
 
   const focusOpen = routine.length + mustDos.length
+  const focusDone = rows.filter((task) => task.is_completed && isTodayFocus(task)).length
+  const focusTotal = focusOpen + focusDone
+  const focusPct = focusTotal > 0 ? Math.round((focusDone / focusTotal) * 100) : 0
+
+  const primaryQuest = mustDos[0] || routine[0] || null
+  const urgentOrders = primaryQuest === mustDos[0] ? mustDos.slice(1) : mustDos
+  const remainingRoutine = primaryQuest === routine[0] ? routine.slice(1) : routine
+  const primaryDomains = primaryQuest ? taskDomains(primaryQuest) : []
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-      <div className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-violet-400 transition-colors mb-3"
-        >
-          ← Home
-        </Link>
-        <div className="flex items-end justify-between gap-3">
+    <MythicPage>
+      <MythicPageHeader
+        eyebrow="Daily command"
+        title="Today&apos;s Quest Board"
+        subtitle={chicagoDateLabel()}
+        aside={
+          <div className={styles.summarySeal} aria-label={`${focusOpen} open focus items`}>
+            <p className={styles.summaryValue}>{focusOpen}</p>
+            <p className={styles.summaryLabel}>Open</p>
+          </div>
+        }
+      />
+
+      <MythicPanel tone="gold" className={styles.commandPanel}>
+        <div className={styles.commandTop}>
           <div>
-            <p className="text-zinc-500 text-xs tracking-wide uppercase">Focus</p>
-            <h1 className="text-2xl font-medium text-white tracking-tight">Today</h1>
-            <p className="text-zinc-500 text-sm mt-1">{chicagoDateLabel()}</p>
+            <p className={styles.commandLabel}>Day&apos;s standing order</p>
+            <p className={styles.commandText}>
+              {focusOpen === 0
+                ? 'The board is clear. Choose the next worthy thing deliberately.'
+                : `${focusOpen} open order${focusOpen === 1 ? '' : 's'} remain before the day is won.`}
+            </p>
           </div>
-          <div className="text-right shrink-0">
-            <p className="text-[10px] uppercase tracking-wider text-zinc-600">Open focus</p>
-            <p className="text-lg font-medium text-white tabular-nums">{focusOpen}</p>
-          </div>
+          <p className={styles.progressValue}>{focusPct}%</p>
         </div>
-      </div>
+        <div className={styles.progressTrack} aria-label={`${focusPct}% complete`}>
+          <div className={styles.progressFill} style={{ width: `${focusPct}%` }} />
+        </div>
+      </MythicPanel>
 
-      <div className="flex gap-2 mb-6">
-        <Link
-          href="/mother-list"
-          className="flex-1 text-center text-xs py-2 rounded-lg border border-zinc-800 bg-zinc-900/40 text-zinc-400 hover:text-zinc-200 transition"
-        >
-          Plan / Master list
+      <nav className={styles.actions} aria-label="Quest planning actions">
+        <Link href="/mother-list" className={styles.actionLink}>
+          <span>Plan campaigns</span>
+          <span className={styles.actionIcon} aria-hidden>⌁</span>
         </Link>
-        <Link
-          href="/task-generator"
-          className="flex-1 text-center text-xs py-2 rounded-lg border border-violet-800/50 bg-violet-950/30 text-violet-300 hover:border-violet-600 transition"
-        >
-          + New task
+        <Link href="/task-generator" className={styles.actionLink}>
+          <span>Forge new quest</span>
+          <span className={styles.actionIcon} aria-hidden>+</span>
         </Link>
-      </div>
+      </nav>
 
-      <div className="space-y-6">
+      <div className={styles.board}>
+        <section className={styles.primaryWrap}>
+          <MythicSectionHeader title="Primary Quest" hint={primaryQuest ? 'Highest priority' : 'Unassigned'} sigil="⚔" />
+
+          {primaryQuest ? (
+            <MythicPanel tone="gold" emphasis className={styles.primaryCard}>
+              <div className={styles.primaryHeader}>
+                <div>
+                  <p className={styles.primaryKicker}>Claim the day</p>
+                  <h2 className={styles.primaryTitle}>{primaryQuest.title}</h2>
+                  {primaryQuest.notes && (
+                    <p className={styles.primaryNotes}>{primaryQuest.notes}</p>
+                  )}
+                </div>
+                <form action={completeTask} className={styles.primaryComplete}>
+                  <input type="hidden" name="id" value={primaryQuest.id} />
+                  <PendingCircleButton title={`Complete ${primaryQuest.title}`} />
+                </form>
+              </div>
+
+              {primaryDomains.length > 0 && (
+                <div className={styles.domainRow}>
+                  {primaryDomains.map((domain) => (
+                    <span key={domain} className={styles.domainTag}>
+                      {domain}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className={styles.rewardRail} aria-label="Completion rewards">
+                <div className={styles.reward}>
+                  <p className={styles.rewardValue}>XP</p>
+                  <p className={styles.rewardLabel}>Skill growth</p>
+                </div>
+                <div className={styles.reward}>
+                  <p className={styles.rewardValue}>Bond</p>
+                  <p className={styles.rewardLabel}>Companion</p>
+                </div>
+                <div className={styles.reward}>
+                  <p className={styles.rewardValue}>Loot</p>
+                  <p className={styles.rewardLabel}>Reward roll</p>
+                </div>
+              </div>
+            </MythicPanel>
+          ) : (
+            <MythicEmptyState
+              title="No primary quest has been chosen."
+              body="Pull one meaningful task onto Today or forge a new quest."
+              mark="⚔"
+            />
+          )}
+        </section>
+
         <TaskLane
-          label="Must-dos"
+          label="Urgent Orders"
           hint={`${mustDos.length}/${MUST_DO_CAP}`}
-          tasks={mustDos}
-          empty="Pull up to 5 one-time tasks onto Today from Plan."
+          tasks={urgentOrders}
+          empty="Pull up to five intentional one-time tasks onto Today from the Master List."
           accent="gold"
         />
 
         {master.length > 0 && (
           <>
             <TaskLane
-              label="Master list"
+              label="Master List"
               hint={`${master.length} open`}
               tasks={master.slice(0, 12)}
-              empty="Master list is clear."
+              empty="The wider campaign ledger is clear."
               accent="violet"
             />
             {master.length > 12 && (
-              <Link
-                href="/mother-list"
-                className="block text-center text-xs text-zinc-500 hover:text-violet-400 py-1 -mt-3"
-              >
-                View all {master.length} on Master List →
+              <Link href="/mother-list" className={styles.moreLink}>
+                Open the full ledger of {master.length} quests →
               </Link>
             )}
           </>
         )}
 
         <TaskLane
-          label="Routine"
+          label="Repeatable Contracts"
           hint={routine.length ? `${routine.length}` : undefined}
-          tasks={routine}
-          empty="No recurring tasks scheduled today."
+          tasks={remainingRoutine}
+          empty="No recurring tasks are scheduled for today."
           accent="zinc"
         />
 
-        {/* Calendar — reserved for Google / Apple calendar connection */}
-        <section className="space-y-2 pt-2">
-          <div className="flex items-baseline justify-between px-1 gap-2">
-            <h2 className="text-[11px] font-bold tracking-[0.14em] uppercase text-sky-400/80">
-              Calendar
-            </h2>
-            <span className="text-[10px] text-zinc-600">soon</span>
-          </div>
-          <div className="rounded-xl border border-dashed border-zinc-800/80 px-4 py-5">
-            <p className="text-xs text-zinc-600 text-center leading-relaxed">
-              Appointments and events will land here once a calendar is connected.
+        <section>
+          <MythicSectionHeader title="Calendar" hint="Coming soon" sigil="□" />
+          <MythicPanel tone="blue" className={styles.calendarPanel}>
+            <div className={styles.calendarSeal} aria-hidden>□</div>
+            <p className={styles.calendarTitle}>The calendar chamber is still sealed.</p>
+            <p className={styles.calendarBody}>
+              Appointments and events will appear here once a calendar connection is added.
             </p>
-          </div>
+          </MythicPanel>
         </section>
       </div>
-    </main>
+    </MythicPage>
   )
 }
