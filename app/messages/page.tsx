@@ -102,6 +102,7 @@ async function sendMessage(formData: FormData) {
         const recentBaseQuery = supabase
           .from('messages')
           .select('role, content, created_at')
+          .neq('role', 'system')
         const recentScopedQuery =
           companionSlug === 'seraphine'
             ? recentBaseQuery.or('companion_slug.is.null,companion_slug.eq.seraphine')
@@ -254,7 +255,12 @@ export default async function MessagesPage({
   if (!activeSlug) {
     const [{ data: companions }, { data: allMessages }, readMap] = await Promise.all([
       supabase.from('companion').select('*').or('is_unlocked.eq.true,is_unlocked.is.null'),
-      supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(300),
+      supabase
+        .from('messages')
+        .select('*')
+        .neq('role', 'system')
+        .order('created_at', { ascending: false })
+        .limit(300),
       getReadMap(),
     ])
 
@@ -371,7 +377,11 @@ export default async function MessagesPage({
 
   const [{ data: companions }, { data: messages }] = await Promise.all([
     supabase.from('companion').select('*').or('is_unlocked.eq.true,is_unlocked.is.null'),
-    supabase.from('messages').select('*').order('created_at', { ascending: true }),
+    supabase
+      .from('messages')
+      .select('*')
+      .neq('role', 'system')
+      .order('created_at', { ascending: true }),
   ])
 
   const party = (companions || []).map((companion) => ({
