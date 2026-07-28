@@ -12,6 +12,7 @@ import {
 } from '@/lib/engines/relationship-wire'
 import type { ResponseChoice } from '@/lib/engines/relationship'
 import { markConversationRead, pushIfStillUnread } from '@/lib/reads'
+import { recordResponseChoiceMemory } from '@/lib/memory'
 
 const RESPONSE_LINES: Record<ResponseChoice, string[]> = {
   honest: [
@@ -116,7 +117,6 @@ export async function respondWithChoice(formData: FormData): Promise<{
     (Number(companion.bond_xp) || 0) + applied.bondXpDelta
   )
 
-  // Primary: dual-axis. Mirror: affinity + bond.
   const patch = companionScorePatch({
     affinity: nextAffinity,
     bondXp: nextBond,
@@ -127,12 +127,18 @@ export async function respondWithChoice(formData: FormData): Promise<{
   try {
     await supabase.from('companion').update(patch).eq('id', companion.id)
   } catch (e) {
-    // Columns missing — fall back to affinity/bond only
     console.error('dual-axis write failed, affinity/bond only', e)
     await supabase
       .from('companion')
       .update({ affinity_score: nextAffinity, bond_xp: nextBond })
       .eq('id', companion.id)
+  }
+
+  // Durable relational memory — soft injection on future replies
+  try {
+    await recordResponseChoiceMemory(companionSlug, choice)
+  } catch (e) {
+    console.error('response choice memory failed', e)
   }
 
   const text = pickLine(choice)

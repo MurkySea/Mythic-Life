@@ -7,6 +7,7 @@
  * 3. Push Trust deltas into active party companions (dual-axis primary write)
  * 4. Trigger reactive companions when a new rhythm day is applied
  * 5. Refresh World Integrity after daily rhythm
+ * 6. Rough-night streaks → companion memory (soft)
  */
 
 import { createClient } from '@/utils/supabase/server'
@@ -29,6 +30,7 @@ import {
 import { reactCompanionsToLayer0 } from '@/lib/engines/reactive-companions'
 import { refreshWorldIntegrity } from '@/lib/engines/world-integrity-wire'
 import { scoreNightWithLadder } from '@/lib/engines/baseline-wire'
+import { recordRoughNightMemory } from '@/lib/memory'
 import type { LifeDomain } from '@/lib/engines/types'
 
 function asRhythmTier(t: string | null | undefined): RhythmTier | null {
@@ -152,7 +154,6 @@ async function applyDailyRhythmIfNeeded(): Promise<{
         Math.round(((Number(row.affinity_score) || 1) + result.affinityDelta) * 10) / 10
       )
 
-      // Primary dual-axis write + streak + affinity/bond mirror
       const patch = companionScorePatch({
         affinity: nextAff,
         bondXp: nextBond,
@@ -170,6 +171,15 @@ async function applyDailyRhythmIfNeeded(): Promise<{
           .update({ bond_xp: nextBond, affinity_score: nextAff })
           .eq('id', row.id)
         console.error('companion dual-axis write failed, fell back', writeErr)
+      }
+
+      // Soft memory: rough nights compound into what she remembers
+      if (result.consecutiveBadDays >= 2) {
+        try {
+          await recordRoughNightMemory(member.slug, result.consecutiveBadDays)
+        } catch (memErr) {
+          console.error('rough night memory failed', member.slug, memErr)
+        }
       }
 
       trustDeltas.push({

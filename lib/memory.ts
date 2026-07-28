@@ -126,6 +126,173 @@ function parseEncoded(raw: string): { type: MemoryType; importance: number; text
   return { type: 'episodic', importance: 5, text: raw.trim() }
 }
 
+/** Dedup: skip if a very similar line was stored recently for this companion. */
+async function recentlyStoredSimilar(
+  companionSlug: string,
+  needle: string,
+  withinHours = 48
+): Promise<boolean> {
+  const supabase = await createClient()
+  const since = new Date(Date.now() - withinHours * 60 * 60 * 1000).toISOString()
+  const key = needle.slice(0, 48).toLowerCase()
+
+  try {
+    const { data } = await supabase
+      .from('companion_memories')
+      .select('content')
+      .eq('companion_slug', companionSlug)
+      .gte('created_at', since)
+      .limit(30)
+
+    return (data || []).some((r) =>
+      parseEncoded(r.content || '').text.toLowerCase().includes(key)
+    )
+  } catch {
+    return false
+  }
+}
+
+// ─────────────────────────────────────────────
+// System event → durable memory (soft injection only)
+// ─────────────────────────────────────────────
+
+const RESPONSE_MEMORY: Record<
+  string,
+  { text: string; importance: number; type: MemoryType }
+> = {
+  honest: {
+    text: 'When things were off, he answered honestly instead of performing fine.',
+    importance: 8,
+    type: 'relational',
+  },
+  ask_support: {
+    text: 'He asked her to stay close when he was struggling — let himself need her.',
+    importance: 8,
+    type: 'relational',
+  },
+  push_through: {
+    text: 'He chose to push through alone rather than open up fully.',
+    importance: 6,
+    type: 'relational',
+  },
+  deflect: {
+    text: 'He deflected when she checked in — said he was fine when he was not.',
+    importance: 7,
+    type: 'relational',
+  },
+}
+
+/** After outreach response choice. */
+export async function recordResponseChoiceMemory(
+  companionSlug: string,
+  choice: string
+): Promise<void> {
+  const entry = RESPONSE_MEMORY[choice]
+  if (!entry) return
+  if (await recentlyStoredSimilar(companionSlug, entry.text, 36)) return
+
+  await storeMemory({
+    companionSlug,
+    content: entry.text,
+    type: entry.type,
+    importance: entry.importance,
+    source: 'response_choice',
+  })
+}
+
+/** Rough-night streak crossed a threshold (2 / 3 / 5). */
+export async function recordRoughNightMemory(
+  companionSlug: string,
+  consecutiveBadDays: number
+): Promise<void> {
+  if (consecutiveBadDays < 2) return
+
+  let text: string
+  let importance: number
+  if (consecutiveBadDays >= 5) {
+    text = `His nights have been rough for ${consecutiveBadDays} days running. She felt the pattern, not just one bad sleep.`
+    importance = 8
+  } else if (consecutiveBadDays >= 3) {
+    text = `Three or more rough nights in a row. She started to worry in the quiet way, before she said anything.`
+    importance = 7
+  } else {
+    text = `A couple of rough nights landed close together. She noticed.`
+    importance = 5
+  }
+
+  if (await recentlyStoredSimilar(companionSlug, 'rough night', 60)) return
+
+  await storeMemory({
+    companionSlug,
+    content: text,
+    type: 'private',
+    importance,
+    source: 'rhythm_streak',
+  })
+}
+
+/** Affinity scene claimed. */
+export async function recordSceneMemory(
+  companionSlug: string,
+  sceneNumber: number
+): Promise<void> {
+  const text = `They claimed a deeper shared scene together (scene ${sceneNumber}). A private visual moment entered their history.`
+  if (await recentlyStoredSimilar(companionSlug, `scene ${sceneNumber}`, 24)) return
+
+  await storeMemory({
+    companionSlug,
+    content: text,
+    type: 'episodic',
+    importance: 6,
+    source: 'scene',
+  })
+}
+
+/** Date night completed. */
+export async function recordDateMemory(
+  companionSlug: string,
+  dateTitle: string
+): Promise<void> {
+  const title = (dateTitle || 'a night out').trim().slice(0, 80)
+  const text = `They went on a date: ${title}. It was not a task — it was time chosen for them.`
+  if (await recentlyStoredSimilar(companionSlug, title.slice(0, 24), 24)) return
+
+  await storeMemory({
+    companionSlug,
+    content: text,
+    type: 'relational',
+    importance: 7,
+    source: 'date',
+  })
+}
+
+/**
+ * Goal progress (ready for Task → Goal wire).
+ * Call when a goal moves meaningfully forward or completes.
+ */
+export async function recordGoalProgressMemory(
+  companionSlug: string,
+  opts: { goalTitle: string; kind: 'progress' | 'complete' }
+): Promise<void> {
+  const title = opts.goalTitle.trim().slice(0, 100)
+  if (!title) return
+
+  const text =
+    opts.kind === 'complete'
+      ? `He finished something he said mattered: ${title}.`
+      : `He made real progress on a goal he named: ${title}.`
+
+  if (await recentlyStoredSimilar(companionSlug, title.slice(0, 32), 48)) return
+
+  await storeMemory({
+    companionSlug,
+    content: text,
+    type: 'episodic',
+    importance: opts.kind === 'complete' ? 8 : 6,
+    source: 'goal',
+  })
+}
+
 export async function loadBestMemories(
   companionSlug: string,
   limit = 14
@@ -188,6 +355,21 @@ export async function loadBestMemories(
     console.error('loadBestMemories failed', e)
     return []
   }
+}
+
+/**
+ * When she has little durable knowledge of him, lean into curiosity.
+ * Soft-only — injected into dialogue context, never shown as UI.
+ */
+export function curiosityWhenThin(memoryCount: number): string | null {
+  if (memoryCount >= 6) return null
+  const lines = [
+    'She wants to know him better — not as a project, as a person. She may ask one real question if the moment allows.',
+    'There is still too much of him she does not know. Curiosity is warm, not interrogating.',
+    'She notices what he has not said yet. Wanting to know him is part of how she stays.',
+  ]
+  const daySeed = Math.floor(Date.now() / (1000 * 60 * 60 * 18))
+  return lines[daySeed % lines.length]
 }
 
 export async function maybeCaptureMemory(
@@ -255,15 +437,13 @@ async function maybeConsolidatePatterns(companionSlug: string): Promise<void> {
       {
         key: 'faith_anchor',
         test: /church|bible|faith|pray|god|worship|sermon/,
-        insight:
-          'Faith is a real anchor for him — not background noise.',
+        insight: 'Faith is a real anchor for him — not background noise.',
         importance: 7,
       },
       {
         key: 'building_drive',
         test: /build|building|land|homestead|create|project|system|vision/,
-        insight:
-          'He comes alive when he is building something that will outlast him.',
+        insight: 'He comes alive when he is building something that will outlast him.',
         importance: 7,
       },
       {
@@ -390,10 +570,6 @@ export async function maybeRecordAbsence(
 /**
  * Companion interior life — PERSONALITY and emotional weather,
  * not job, duty, or unfinished work.
- *
- * These seeds exist so she is not only about him — but they must
- * sound like a living woman (devotion, mood, want, soft stubbornness),
- * never like a coworker replaying a task list.
  */
 export function companionPrivateFocus(slug: string): string {
   const foci: Record<string, string[]> = {
