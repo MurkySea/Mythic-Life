@@ -30,6 +30,7 @@ import {
   loadBestMemories,
   maybeRecordAbsence,
   companionPrivateFocus,
+  curiosityWhenThin,
 } from '@/lib/memory'
 
 function normalizeAffinities(raw: unknown): string[] {
@@ -433,18 +434,15 @@ export async function generateCompanionResponse(
   const lastUser = [...thread].reverse().find((m) => m.role === 'user')?.content
   const lastCompanion = [...thread].reverse().find((m) => m.role === 'companion')?.content
 
-  // Long-term memory ranked by importance + recency
   const memoryLines = await loadBestMemories(companionSlug, 14)
-
-  // Automatic absence observation (forms private memory when he has been gone)
   const absenceNote = await maybeRecordAbsence(companionSlug)
-
-  // Companion private focus / agency seed — something she is carrying that is not only about him
   const privateFocus = companionPrivateFocus(companionSlug)
+  const curiosity = curiosityWhenThin(memoryLines.length)
 
   const memoryParts: string[] = []
   if (memoryLines.length > 0) memoryParts.push(...memoryLines)
   if (absenceNote) memoryParts.push(`(Private) ${absenceNote}`)
+  if (curiosity) memoryParts.push(`(Curiosity) ${curiosity}`)
   memoryParts.push(`(Her private focus) ${privateFocus}`)
 
   const memoryBlock =
@@ -519,8 +517,8 @@ export async function generateCompanionResponse(
 
     message = message
       .replace(/^["']|["']$/g, '')
-      .replace(new RegExp(`^${displayName}\s*:\s*`, 'i'), '')
-      .replace(/^\*[^*]+\*\s*/g, '')
+      .replace(new RegExp(`^${displayName}\\s*:\\s*`, 'i'), '')
+      .replace(/^\\*[^*]+\\*\\s*/g, '')
       .trim()
 
     await supabase.from('messages').insert({
