@@ -6,6 +6,13 @@ import { getCompanionDef } from '@/lib/companions'
 import { companionRelationshipState } from '@/lib/companion-presentation'
 import { companionTone } from '@/lib/companion-tone'
 import { markConversationRead } from '@/lib/reads'
+import {
+  parseCampfireDigest,
+  saveCampfireDigest,
+  synthesizeCampfireReflection,
+  type CampfireDigest,
+  type CampfireEnergy,
+} from '@/lib/campfire-director'
 import CompanionAvatar from '@/components/CompanionAvatar'
 import CampfireComposer from '@/components/CampfireComposer'
 import ChatThread from '@/components/ChatThread'
@@ -24,6 +31,13 @@ type MessageRow = {
 }
 
 const CAMPFIRE_MARKER = '\u2063\u2063'
+
+const ENERGY_LABEL: Record<CampfireEnergy, string> = {
+  low: 'Low flame',
+  steady: 'Steady flame',
+  high: 'Bright flame',
+  mixed: 'Changing flame',
+}
 
 const CAMPFIRE_OPENERS: Record<string, string> = {
   seraphine: 'Come sit with me. How was your day — really?',
@@ -61,7 +75,7 @@ function todayLabel(): string {
 }
 
 function isCampfireMessage(message: MessageRow): boolean {
-  return message.content.startsWith(CAMPFIRE_MARKER)
+  return message.role !== 'system' && message.content.startsWith(CAMPFIRE_MARKER)
 }
 
 function revealCampfireMessage(message: MessageRow): MessageRow {
@@ -69,6 +83,14 @@ function revealCampfireMessage(message: MessageRow): MessageRow {
     ...message,
     content: message.content.slice(CAMPFIRE_MARKER.length),
   }
+}
+
+function latestDigestForToday(thread: MessageRow[], today: string): CampfireDigest | null {
+  for (const message of [...thread].reverse()) {
+    const digest = parseCampfireDigest(message.content)
+    if (digest?.date === today) return digest
+  }
+  return null
 }
 
 async function shareReflection(formData: FormData) {
@@ -99,11 +121,19 @@ async function shareReflection(formData: FormData) {
     try {
       const replyWindowStart = new Date(Date.now() - 2000).toISOString()
       const { generateCompanionResponse } = await import('../actions')
-      const reply = await generateCompanionResponse(content, 'reflection', {
-        force: true,
-        isConversation: true,
-        companionSlug,
-      })
+      const [replyResult, digestResult] = await Promise.allSettled([
+        generateCompanionResponse(content, 'reflection', {
+          force: true,
+          isConversation: true,
+          companionSlug,
+        }),
+        synthesizeCampfireReflection(content, companionSlug),
+      ])
+
+      const reply = replyResult.status === 'fulfilled' ? replyResult.value : null
+      if (replyResult.status === 'rejected') {
+        console.error('campfire companion reply failed', replyResult.reason)
+      }
 
       if (reply) {
         const { data: generatedMessages, error: lookupError } = await supabase
@@ -130,11 +160,17 @@ async function shareReflection(formData: FormData) {
         }
       }
 
+      if (digestResult.status === 'fulfilled') {
+        await saveCampfireDigest(digestResult.value)
+      } else {
+        console.error('campfire digest failed', digestResult.reason)
+      }
+
       revalidatePath('/camp')
       revalidatePath('/messages')
       revalidatePath('/')
     } catch (error) {
-      console.error('campfire companion reply failed', error)
+      console.error('campfire background direction failed', error)
     }
   })
 }
@@ -150,7 +186,7 @@ export default async function CampPage({
 
   const [{ data: companions }, { data: recentMessages }] = await Promise.all([
     supabase.from('companion').select('*').or('is_unlocked.eq.true,is_unlocked.is.null'),
-    supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(180),
+    supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(220),
   ])
 
   const party = (companions || []).map((companion) => ({
@@ -186,8 +222,14 @@ export default async function CampPage({
     .filter((message) => isCampfireMessage(message) && chicagoDateKey(message.created_at) === today)
     .map(revealCampfireMessage)
     .slice(-24)
+  const digest = latestDigestForToday(thread, today)
   const reflectionCount = todayThread.filter((message) => message.role === 'user').length
-  const opener = CAMPFIRE_OPENERS[activeSlug] || `Come sit with me. Tell me how today felt, ${displayName === 'Seraphine' ? '' : 'honestly'}.`
+  const keptThreads = digest?.whatMattered.length
+    ? digest.whatMattered
+    : [...(digest?.brightSpots || []), ...(digest?.weight || [])].slice(0, 3)
+  const opener =
+    CAMPFIRE_OPENERS[activeSlug] ||
+    `Come sit with me. Tell me how today felt${displayName === 'Seraphine' ? '' : ', honestly'}.`
 
   await markConversationRead(activeSlug)
 
@@ -293,6 +335,44 @@ export default async function CampPage({
             <p>You do not need to summarize everything.</p>
             <span>Start with the moment that still has your attention. Your words remain in your shared correspondence and become part of what {displayName} remembers.</span>
           </div>
+        )}
+
+        {digest && (
+          <aside className={styles.digestCard} aria-label="What the fire kept from today">
+            <header className={styles.digestHeader}>
+              <div>
+                <p>What the fire kept</p>
+                <span>{ENERGY_LABEL[digest.energy]}</span>
+              </div>
+              <div className={styles.digestSeal} aria-hidden>
+                <MythicIcon name="spark" size={17} />
+              </div>
+            </header>
+            <h3 className={styles.digestHeadline}>{digest.headline}</h3>
+            <p className={styles.digestWeather}>{digest.emotionalWeather}</p>
+
+            {keptThreads.length > 0 && (
+              <div className={styles.digestThreads}>
+                {keptThreads.slice(0, 3).map((threadLine, index) => (
+                  <div className={styles.digestThread} key={`${threadLine}-${index}`}>
+                    <span aria-hidden>{index + 1}</span>
+                    <p>{threadLine}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {digest.carryForward && (
+              <div className={styles.digestCarry}>
+                <p>Still open</p>
+                <span>{digest.carryForward}</span>
+              </div>
+            )}
+
+            <p className={styles.digestFoot}>
+              {displayName} can remember this tomorrow. Nothing here changes your tasks unless you choose it.
+            </p>
+          </aside>
         )}
 
         <CampfireComposer
