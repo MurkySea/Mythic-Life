@@ -13,6 +13,7 @@ import { fetchLatestStanding, tierStyle } from '@/lib/standing'
 import { loadStanding } from '@/lib/engines/standing-store'
 import { chicagoYmd } from '@/lib/engines/muster'
 import { splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
+import { activateApprovedCampfireTasks } from '@/lib/campfire-actions'
 import { MODULE_ICONS, MythicIcon, type ModuleIconKey, type MythicIconName } from '@/components/MythicIcons'
 import { listGoals, PILLAR_LABELS } from '@/lib/engines/goals-store'
 import type { GoalPillar } from '@/lib/engines/goals'
@@ -28,7 +29,7 @@ const PILLAR_ICON: Record<GoalPillar, MythicIconName> = {
 export default async function HubPage() {
   if (!hasSupabaseEnv()) return <main className={styles.home}><section className={styles.hero}><p className={styles.eyebrow}>Mythic Life</p><h1 className={styles.name}>Configuration needed</h1></section></main>
 
-  await ensureRecurringTasks()
+  await Promise.all([ensureRecurringTasks(), activateApprovedCampfireTasks()])
   after(async () => { try { await maybeCompanionCheckIn(); revalidatePath('/messages') } catch (e) { console.error('check-in failed', e) } })
 
   const feedback = await readFeedback()
