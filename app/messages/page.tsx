@@ -14,11 +14,12 @@ import ChatComposer from '@/components/ChatComposer'
 import CompanionAvatar from '@/components/CompanionAvatar'
 import MarkReadOnOpen from '@/components/MarkReadOnOpen'
 import { respondWithChoice } from '@/app/response-actions'
-import { maybeGenerateCompanionImageGift } from '@/lib/companion-image-gifts'
+import {
+  isCompanionImageRequest,
+  maybeGenerateCompanionImageGift,
+} from '@/lib/companion-image-gifts'
 
 export const dynamic = 'force-dynamic'
-
-const IMAGE_CAPABILITY_CONTEXT = `[Private capability truth — never call this an app feature: You can create and send Mark images inside this conversation. You may naturally offer to show him something, make a portrait, visualize a place or moment, or send an image because it fits what you are feeling. Interpret any request through your own personality and intent. Do not discuss prompts, models, APIs, moderation, UI, or technical mechanics. Do not claim an attachment has already arrived before it actually appears; language like "let me show you" or "I want to make that for you" is natural.]`
 
 function formatInboxTime(iso: string | undefined): string {
   if (!iso) return ''
@@ -66,32 +67,79 @@ async function sendMessage(formData: FormData) {
 
   after(async () => {
     try {
+      const def = getCompanionDef(companionSlug)
+      const name = def?.name || 'Companion'
+      const emoji = def?.emoji || '✦'
+      const explicitImageRequest = isCompanionImageRequest(text)
+
+      const { data: companion } = await supabase
+        .from('companion')
+        .select('name, affinity_score')
+        .or(`slug.eq.${companionSlug},name.eq.${def?.name || 'Seraphine'}`)
+        .maybeSingle()
+
+      const characterName = companion?.name || name
+      const affinity = Number(companion?.affinity_score) || 1
+
+      // Explicit image requests are one coordinated action. Do not create a normal
+      // dialogue reply first, because it can contradict the image capability.
+      if (explicitImageRequest) {
+        try {
+          const gift = await maybeGenerateCompanionImageGift({
+            supabase,
+            companionSlug,
+            characterName,
+            affinity,
+            userText: text,
+            companionReply: '',
+            def,
+          })
+
+          if (gift) {
+            const imageMessage = `${gift.caption || 'Here.'}\n[image:${gift.imageUrl}]`
+            await supabase.from('messages').insert({
+              role: 'companion',
+              content: imageMessage,
+              companion_slug: companionSlug,
+            })
+
+            revalidatePath('/messages')
+            revalidatePath('/gallery')
+            revalidatePath('/companion-profile')
+
+            await pushIfStillUnread({
+              companionSlug,
+              messageCreatedAt: new Date().toISOString(),
+              title: `${emoji} ${name}`,
+              body: (gift.caption || 'I made something for you.').slice(0, 120),
+              tag: `chat-${companionSlug}`,
+            })
+            return
+          }
+        } catch (imageError) {
+          console.error('explicit companion image request failed', imageError)
+        }
+      }
+
+      // Normal dialogue, and graceful fallback when an explicit image could not be made.
       const { generateCompanionResponse } = await import('../actions')
-      const companionAwareText = `${text}\n\n${IMAGE_CAPABILITY_CONTEXT}`
-      const reply = await generateCompanionResponse(companionAwareText, 'conversation', {
+      const reply = await generateCompanionResponse(text, 'conversation', {
         force: true,
         isConversation: true,
         companionSlug,
       })
       revalidatePath('/messages')
 
-      if (reply && typeof reply === 'string') {
-        const def = getCompanionDef(companionSlug)
-        const name = def?.name || 'Companion'
-        const emoji = def?.emoji || '✦'
+      if (!reply || typeof reply !== 'string') return
 
+      // Spontaneous images remain optional and happen after a normal reply.
+      if (!explicitImageRequest) {
         try {
-          const { data: companion } = await supabase
-            .from('companion')
-            .select('name, affinity_score')
-            .or(`slug.eq.${companionSlug},name.eq.${def?.name || 'Seraphine'}`)
-            .maybeSingle()
-
           const gift = await maybeGenerateCompanionImageGift({
             supabase,
             companionSlug,
-            characterName: companion?.name || name,
-            affinity: Number(companion?.affinity_score) || 1,
+            characterName,
+            affinity,
             userText: text,
             companionReply: reply,
             def,
@@ -108,19 +156,17 @@ async function sendMessage(formData: FormData) {
             revalidatePath('/companion-profile')
           }
         } catch (imageError) {
-          console.error('companion image gift pipeline failed', imageError)
+          console.error('spontaneous companion image gift failed', imageError)
         }
-
-        const messageCreatedAt = new Date().toISOString()
-        // Push only if still unread ~5s later (user left the thread)
-        await pushIfStillUnread({
-          companionSlug,
-          messageCreatedAt,
-          title: `${emoji} ${name}`,
-          body: reply.trim().slice(0, 120),
-          tag: `chat-${companionSlug}`,
-        })
       }
+
+      await pushIfStillUnread({
+        companionSlug,
+        messageCreatedAt: new Date().toISOString(),
+        title: `${emoji} ${name}`,
+        body: reply.trim().slice(0, 120),
+        tag: `chat-${companionSlug}`,
+      })
     } catch (e) {
       console.error('background chat reply failed', e)
     }
@@ -248,7 +294,6 @@ export default async function MessagesPage({
     )
   }
 
-  // Server-side mark (best effort)
   await markConversationRead(activeSlug)
 
   const [{ data: companions }, { data: messages }] = await Promise.all([
@@ -286,7 +331,6 @@ export default async function MessagesPage({
 
   return (
     <main className="max-w-md mx-auto h-[100dvh] flex flex-col pb-20">
-      {/* Client-side force mark — this is the reliable path */}
       <MarkReadOnOpen companionSlug={activeSlug} />
 
       <div className="shrink-0 flex items-center gap-3 px-4 pt-6 pb-3 border-b border-zinc-900">
