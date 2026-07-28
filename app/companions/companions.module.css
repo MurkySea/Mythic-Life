@@ -1,0 +1,313 @@
+.stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.partyHeader,
+.sectionIntro,
+.cardMeta,
+.cardActions,
+.partyControls,
+.lockedMeta {
+  display: flex;
+  align-items: center;
+}
+
+.partyHeader {
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.95rem;
+}
+
+.panelEyebrow {
+  color: #d4a853;
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.panelTitle {
+  margin-top: 0.25rem;
+  color: #f1e8d8;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 600;
+}
+
+.panelSub {
+  margin-top: 0.2rem;
+  color: #787f8d;
+  font-size: 0.62rem;
+  line-height: 1.4;
+}
+
+.lockButton,
+.smallButton,
+.primaryButton,
+.ghostButton {
+  border: 1px solid rgba(212, 168, 83, 0.25);
+  border-radius: 0.68rem;
+  background: rgba(7, 10, 15, 0.72);
+  color: #aeb3bd;
+  font-family: var(--font-display);
+  font-size: 0.54rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.lockButton {
+  padding: 0.55rem 0.75rem;
+}
+
+.lockButton:hover,
+.smallButton:hover,
+.ghostButton:hover {
+  border-color: rgba(212, 168, 83, 0.55);
+  color: #e8c36d;
+}
+
+.partyGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.partySlot {
+  min-width: 0;
+}
+
+.partyLink {
+  display: block;
+  text-decoration: none;
+}
+
+.partyControls {
+  justify-content: space-between;
+  gap: 0.35rem;
+  margin-top: 0.42rem;
+}
+
+.smallButton {
+  min-height: 1.75rem;
+  padding: 0.32rem 0.52rem;
+}
+
+.smallButton:disabled,
+.primaryButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.dangerButton:hover {
+  border-color: rgba(224, 100, 100, 0.42);
+  color: #eaa0a0;
+}
+
+.emptySlot {
+  display: grid;
+  min-height: 11.5rem;
+  place-items: center;
+  border: 1px dashed rgba(115, 123, 139, 0.23);
+  border-radius: 1rem;
+  background: rgba(5, 8, 12, 0.4);
+  color: #555c69;
+  text-align: center;
+}
+
+.emptySlotMark {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+}
+
+.emptySlotText {
+  margin-top: 0.3rem;
+  font-size: 0.52rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.partyNote {
+  margin-top: 0.9rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgba(116, 123, 137, 0.14);
+  color: #717887;
+  font-size: 0.62rem;
+  line-height: 1.55;
+}
+
+.rosterGrid,
+.lockedGrid,
+.profileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.rosterCard,
+.lockedCard {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgba(116, 124, 139, 0.2);
+  border-radius: 1.2rem;
+  background: linear-gradient(165deg, rgba(18, 22, 30, 0.96), rgba(6, 9, 14, 0.98));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
+}
+
+.rosterCardActive {
+  border-color: rgba(157, 126, 214, 0.4);
+  box-shadow: 0 0 24px rgba(132, 90, 190, 0.08), 0 14px 30px rgba(0, 0, 0, 0.4);
+}
+
+.cardBody {
+  padding: 0.78rem 0.82rem 0.82rem;
+}
+
+.cardMeta {
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.raceClass,
+.relationshipLine,
+.lockedRequirement {
+  color: #747b88;
+  font-size: 0.56rem;
+  line-height: 1.4;
+}
+
+.relationshipLine {
+  margin-top: 0.3rem;
+  color: #a8adb7;
+}
+
+.relationshipLine strong {
+  color: #ccb46f;
+  font-weight: 600;
+}
+
+.partyTag {
+  flex: 0 0 auto;
+  color: #b99be7;
+  font-family: var(--font-display);
+  font-size: 0.46rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.32rem;
+  margin-top: 0.62rem;
+}
+
+.chip {
+  padding: 0.24rem 0.45rem;
+  border: 1px solid rgba(123, 132, 148, 0.18);
+  border-radius: 999px;
+  background: rgba(10, 14, 20, 0.72);
+  color: #858c99;
+  font-size: 0.48rem;
+}
+
+.cardActions {
+  justify-content: space-between;
+  gap: 0.4rem;
+  margin-top: 0.72rem;
+}
+
+.actionLinks {
+  display: flex;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.textLink {
+  color: #9c87d0;
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.textLinkMuted {
+  color: #727987;
+}
+
+.primaryButton,
+.ghostButton {
+  padding: 0.43rem 0.58rem;
+}
+
+.primaryButton {
+  border-color: rgba(152, 111, 209, 0.42);
+  background: rgba(83, 53, 125, 0.36);
+  color: #d3c2ee;
+}
+
+.primaryButton:hover {
+  border-color: rgba(178, 137, 231, 0.62);
+  background: rgba(103, 68, 150, 0.46);
+}
+
+.statusText {
+  color: #696f7b;
+  font-size: 0.5rem;
+  text-align: right;
+}
+
+.lockedBody {
+  padding: 0.72rem 0.8rem 0.8rem;
+}
+
+.lockedMeta {
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.lockedName {
+  color: #a9adb5;
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+}
+
+.readyText {
+  color: #cfaa54;
+}
+
+.lockedRequirement {
+  margin-top: 0.4rem;
+}
+
+.headerSealValue {
+  color: #e6c16b;
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+}
+
+.headerSealLabel {
+  margin-top: 0.12rem;
+  color: #696f7b;
+  font-size: 0.38rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 370px) {
+  .rosterGrid,
+  .lockedGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .partyGrid {
+    gap: 0.5rem;
+  }
+
+  .cardBody {
+    padding-inline: 0.7rem;
+  }
+}
