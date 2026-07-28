@@ -23,6 +23,8 @@ type MessageRow = {
   created_at?: string | null
 }
 
+const CAMPFIRE_MARKER = '\u2063\u2063'
+
 const CAMPFIRE_OPENERS: Record<string, string> = {
   seraphine: 'Come sit with me. How was your day — really?',
   kira_foxveil: 'You made it back. Start with the part you keep replaying.',
@@ -58,6 +60,17 @@ function todayLabel(): string {
   }).format(new Date())
 }
 
+function isCampfireMessage(message: MessageRow): boolean {
+  return message.content.startsWith(CAMPFIRE_MARKER)
+}
+
+function revealCampfireMessage(message: MessageRow): MessageRow {
+  return {
+    ...message,
+    content: message.content.slice(CAMPFIRE_MARKER.length),
+  }
+}
+
 async function shareReflection(formData: FormData) {
   'use server'
 
@@ -68,7 +81,7 @@ async function shareReflection(formData: FormData) {
   const supabase = await createClient()
   const { error } = await supabase.from('messages').insert({
     role: 'user',
-    content,
+    content: `${CAMPFIRE_MARKER}${content}`,
     companion_slug: companionSlug,
   })
 
@@ -84,12 +97,39 @@ async function shareReflection(formData: FormData) {
 
   after(async () => {
     try {
+      const replyWindowStart = new Date(Date.now() - 2000).toISOString()
       const { generateCompanionResponse } = await import('../actions')
-      await generateCompanionResponse(content, 'reflection', {
+      const reply = await generateCompanionResponse(content, 'reflection', {
         force: true,
         isConversation: true,
         companionSlug,
       })
+
+      if (reply) {
+        const { data: generatedMessages, error: lookupError } = await supabase
+          .from('messages')
+          .select('id, content, created_at')
+          .eq('role', 'companion')
+          .eq('companion_slug', companionSlug)
+          .gte('created_at', replyWindowStart)
+          .order('created_at', { ascending: false })
+          .limit(4)
+
+        if (lookupError) {
+          console.error('campfire reply lookup failed', lookupError)
+        } else {
+          const generated = (generatedMessages || []).find((message) => message.content === reply)
+          if (generated) {
+            const { error: tagError } = await supabase
+              .from('messages')
+              .update({ content: `${CAMPFIRE_MARKER}${reply}` })
+              .eq('id', generated.id)
+
+            if (tagError) console.error('campfire reply tagging failed', tagError)
+          }
+        }
+      }
+
       revalidatePath('/camp')
       revalidatePath('/messages')
       revalidatePath('/')
@@ -143,7 +183,8 @@ export default async function CampPage({
     .reverse()
 
   const todayThread = thread
-    .filter((message) => chicagoDateKey(message.created_at) === today)
+    .filter((message) => isCampfireMessage(message) && chicagoDateKey(message.created_at) === today)
+    .map(revealCampfireMessage)
     .slice(-24)
   const reflectionCount = todayThread.filter((message) => message.role === 'user').length
   const opener = CAMPFIRE_OPENERS[activeSlug] || `Come sit with me. Tell me how today felt, ${displayName === 'Seraphine' ? '' : 'honestly'}.`
