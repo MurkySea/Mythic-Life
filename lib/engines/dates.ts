@@ -1,12 +1,11 @@
 /**
  * Date ideas — weighted random nights out.
- * Common romance + rare adult pulls. Each idea can roll outfit/pose variants.
- *
- * Updated 2026-07-25:
- * Probability of adult / exclusive dates now scales with companion intimacy.
- * Low intimacy → almost exclusively modest/romantic dates.
- * High intimacy → adult dates become meaningfully common while modest dates retain residual weight.
+ * Optional memory preference tags soft-boost matching ideas
+ * and inject up to 2 visual flavor lines into the image prompt.
  */
+
+import type { VisualPrefTag } from '@/lib/memory-visual'
+import { datePreferenceBoost } from '@/lib/memory-visual'
 
 export type DateRarity = 'common' | 'uncommon' | 'rare'
 
@@ -14,7 +13,6 @@ export interface DateIdea {
   id: string
   title: string
   setting: string
-  /** Primary outfit; variants roll for extra variety */
   outfit: string
   outfitVariants?: string[]
   pose: string
@@ -32,7 +30,6 @@ function pickOne(primary: string, variants?: string[]): string {
 }
 
 export const DATE_IDEAS: DateIdea[] = [
-  // ——— Common ———
   {
     id: 'terrace_dinner',
     title: 'Terrace dinner',
@@ -342,8 +339,6 @@ export const DATE_IDEAS: DateIdea[] = [
     line: 'I forgot the movie. I remember you laughing.',
     rarity: 'common',
   },
-
-  // ——— Rare adult — varied outfits & poses ———
   {
     id: 'lingerie_surprise',
     title: 'Lingerie surprise',
@@ -506,49 +501,33 @@ export const DATE_IDEAS: DateIdea[] = [
   },
 ]
 
-/**
- * Dynamic weight for rare/adult dates based on intimacy (0–100).
- * 
- * Curve design:
- * - 0–25 intimacy  → near-zero adult chance (modest/romantic dominate)
- * - 25–55          → gentle rise
- * - 55–80          → solid adult presence
- * - 80–100         → adult becomes a frequent, expected possibility
- * 
- * Common dates keep a residual floor so the relationship never becomes
- * exclusively sexual even at max intimacy.
- */
 export function adultWeightForIntimacy(intimacy: number): number {
   const t = Math.max(0, Math.min(100, intimacy)) / 100
-  // Quadratic ease-in keeps early relationship mostly wholesome
-  // At intimacy 0  → ~0.4
-  // At intimacy 50 → ~3.4
-  // At intimacy 75 → ~7.1
-  // At intimacy 100 → ~12.4  (comparable to the common weight of 10)
   return 0.4 + 12 * (t * t)
 }
 
 /**
- * Pick a date idea, optionally scaled by companion intimacy.
- * 
- * When intimacy is omitted the old fixed weights are used (backward compatible).
- * When intimacy is supplied, rare adult dates become progressively more likely.
+ * Pick a date idea. Optional preferenceTags soft-boost matching ideas
+ * (e.g. fishing memories → pier / harbor more often).
  */
-export function pickDateIdea(intimacy?: number): DateIdea {
+export function pickDateIdea(
+  intimacy?: number,
+  preferenceTags?: VisualPrefTag[]
+): DateIdea {
   const useScaling = typeof intimacy === 'number'
+  const tags = preferenceTags || []
 
   const weightFor = (idea: DateIdea): number => {
+    let base: number
     if (!useScaling) {
-      // Legacy fixed weights
       const fixed: Record<DateRarity, number> = { common: 10, uncommon: 4, rare: 1 }
-      return fixed[idea.rarity]
+      base = fixed[idea.rarity]
+    } else if (idea.adult || idea.rarity === 'rare') {
+      base = adultWeightForIntimacy(intimacy!)
+    } else {
+      base = idea.rarity === 'common' ? 10 : 4
     }
-
-    if (idea.adult || idea.rarity === 'rare') {
-      return adultWeightForIntimacy(intimacy!)
-    }
-    // Common / uncommon keep stable weight + small residual
-    return idea.rarity === 'common' ? 10 : 4
+    return base * datePreferenceBoost(idea.id, tags)
   }
 
   const total = DATE_IDEAS.reduce((s, d) => s + weightFor(d), 0)
@@ -560,7 +539,6 @@ export function pickDateIdea(intimacy?: number): DateIdea {
   return DATE_IDEAS[0]
 }
 
-/** Resolve a concrete outfit/pose roll for this night. */
 export function rollDatePresentation(idea: DateIdea): {
   outfit: string
   pose: string
@@ -571,13 +549,19 @@ export function rollDatePresentation(idea: DateIdea): {
   }
 }
 
-/** Build image prompt from a date idea + companion appearance. */
+/** Build image prompt from a date idea + companion appearance + optional memory hints. */
 export function buildDatePromptFromIdea(
   idea: DateIdea,
-  opts: { appearance: string; name: string; race?: string }
+  opts: {
+    appearance: string
+    name: string
+    race?: string
+    memoryHints?: string[]
+  }
 ): string {
   const look = opts.appearance.trim()
   const { outfit, pose } = rollDatePresentation(idea)
+  const hints = (opts.memoryHints || []).slice(0, 2)
 
   const tone = idea.adult
     ? [
@@ -590,7 +574,7 @@ export function buildDatePromptFromIdea(
         'romantic atmosphere, tasteful, fully clothed, soft chemistry',
       ]
 
-  return [
+  const parts = [
     ...tone,
     'refined anime key-visual quality, cinematic',
     `Character: ${look}`,
@@ -601,5 +585,13 @@ export function buildDatePromptFromIdea(
     `Setting: ${idea.setting}`,
     `expression: ${idea.mood} — not performative`,
     'single character focus, clear face, feminine adult proportions',
-  ].join('. ')
+  ]
+
+  if (hints.length > 0) {
+    parts.push(
+      `Shared history flavor (subtle, do not override the date setting): ${hints.join('; ')}`
+    )
+  }
+
+  return parts.join('. ')
 }

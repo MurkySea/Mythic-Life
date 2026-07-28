@@ -10,10 +10,11 @@ import { pickDateIdea, buildDatePromptFromIdea } from '@/lib/engines/dates'
 import { persistGeneratedImage } from '@/lib/persistImage'
 import { insertGalleryImage } from '@/lib/galleryKind'
 import { recordDateMemory } from '@/lib/memory'
+import { loadVisualMemoryHints } from '@/lib/memory-visual'
 
 /**
  * Spend a date coin (preferred) or gold to take a companion on a date.
- * Does NOT consume affinity scene slots.
+ * Memory of what he likes soft-biases which night she picks and flavors the image.
  */
 export async function takeCompanionOnDate(formData: FormData) {
   const slug = (formData.get('slug') as string) || 'seraphine'
@@ -45,11 +46,14 @@ export async function takeCompanionOnDate(formData: FormData) {
 
   const intimacyProxy = Math.max(0, Math.min(100, companion.affinity_score || 30))
 
-  const idea = pickDateIdea(intimacyProxy)
+  // What she knows about him → soft date bias + prompt flavor
+  const visual = await loadVisualMemoryHints(slug)
+  const idea = pickDateIdea(intimacyProxy, visual.tags)
   const prompt = buildDatePromptFromIdea(idea, {
     appearance,
     name: characterName,
     race: def?.race,
+    memoryHints: visual.lines,
   })
 
   let imageUrl: string | null = null
