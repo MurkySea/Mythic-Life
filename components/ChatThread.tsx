@@ -67,10 +67,12 @@ export default function ChatThread({
 }) {
   const bottomRef = useRef<HTMLDivElement>(null)
   const tone = companionTone(companionSlug)
+  const visibleMessages = messages.filter((message) => message.role !== 'system')
+  const lastVisible = visibleMessages[visibleMessages.length - 1]
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
-  }, [messages.length, messages[messages.length - 1]?.id])
+  }, [visibleMessages.length, lastVisible?.id])
 
   useEffect(() => {
     let cancelled = false
@@ -103,16 +105,15 @@ export default function ChatThread({
   }, [companionSlug])
 
   useEffect(() => {
-    const last = messages[messages.length - 1]
-    if (!last || last.role !== 'companion') return
+    if (!lastVisible || lastVisible.role !== 'companion') return
     fetch('/api/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companion_slug: companionSlug }),
     }).catch(() => {})
-  }, [messages.length, messages[messages.length - 1]?.id, companionSlug])
+  }, [visibleMessages.length, lastVisible?.id, lastVisible?.role, companionSlug])
 
-  if (messages.length === 0) {
+  if (visibleMessages.length === 0) {
     return (
       <div className={styles.thread} data-tone={tone}>
         <div className={styles.empty}>
@@ -131,7 +132,7 @@ export default function ChatThread({
   return (
     <div className={styles.thread} data-tone={tone}>
       <div className={styles.messageList}>
-        {messages.map((msg) => {
+        {visibleMessages.map((msg) => {
           const isUser = msg.role === 'user'
           return (
             <article
