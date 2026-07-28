@@ -1,0 +1,206 @@
+.composer {
+  --camp-tone: 205, 142, 74;
+  --camp-ink: #f2c47f;
+  position: relative;
+  padding: 1rem;
+  border-top: 1px solid rgba(var(--camp-tone), 0.22);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(var(--camp-tone), 0.09), transparent 38%),
+    linear-gradient(180deg, rgba(8, 10, 14, 0.94), rgba(4, 6, 9, 0.995));
+}
+
+.composer[data-tone='silver'] { --camp-tone: 137, 181, 225; --camp-ink: #bfe1ff; }
+.composer[data-tone='ember'] { --camp-tone: 230, 103, 45; --camp-ink: #ffad72; }
+.composer[data-tone='crimson'] { --camp-tone: 214, 67, 94; --camp-ink: #ff9caf; }
+.composer[data-tone='void'] { --camp-tone: 126, 87, 206; --camp-ink: #c1a4ff; }
+.composer[data-tone='archive'] { --camp-tone: 65, 169, 128; --camp-ink: #8de1bd; }
+.composer[data-tone='dawn'] { --camp-tone: 226, 171, 79; --camp-ink: #f1ca7d; }
+.composer[data-tone='wild'] { --camp-tone: 105, 178, 97; --camp-ink: #a7df9f; }
+.composer[data-tone='tide'] { --camp-tone: 62, 157, 199; --camp-ink: #86d4f2; }
+.composer[data-tone='rose'] { --camp-tone: 208, 94, 156; --camp-ink: #f0a5d0; }
+
+.waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  margin-bottom: 0.8rem;
+  color: #9ea5af;
+  font-size: 0.68rem;
+}
+
+.embers {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+}
+
+.embers span {
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 50%;
+  background: var(--camp-ink);
+  box-shadow: 0 0 10px rgba(var(--camp-tone), 0.45);
+  animation: emberPulse 1.2s ease-in-out infinite;
+}
+
+.embers span:nth-child(2) { animation-delay: 160ms; }
+.embers span:nth-child(3) { animation-delay: 320ms; }
+
+.form {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.label {
+  color: #b48b52;
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.inputShell {
+  overflow: hidden;
+  border: 1px solid rgba(var(--camp-tone), 0.28);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(var(--camp-tone), 0.08), transparent 34%),
+    rgba(5, 8, 12, 0.92);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 14px 34px rgba(0, 0, 0, 0.3);
+}
+
+.inputShell:focus-within {
+  border-color: rgba(var(--camp-tone), 0.52);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 0 0 3px rgba(var(--camp-tone), 0.06),
+    0 16px 38px rgba(0, 0, 0, 0.36);
+}
+
+.textarea {
+  display: block;
+  width: 100%;
+  min-height: 8rem;
+  resize: vertical;
+  padding: 0.95rem 1rem 0.7rem;
+  border: 0;
+  outline: 0;
+  color: #f4efe7;
+  background: transparent;
+  font: inherit;
+  font-size: 0.92rem;
+  line-height: 1.58;
+}
+
+.textarea::placeholder { color: #59616c; }
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.68rem;
+  border-top: 1px solid rgba(var(--camp-tone), 0.11);
+  background: rgba(2, 4, 7, 0.42);
+}
+
+.voiceButton,
+.sendButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.45rem;
+  border-radius: 0.72rem;
+  font-family: var(--font-display);
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease, opacity 150ms ease;
+}
+
+.voiceButton {
+  padding: 0.62rem 0.82rem;
+  border: 1px solid rgba(126, 139, 156, 0.28);
+  color: #9ba4b1;
+  background: rgba(13, 18, 25, 0.72);
+}
+
+.voiceButton:hover:not(:disabled) {
+  color: #d8dde4;
+  border-color: rgba(var(--camp-tone), 0.38);
+  transform: translateY(-1px);
+}
+
+.voiceButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.voiceButton.listening {
+  color: #fff2dc;
+  border-color: rgba(231, 110, 74, 0.65);
+  background: rgba(104, 35, 24, 0.5);
+  box-shadow: 0 0 18px rgba(220, 82, 47, 0.14);
+}
+
+.micGlyph {
+  color: #e96f4d;
+  font-size: 0.62rem;
+}
+
+.listening .micGlyph { animation: listeningPulse 900ms ease-in-out infinite; }
+
+.sendButton {
+  padding: 0.62rem 1rem;
+  border: 1px solid rgba(var(--camp-tone), 0.52);
+  color: #1a1108;
+  background: linear-gradient(135deg, #f0c57e, #b67a36);
+  box-shadow: 0 7px 18px rgba(var(--camp-tone), 0.12);
+}
+
+.sendButton:hover:not(:disabled) { transform: translateY(-1px); }
+.sendButton:disabled { cursor: not-allowed; opacity: 0.42; }
+
+.voiceError {
+  margin-top: 0.62rem;
+  color: #dc9a87;
+  font-size: 0.63rem;
+  line-height: 1.45;
+}
+
+.hint {
+  margin-top: 0.58rem;
+  color: #58606b;
+  font-size: 0.56rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@keyframes emberPulse {
+  0%, 100% { opacity: 0.35; transform: translateY(1px) scale(0.88); }
+  50% { opacity: 1; transform: translateY(-1px) scale(1.08); }
+}
+
+@keyframes listeningPulse {
+  0%, 100% { opacity: 0.42; transform: scale(0.88); }
+  50% { opacity: 1; transform: scale(1.12); }
+}
+
+@media (max-width: 420px) {
+  .composer { padding: 0.82rem; }
+  .controls { gap: 0.5rem; }
+  .voiceButton,
+  .sendButton { min-height: 2.35rem; font-size: 0.54rem; }
+  .textarea { min-height: 7.2rem; font-size: 0.88rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .embers span,
+  .listening .micGlyph { animation: none; }
+}
