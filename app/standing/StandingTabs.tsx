@@ -1,25 +1,24 @@
 import Link from 'next/link'
+import { MythicIcon } from '@/components/MythicIcons'
+import styles from './standing-tabs.module.css'
 
 export function StandingTabs({ active }: { active: 'standing' | 'health' }) {
-  const base =
-    'flex-1 text-center text-xs py-2 rounded-lg border transition'
-  const on = 'border-violet-700/50 bg-violet-950/40 text-violet-200'
-  const off = 'border-zinc-800 bg-zinc-900/40 text-zinc-500 hover:text-zinc-300'
-
   return (
-    <div className="flex gap-2 mb-6">
+    <nav className={styles.tabs} aria-label="Standing views">
       <Link
         href="/standing"
-        className={`${base} ${active === 'standing' ? on : off}`}
+        className={`${styles.tab} ${active === 'standing' ? styles.active : ''}`}
       >
-        Standing
+        <span className={styles.icon} aria-hidden><MythicIcon name="standing" size={13} /></span>
+        Soul Ledger
       </Link>
       <Link
         href="/standing/health"
-        className={`${base} ${active === 'health' ? on : off}`}
+        className={`${styles.tab} ${active === 'health' ? styles.active : ''}`}
       >
-        Health
+        <span className={styles.icon} aria-hidden><MythicIcon name="streak" size={13} /></span>
+        Vital Signs
       </Link>
-    </div>
+    </nav>
   )
 }
