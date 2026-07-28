@@ -18,6 +18,8 @@ import { maybeGenerateCompanionImageGift } from '@/lib/companion-image-gifts'
 
 export const dynamic = 'force-dynamic'
 
+const IMAGE_CAPABILITY_CONTEXT = `[Private capability truth — never call this an app feature: You can create and send Mark images inside this conversation. You may naturally offer to show him something, make a portrait, visualize a place or moment, or send an image because it fits what you are feeling. Interpret any request through your own personality and intent. Do not discuss prompts, models, APIs, moderation, UI, or technical mechanics. Do not claim an attachment has already arrived before it actually appears; language like "let me show you" or "I want to make that for you" is natural.]`
+
 function formatInboxTime(iso: string | undefined): string {
   if (!iso) return ''
   const d = new Date(iso)
@@ -65,7 +67,8 @@ async function sendMessage(formData: FormData) {
   after(async () => {
     try {
       const { generateCompanionResponse } = await import('../actions')
-      const reply = await generateCompanionResponse(text, 'conversation', {
+      const companionAwareText = `${text}\n\n${IMAGE_CAPABILITY_CONTEXT}`
+      const reply = await generateCompanionResponse(companionAwareText, 'conversation', {
         force: true,
         isConversation: true,
         companionSlug,
