@@ -13,6 +13,7 @@ import ChatThread from '@/components/ChatThread'
 import ChatComposer from '@/components/ChatComposer'
 import CompanionAvatar from '@/components/CompanionAvatar'
 import MarkReadOnOpen from '@/components/MarkReadOnOpen'
+import { MythicIcon } from '@/components/MythicIcons'
 import { respondWithChoice } from '@/app/response-actions'
 import {
   fulfillExplicitCompanionImageRequest,
@@ -20,6 +21,9 @@ import {
   maybeGenerateCompanionImageGift,
 } from '@/lib/companion-image-gifts'
 import { buildSceneAwareImageRequest } from '@/lib/companion-scene-context'
+import { companionRelationshipState } from '@/lib/companion-presentation'
+import { companionTone } from '@/lib/companion-tone'
+import styles from './messages.module.css'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -44,6 +48,14 @@ function formatInboxTime(iso: string | undefined): string {
     day: 'numeric',
     timeZone: 'America/Chicago',
   })
+}
+
+function messagePreview(content: string | null | undefined): string {
+  const clean = String(content || '')
+    .replace(/\[image:[^\]]+\]/g, 'Shared a memory')
+    .replace(/\s+/g, ' ')
+    .trim()
+  return clean || 'No letters yet — open the chamber.'
 }
 
 async function sendMessage(formData: FormData) {
@@ -255,21 +267,21 @@ export default async function MessagesPage({
 
     type LastMsg = { content: string; created_at: string; role: string }
     const lastBySlug: Record<string, LastMsg> = {}
-    for (const m of allMessages || []) {
-      const slug = m.companion_slug || 'seraphine'
+    for (const message of allMessages || []) {
+      const slug = message.companion_slug || 'seraphine'
       if (!lastBySlug[slug]) {
         lastBySlug[slug] = {
-          content: m.content,
-          created_at: m.created_at,
-          role: m.role,
+          content: message.content,
+          created_at: message.created_at,
+          role: message.role,
         }
       }
     }
 
-    const rows = party.map((c) => {
-      const last = lastBySlug[c.slug]
-      const unread = isUnread(last, readMap[c.slug])
-      return { c, last, unread }
+    const rows = party.map((companion) => {
+      const last = lastBySlug[companion.slug]
+      const unread = isUnread(last, readMap[companion.slug])
+      return { companion, last, unread }
     })
 
     rows.sort((a, b) => {
@@ -280,72 +292,77 @@ export default async function MessagesPage({
     })
 
     return (
-      <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-        <div className="flex items-center gap-3 mb-6">
-          <Link
-            href="/"
-            className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
-          >
-            ←
-          </Link>
+      <main className={styles.inboxPage}>
+        <div className={styles.worldTexture} aria-hidden />
+        <header className={styles.inboxHeader}>
+          <Link href="/" className={styles.backButton} aria-label="Back to Home">‹</Link>
           <div>
-            <p className="text-zinc-500 text-xs tracking-wide uppercase">Inbox</p>
-            <h1 className="text-xl font-medium text-white tracking-tight">Messages</h1>
+            <p className={styles.headerEyebrow}>Correspondence chamber</p>
+            <h1 className={styles.headerTitle}>Letters</h1>
           </div>
-        </div>
+          <div className={styles.headerSeal} aria-hidden>
+            <MythicIcon name="messages" size={23} />
+          </div>
+        </header>
 
-        <div className="space-y-0.5">
+        <section className={styles.introPanel}>
+          <p className={styles.introTitle}>Voices beyond the firelight</p>
+          <p className={styles.introBody}>
+            Every letter belongs to one living bond. Unread words rise first; older conversations remain where you left them.
+          </p>
+        </section>
+
+        <section className={styles.letterStack} aria-label="Companion correspondence">
           {rows.length === 0 ? (
-            <p className="text-center text-zinc-500 text-sm py-16">No companions unlocked yet.</p>
+            <div className={styles.emptyInbox}>
+              <div className={styles.emptyMark} aria-hidden>
+                <MythicIcon name="messages" size={24} />
+              </div>
+              <p className={styles.emptyTitle}>No voices have crossed the veil yet.</p>
+              <p className={styles.emptyBody}>Unlock a companion and her letters will gather here.</p>
+            </div>
           ) : (
-            rows.map(({ c, last, unread }) => {
-              const def = getCompanionDef(c.slug)
+            rows.map(({ companion, last, unread }) => {
+              const def = getCompanionDef(companion.slug)
+              const name = companion.name || def?.name || 'Companion'
+              const relationship = companionRelationshipState(companion, companion.slug)
+              const tone = companionTone(companion.slug)
               return (
                 <Link
-                  key={c.id || c.slug}
-                  href={`/messages?c=${c.slug}`}
-                  className="flex items-center gap-3 px-2 py-3.5 rounded-xl hover:bg-zinc-900/80 transition"
+                  key={companion.id || companion.slug}
+                  href={`/messages?c=${companion.slug}`}
+                  className={`${styles.letter} ${unread ? styles.unread : ''}`}
+                  data-tone={tone}
+                  aria-label={`${unread ? 'Unread letter from' : 'Open correspondence with'} ${name}`}
                 >
-                  <div className="relative shrink-0">
+                  <div className={styles.portraitFrame}>
                     <CompanionAvatar
-                      slug={c.slug}
-                      name={c.name}
+                      slug={companion.slug}
+                      name={name}
                       emoji={def?.emoji || '✦'}
-                      imageUrl={c.image_url}
+                      imageUrl={companion.image_url}
                       preferChibi
-                      size="md"
+                      size="lg"
                     />
-                    {unread && (
-                      <span
-                        className="absolute -left-0.5 top-1/2 -translate-y-1/2 -translate-x-full w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_0_2px_rgb(9,9,11)]"
-                        aria-label="Unread"
-                      />
-                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p
-                        className={`truncate ${unread ? 'font-semibold text-white' : 'font-medium text-zinc-200'}`}
-                      >
-                        {c.name}
-                      </p>
-                      <span
-                        className={`text-xs shrink-0 ${unread ? 'text-blue-400 font-medium' : 'text-zinc-600'}`}
-                      >
-                        {formatInboxTime(last?.created_at)}
-                      </span>
+                  <div className={styles.letterCopy}>
+                    <div className={styles.letterTop}>
+                      <p className={styles.letterName}>{name}</p>
+                      <span className={styles.letterTime}>{formatInboxTime(last?.created_at)}</span>
                     </div>
-                    <p
-                      className={`text-sm truncate mt-0.5 ${unread ? 'text-zinc-300' : 'text-zinc-500'}`}
-                    >
-                      {last?.content || 'No messages yet — say hello.'}
+                    <p className={styles.relationshipLine}>{relationship.stage} · {def?.title || relationship.mood}</p>
+                    <p className={styles.preview}>
+                      {last?.role === 'user' ? 'You · ' : ''}{messagePreview(last?.content)}
                     </p>
                   </div>
+                  <span className={styles.waxSeal} aria-hidden>
+                    <MythicIcon name={unread ? 'messages' : 'relationship'} size={15} />
+                  </span>
                 </Link>
               )
             })
           )}
-        </div>
+        </section>
       </main>
     )
   }
@@ -357,58 +374,62 @@ export default async function MessagesPage({
     supabase.from('messages').select('*').order('created_at', { ascending: true }),
   ])
 
-  const party = (companions || []).map((c) => ({
-    ...c,
+  const party = (companions || []).map((companion) => ({
+    ...companion,
     slug:
-      c.slug ||
-      (c.name === 'Seraphine' ? 'seraphine' : c.name?.toLowerCase().replace(/\s+/g, '_')),
+      companion.slug ||
+      (companion.name === 'Seraphine'
+        ? 'seraphine'
+        : companion.name?.toLowerCase().replace(/\s+/g, '_')),
   }))
 
   const companion =
-    party.find((c) => c.slug === activeSlug) ||
-    party.find((c) => c.name === 'Seraphine') ||
+    party.find((row) => row.slug === activeSlug) ||
+    party.find((row) => row.name === 'Seraphine') ||
     null
   const def = getCompanionDef(activeSlug)
   const displayName = companion?.name || def?.name || 'Companion'
+  const relationship = companionRelationshipState(companion, activeSlug)
+  const tone = companionTone(activeSlug)
 
-  const thread = (messages || []).filter((m) => {
+  const thread = (messages || []).filter((message) => {
     if (activeSlug === 'seraphine') {
-      return !m.companion_slug || m.companion_slug === 'seraphine'
+      return !message.companion_slug || message.companion_slug === 'seraphine'
     }
-    return m.companion_slug === activeSlug
+    return message.companion_slug === activeSlug
   })
 
   const lastMsg = thread[thread.length - 1]
   const lastMessageIsCompanion = lastMsg?.role === 'companion'
   const lastCompanionContent =
-    lastMessageIsCompanion && typeof lastMsg?.content === 'string'
-      ? lastMsg.content
-      : null
+    lastMessageIsCompanion && typeof lastMsg?.content === 'string' ? lastMsg.content : null
 
   return (
-    <main className="max-w-md mx-auto h-[100dvh] flex flex-col pb-20">
+    <main className={styles.threadPage} data-tone={tone}>
+      <div className={styles.worldTexture} aria-hidden />
       <MarkReadOnOpen companionSlug={activeSlug} />
 
-      <div className="shrink-0 flex items-center gap-3 px-4 pt-6 pb-3 border-b border-zinc-900">
-        <Link
-          href="/messages"
-          className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
-        >
-          ←
-        </Link>
-        <CompanionAvatar
-          slug={activeSlug}
-          name={displayName}
-          emoji={def?.emoji || '✦'}
-          imageUrl={companion?.image_url}
-          preferChibi
-          size="sm"
-        />
-        <div className="min-w-0 flex-1">
-          <p className="text-zinc-500 text-xs tracking-wide uppercase">Conversation</p>
-          <h1 className="text-xl font-medium text-white tracking-tight truncate">{displayName}</h1>
+      <header className={styles.threadHeader}>
+        <Link href="/messages" className={styles.threadBack} aria-label="Back to Letters">‹</Link>
+        <div className={styles.threadPortrait}>
+          <CompanionAvatar
+            slug={activeSlug}
+            name={displayName}
+            emoji={def?.emoji || '✦'}
+            imageUrl={companion?.image_url}
+            preferChibi
+            size="lg"
+          />
         </div>
-      </div>
+        <div className={styles.threadCopy}>
+          <p className={styles.threadEyebrow}>{def?.title || 'Private correspondence'}</p>
+          <h1 className={styles.threadTitle}>{displayName}</h1>
+          <p className={styles.threadMood}>{relationship.mood}</p>
+        </div>
+        <div className={styles.stageSeal}>{relationship.stage}</div>
+      </header>
+
+      <div className={styles.threadDivider}>Private chamber</div>
 
       <ChatThread
         messages={thread}

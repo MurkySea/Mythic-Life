@@ -1,0 +1,157 @@
+.composer {
+  --composer-tone: 151, 112, 214;
+  --composer-ink: #c4a5ff;
+  position: relative;
+  z-index: 6;
+  flex: 0 0 auto;
+  padding: 0.48rem 0.72rem max(0.7rem, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(var(--composer-tone), 0.16);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(var(--composer-tone), 0.09), transparent 52%),
+    linear-gradient(180deg, rgba(5, 8, 13, 0.92), rgba(4, 7, 11, 0.99));
+  box-shadow: 0 -14px 32px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(18px);
+}
+
+.composer[data-tone='silver'] { --composer-tone: 137, 181, 225; --composer-ink: #bfe1ff; }
+.composer[data-tone='ember'] { --composer-tone: 230, 103, 45; --composer-ink: #ffad72; }
+.composer[data-tone='crimson'] { --composer-tone: 214, 67, 94; --composer-ink: #ff9caf; }
+.composer[data-tone='void'] { --composer-tone: 126, 87, 206; --composer-ink: #c1a4ff; }
+.composer[data-tone='archive'] { --composer-tone: 65, 169, 128; --composer-ink: #8de1bd; }
+.composer[data-tone='dawn'] { --composer-tone: 226, 171, 79; --composer-ink: #f1ca7d; }
+.composer[data-tone='wild'] { --composer-tone: 105, 178, 97; --composer-ink: #a7df9f; }
+.composer[data-tone='tide'] { --composer-tone: 62, 157, 199; --composer-ink: #86d4f2; }
+.composer[data-tone='rose'] { --composer-tone: 208, 94, 156; --composer-ink: #f0a5d0; }
+
+.waiting {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0 0.4rem 0.42rem;
+  color: #838a96;
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  letter-spacing: 0.07em;
+}
+
+.runes {
+  display: inline-flex;
+  gap: 0.2rem;
+  color: var(--composer-ink);
+}
+
+.runes span {
+  display: block;
+  width: 0.28rem;
+  height: 0.28rem;
+  rotate: 45deg;
+  border: 1px solid rgba(var(--composer-tone), 0.7);
+  animation: runePulse 1.2s ease-in-out infinite;
+}
+
+.runes span:nth-child(2) { animation-delay: 140ms; }
+.runes span:nth-child(3) { animation-delay: 280ms; }
+
+.formShell {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.48rem;
+  align-items: center;
+  padding: 0.38rem;
+  border: 1px solid rgba(var(--composer-tone), 0.3);
+  border-radius: 1.05rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--composer-tone), 0.08), transparent 38%),
+    linear-gradient(145deg, rgba(17, 23, 31, 0.98), rgba(7, 10, 15, 0.99));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 10px 26px rgba(0, 0, 0, 0.28);
+}
+
+.formShell::before {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(var(--composer-tone), 0.06);
+  border-radius: 0.78rem;
+  pointer-events: none;
+}
+
+.input {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  min-width: 0;
+  border: 0 !important;
+  padding: 0.86rem 0.88rem;
+  color: #f2eadc;
+  background: transparent !important;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  box-shadow: none !important;
+}
+
+.input::placeholder { color: #666d79; }
+.input:focus { outline: none; box-shadow: none !important; }
+
+.sendButton {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  min-width: 4.9rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  padding: 0.78rem 0.9rem;
+  border: 1px solid rgba(var(--composer-tone), 0.5);
+  border-radius: 0.8rem;
+  color: #fff8e8;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.12), transparent 44%),
+    linear-gradient(145deg, rgba(var(--composer-tone), 0.84), rgba(var(--composer-tone), 0.48));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.11), 0 0 18px rgba(var(--composer-tone), 0.1), 0 8px 18px rgba(0, 0, 0, 0.3);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition: transform 150ms ease, filter 150ms ease, box-shadow 150ms ease;
+}
+
+.sendButton:hover:not(:disabled) {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 24px rgba(var(--composer-tone), 0.16), 0 11px 22px rgba(0, 0, 0, 0.34);
+}
+
+.sendButton:active:not(:disabled) { transform: scale(0.97); }
+
+.sendButton:disabled {
+  cursor: wait;
+  opacity: 0.62;
+  filter: saturate(0.55);
+}
+
+.footerHint {
+  margin-top: 0.34rem;
+  padding: 0 0.45rem;
+  color: #565d69;
+  font-size: 0.48rem;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 390px) {
+  .composer { padding-inline: 0.52rem; }
+  .formShell { gap: 0.34rem; }
+  .input { padding-inline: 0.68rem; font-size: 0.86rem; }
+  .sendButton { min-width: 4.15rem; padding-inline: 0.65rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .runes span { animation: none; }
+  .sendButton { transition: none; }
+}
+
+@keyframes runePulse {
+  0%, 100% { opacity: 0.28; transform: scale(0.72); }
+  50% { opacity: 1; transform: scale(1); }
+}

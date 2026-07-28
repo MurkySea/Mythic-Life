@@ -1,0 +1,90 @@
+.choices {
+  --choice-tone: 151, 112, 214;
+  --choice-ink: #c4a5ff;
+  margin-bottom: 0.48rem;
+  padding: 0.15rem 0.2rem 0.25rem;
+}
+
+.choices[data-tone='silver'] { --choice-tone: 137, 181, 225; --choice-ink: #bfe1ff; }
+.choices[data-tone='ember'] { --choice-tone: 230, 103, 45; --choice-ink: #ffad72; }
+.choices[data-tone='crimson'] { --choice-tone: 214, 67, 94; --choice-ink: #ff9caf; }
+.choices[data-tone='void'] { --choice-tone: 126, 87, 206; --choice-ink: #c1a4ff; }
+.choices[data-tone='archive'] { --choice-tone: 65, 169, 128; --choice-ink: #8de1bd; }
+.choices[data-tone='dawn'] { --choice-tone: 226, 171, 79; --choice-ink: #f1ca7d; }
+.choices[data-tone='wild'] { --choice-tone: 105, 178, 97; --choice-ink: #a7df9f; }
+.choices[data-tone='tide'] { --choice-tone: 62, 157, 199; --choice-ink: #86d4f2; }
+.choices[data-tone='rose'] { --choice-tone: 208, 94, 156; --choice-ink: #f0a5d0; }
+
+.prompt,
+.note {
+  margin-bottom: 0.5rem;
+  padding: 0 0.18rem;
+  font-family: var(--font-display);
+  font-size: 0.52rem;
+  line-height: 1.45;
+}
+
+.prompt {
+  color: #656d79;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.note {
+  color: var(--choice-ink);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.42rem;
+}
+
+.choice {
+  min-height: 2.75rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid rgba(var(--choice-tone), 0.24);
+  border-radius: 0.75rem;
+  color: #c9cdd4;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(var(--choice-tone), 0.07), transparent 42%),
+    rgba(10, 14, 20, 0.88);
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  letter-spacing: 0.04em;
+  text-align: left;
+  transition: color 150ms ease, border-color 150ms ease, transform 150ms ease, background 150ms ease;
+}
+
+.choice:hover:not(:disabled) {
+  color: var(--choice-ink);
+  border-color: rgba(var(--choice-tone), 0.5);
+  background: rgba(var(--choice-tone), 0.08);
+  transform: translateY(-1px);
+}
+
+.choice:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.pending {
+  margin-top: 0.48rem;
+  color: #69717d;
+  font-size: 0.54rem;
+  animation: softPulse 1.4s ease-in-out infinite;
+}
+
+@media (max-width: 350px) {
+  .grid { grid-template-columns: 1fr; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice { transition: none; }
+  .pending { animation: none; }
+}
+
+@keyframes softPulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
