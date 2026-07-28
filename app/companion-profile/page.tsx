@@ -4,7 +4,6 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { getCompanionDef } from '@/lib/companions'
 import { SKILL_LABELS } from '@/lib/skills'
-import { resolveHeadshot } from '@/lib/staticAvatars'
 import {
   buildScenePrompt,
   scenesEarned,
@@ -14,13 +13,32 @@ import {
 import { loadStanding } from '@/lib/engines/standing-store'
 import { takeCompanionOnDate } from '@/app/date-actions'
 import TakeOnDateButton from '@/components/TakeOnDateButton'
-import DualAxisStats, { DualAxisStageLine } from '@/components/DualAxisStats'
+import DualAxisStats from '@/components/DualAxisStats'
 import { persistGeneratedImage } from '@/lib/persistImage'
 import { insertGalleryImage, isAffinitySceneRow } from '@/lib/galleryKind'
 import { loadVisualMemoryHints } from '@/lib/memory-visual'
 import { recordSceneMemory } from '@/lib/memory'
+import {
+  MythicEmptyState,
+  MythicPage,
+  MythicPageHeader,
+  MythicPanel,
+  MythicSectionHeader,
+} from '@/components/MythicSurface'
+import { CompanionPresence } from '@/components/CompanionPresence'
+import {
+  companionRelationshipState,
+  type CompanionDisplayRow,
+} from '@/lib/companion-presentation'
+import styles from './profile.module.css'
 
 export const dynamic = 'force-dynamic'
+
+type ProfileCompanionRow = CompanionDisplayRow & {
+  title?: string | null
+  personality?: string | null
+  personality_long?: string | null
+}
 
 async function generateCompanionImage(formData: FormData) {
   'use server'
@@ -57,7 +75,6 @@ async function generateCompanionImage(formData: FormData) {
   const sceneIndex = used
   let prompt = buildScenePrompt(affinity, def, sceneIndex)
 
-  // Soft history flavor from what she has learned about him
   try {
     const visual = await loadVisualMemoryHints(slug)
     if (visual.lines.length > 0) {
@@ -126,56 +143,52 @@ async function generateCompanionImage(formData: FormData) {
 
 function SceneBanner({ status }: { status?: string }) {
   if (!status) return null
-  const map: Record<string, { text: string; className: string }> = {
+  const map: Record<string, { text: string; tone: string }> = {
     ok: {
-      text: 'Scene claimed — open Gallery to view it. Profile portrait stays her base look.',
-      className: 'border-emerald-700/50 bg-emerald-950/40 text-emerald-200',
+      text: 'A new shared scene has been preserved in her gallery.',
+      tone: styles.noticeSuccess,
     },
     limit: {
-      text: 'No scene available yet — deepen affinity to earn the next milestone.',
-      className: 'border-amber-700/50 bg-amber-950/40 text-amber-200',
+      text: 'No new scene is available yet. Deepen the bond to reach the next milestone.',
+      tone: styles.noticeGold,
     },
     blocked: {
-      text: 'Image model declined this prompt (safety). Try again later or claim at a lower tier.',
-      className: 'border-rose-700/50 bg-rose-950/40 text-rose-200',
+      text: 'The image model declined this scene. Nothing in the relationship state was changed.',
+      tone: styles.noticeDanger,
     },
     error: {
-      text: 'Scene generation failed — check GROK_API_KEY or try again.',
-      className: 'border-zinc-600 bg-zinc-900 text-zinc-300',
+      text: 'The scene could not be created. Check the image connection and try again.',
+      tone: '',
     },
   }
   const item = map[status]
   if (!item) return null
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm mb-4 ${item.className}`}>{item.text}</div>
-  )
+  return <div className={`${styles.notice} ${item.tone}`}>{item.text}</div>
 }
 
 function DateBanner({ status }: { status?: string }) {
   if (!status) return null
-  const map: Record<string, { text: string; className: string }> = {
+  const map: Record<string, { text: string; tone: string }> = {
     ok: {
-      text: 'Date night saved — check Messages and Gallery for the moment.',
-      className: 'border-amber-600/50 bg-amber-950/30 text-amber-100',
+      text: 'The night has been saved. Its message and image now belong to your shared history.',
+      tone: styles.noticeGold,
     },
     broke: {
-      text: 'Not enough gold or date coins. Muster and complete quests.',
-      className: 'border-zinc-600 bg-zinc-900 text-zinc-300',
+      text: 'You do not have enough gold or date coins. Muster and complete quests first.',
+      tone: '',
     },
     blocked: {
-      text: 'Image model declined the night-out prompt. Try again later.',
-      className: 'border-rose-700/50 bg-rose-950/40 text-rose-200',
+      text: 'The image model declined the date scene. No resources should be treated as a relationship change.',
+      tone: styles.noticeDanger,
     },
     error: {
-      text: 'Could not start the date — try again in a moment.',
-      className: 'border-zinc-600 bg-zinc-900 text-zinc-300',
+      text: 'The date could not begin. Try again in a moment.',
+      tone: '',
     },
   }
   const item = map[status]
   if (!item) return null
-  return (
-    <div className={`rounded-2xl border px-4 py-3 text-sm mb-4 ${item.className}`}>{item.text}</div>
-  )
+  return <div className={`${styles.notice} ${item.tone}`}>{item.text}</div>
 }
 
 export default async function CompanionProfilePage({
@@ -194,88 +207,71 @@ export default async function CompanionProfilePage({
     .select('*')
     .or('is_unlocked.eq.true,is_unlocked.is.null')
 
-  const party = all || []
+  const party = (all || []) as ProfileCompanionRow[]
 
   if (!slug) {
     return (
-      <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-        <div className="flex items-center gap-3 mb-8">
-          <Link
-            href="/"
-            className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
-          >
-            ←
-          </Link>
-          <div className="flex-1">
-            <p className="text-zinc-500 text-xs tracking-wide uppercase">Party</p>
-            <h1 className="text-xl font-medium text-white tracking-tight">Profiles</h1>
-          </div>
-          <Link href="/companions" className="text-xs text-violet-400">
-            Roster
-          </Link>
-        </div>
+      <MythicPage>
+        <MythicPageHeader
+          eyebrow="The fellowship"
+          title="Companion Profiles"
+          subtitle="Choose whose space to enter. Each relationship keeps its own history."
+          aside={
+            <Link href="/companions" className={styles.rosterLink}>
+              Full roster
+            </Link>
+          }
+        />
 
-        <div className="grid grid-cols-2 gap-3">
-          {party.map(
-            (c: {
-              id: string
-              name: string
-              slug?: string
-              image_url?: string
-              affinity_score?: number
-              bond_xp?: number
-              trust_score?: number
-              intimacy_score?: number
-            }) => {
-              const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
-              const def = getCompanionDef(s)
-              const portrait = resolveHeadshot(s, c.image_url)
+        {party.length > 0 ? (
+          <div className={styles.profileGrid}>
+            {party.map((companion) => {
+              const companionSlug =
+                companion.slug || (companion.name === 'Seraphine' ? 'seraphine' : '')
+              const def = getCompanionDef(companionSlug)
+              const state = companionRelationshipState(companion, companionSlug)
+              const name = companion.name || def?.name || 'Companion'
+
               return (
                 <Link
-                  key={c.id}
-                  href={`/companion-profile?c=${s}`}
-                  className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 hover:border-violet-600/40 transition text-center"
+                  key={companion.id || companionSlug}
+                  href={`/companion-profile?c=${companionSlug}`}
+                  className={styles.profileCard}
                 >
-                  {portrait ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={portrait}
-                      alt={c.name}
-                      className="w-20 h-20 rounded-xl object-cover mx-auto border border-violet-500/20"
-                    />
-                  ) : (
-                    <div className="w-20 h-20 rounded-xl bg-violet-900/40 mx-auto flex items-center justify-center text-3xl">
-                      {def?.emoji || '✦'}
-                    </div>
-                  )}
-                  <p className="mt-3 font-medium text-violet-200 text-sm">{c.name}</p>
-                  <DualAxisStageLine companion={c} fallbackSlug={s} />
+                  <CompanionPresence
+                    slug={companionSlug}
+                    name={name}
+                    title={companion.title || def?.title}
+                    imageUrl={companion.image_url}
+                    emoji={def?.emoji}
+                    rarity={def?.rarity}
+                    stage={state.stage}
+                    mood={state.mood}
+                    variant="profile-card"
+                  />
                 </Link>
               )
-            }
-          )}
-        </div>
-
-        <Link
-          href="/companions"
-          className="block mt-6 text-center text-sm text-zinc-500 hover:text-violet-300"
-        >
-          See locked companions →
-        </Link>
-      </main>
+            })}
+          </div>
+        ) : (
+          <MythicEmptyState
+            title="No one has entered the hall yet"
+            body="Awaken a companion through skill growth and completed quests."
+          />
+        )}
+      </MythicPage>
     )
   }
 
   const def = getCompanionDef(slug)
   const companion =
-    party.find((c: { slug?: string; name: string }) => c.slug === slug || c.name === def?.name) ||
-    party.find((c: { name: string }) => c.name === 'Seraphine')
+    party.find((row) => row.slug === slug || row.name === def?.name) ||
+    party.find((row) => row.name === 'Seraphine')
 
   const characterName = companion?.name || def?.name || 'Seraphine'
   const affinity = companion?.affinity_score || 1
   const earned = scenesEarned(affinity)
   const nextAt = nextSceneMilestone(affinity)
-  const portraitSrc = resolveHeadshot(slug, companion?.image_url)
 
   const [{ data: memories }, { data: galleryRows }, standing] = await Promise.all([
     supabase
@@ -292,184 +288,221 @@ export default async function CompanionProfilePage({
   ])
 
   const filteredMemories = (memories || [])
-    .filter((m: { companion_slug?: string }) => {
-      if (slug === 'seraphine') return !m.companion_slug || m.companion_slug === 'seraphine'
-      return m.companion_slug === slug
+    .filter((memory: { companion_slug?: string }) => {
+      if (slug === 'seraphine') {
+        return !memory.companion_slug || memory.companion_slug === 'seraphine'
+      }
+      return memory.companion_slug === slug
     })
     .slice(0, 8)
 
   const used = (galleryRows || []).filter(isAffinitySceneRow).length
   const canGenerate = used < earned
+  const state = companionRelationshipState(companion, slug)
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-      <div className="flex items-center gap-3 mb-8">
-        <Link
-          href="/companion-profile"
-          className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
-        >
-          ←
-        </Link>
-        <div className="flex-1">
-          <p className="text-zinc-500 text-xs tracking-wide uppercase">Companion</p>
-          <h1 className="text-xl font-medium text-white tracking-tight">Profile</h1>
-        </div>
-        <Link href={`/messages?c=${slug}`} className="text-xs text-violet-400">
-          Message
-        </Link>
-      </div>
+    <MythicPage>
+      <MythicPageHeader
+        eyebrow="Companion"
+        title={characterName}
+        subtitle={companion?.title || def?.title || 'A presence beside you'}
+        backHref="/companion-profile"
+        backLabel="Profiles"
+        aside={
+          <Link href={`/messages?c=${slug}`} className={styles.headerAction}>
+            Write to her
+          </Link>
+        }
+      />
 
       <SceneBanner status={sceneStatus} />
       <DateBanner status={dateStatus} />
 
-      {companion && (
-        <div className="space-y-6">
-          <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-3xl p-6 space-y-6">
-            <div className="flex flex-col items-center">
-              {portraitSrc ? (
-                <div className="relative">
-                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-violet-600/40 to-fuchsia-600/20 blur-sm" />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={portraitSrc}
-                    alt={companion.name}
-                    className="relative w-36 h-36 rounded-2xl object-cover border border-violet-500/30"
-                  />
-                </div>
-              ) : (
-                <div className="w-36 h-36 rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 flex items-center justify-center text-6xl">
-                  {def?.emoji || '🦊'}
-                </div>
-              )}
+      {companion ? (
+        <div className={styles.contentStack}>
+          <section className={styles.heroWrap}>
+            <CompanionPresence
+              slug={slug}
+              name={characterName}
+              title={companion.title || def?.title}
+              imageUrl={companion.image_url}
+              emoji={def?.emoji}
+              rarity={def?.rarity}
+              stage={state.stage}
+              mood={state.mood}
+              variant="hero"
+            />
 
-              <h2 className="mt-5 text-2xl font-medium text-violet-300 tracking-tight">
-                {companion.name}
-              </h2>
-              <p className="text-zinc-500 text-sm mt-1">
-                {companion.title || def?.title || 'Companion'}
-              </p>
-              {def && (
-                <p className="text-[11px] text-zinc-600 mt-1">
-                  {def.race} · {def.className}
+            <div className={styles.heroActions}>
+              <Link href={`/messages?c=${slug}`} className={styles.actionPrimary}>
+                Enter correspondence
+              </Link>
+              <Link
+                href={`/gallery?character=${encodeURIComponent(characterName)}`}
+                className={styles.actionSecondary}
+              >
+                Shared gallery
+              </Link>
+            </div>
+
+            <p className={styles.presenceStatement}>{def?.regard || state.mood}</p>
+          </section>
+
+          <MythicPanel tone="violet" emphasis>
+            <div className={styles.relationshipIntro}>
+              <div>
+                <p className={styles.panelKicker}>The bond between you</p>
+                <h2 className={styles.panelTitle}>Trust and Intimacy</h2>
+              </div>
+              <div className={styles.stageSeal}>{state.stage}</div>
+            </div>
+            <DualAxisStats companion={companion} fallbackSlug={slug} />
+          </MythicPanel>
+
+          <MythicPanel tone="gold">
+            <div className={styles.storyGrid}>
+              <div className={styles.storyBlock}>
+                <p className={styles.panelKicker}>Who she is</p>
+                <h2 className={styles.panelTitle}>{def?.title || characterName}</h2>
+                <p className={styles.storyText}>
+                  {companion.personality_long || companion.personality || def?.personality}
                 </p>
-              )}
 
-              <div className="mt-5 w-full">
-                <DualAxisStats companion={companion} fallbackSlug={slug} />
+                {def && (
+                  <div className={styles.chips}>
+                    {def.affinities.map((affinityKey) => (
+                      <span className={styles.chip} key={affinityKey}>
+                        {SKILL_LABELS[affinityKey]}
+                      </span>
+                    ))}
+                    {def.traits.slice(0, 3).map((trait) => (
+                      <span className={styles.chip} key={trait}>
+                        {trait}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="mt-5 w-full rounded-2xl border border-violet-800/40 bg-zinc-950/60 p-4 text-center">
-                <p className="text-[11px] uppercase tracking-wider text-violet-400/80">Affinity scenes</p>
-                <p className="text-lg text-white mt-1">
-                  {used} <span className="text-zinc-500 text-sm">/ {earned} earned</span>
+              <div className={styles.storyBlock}>
+                <p className={styles.worldLabel}>Her world</p>
+                <p className={styles.worldText}>
+                  {def?.world || 'A road in Valdris that now intersects your own.'}
                 </p>
-                <p className="text-[11px] text-zinc-500 mt-1">
+                {def && <p className={styles.panelCopy}>{def.backstory}</p>}
+              </div>
+            </div>
+          </MythicPanel>
+
+          <section>
+            <MythicSectionHeader
+              title="Shared Experiences"
+              hint={`${used} scene${used === 1 ? '' : 's'} preserved`}
+              sigil="✧"
+            />
+            <div className={styles.experienceGrid}>
+              <div className={styles.experienceCard}>
+                <p className={styles.panelKicker}>Affinity scenes</p>
+                <p className={styles.experienceValue}>
+                  {used} <span>/ {earned} earned</span>
+                </p>
+                <p className={styles.panelCopy}>
                   {canGenerate
-                    ? 'A new scene is available — claim it.'
+                    ? 'A new moment is available to claim.'
                     : nextAt
-                      ? `Next scene unlocks at Affinity ${nextAt}`
-                      : 'All current milestones claimed'}
+                      ? `The next moment opens at Affinity ${nextAt}.`
+                      : 'Every current milestone has been preserved.'}
                 </p>
-                <div className="flex justify-center gap-1 mt-3">
-                  {SCENE_MILESTONES.map((m, i) => (
-                    <div
-                      key={m}
-                      title={`Affinity ${m}`}
-                      className={`h-1.5 w-6 rounded-full ${
-                        i < used
-                          ? 'bg-violet-500'
-                          : i < earned
-                            ? 'bg-violet-500/40'
-                            : 'bg-zinc-800'
+
+                <div className={styles.milestones} aria-label="Affinity scene milestones">
+                  {SCENE_MILESTONES.map((milestone, index) => (
+                    <span
+                      key={milestone}
+                      title={`Affinity ${milestone}`}
+                      className={`${styles.milestone} ${
+                        index < used
+                          ? styles.milestoneClaimed
+                          : index < earned
+                            ? styles.milestoneAvailable
+                            : ''
                       }`}
                     />
                   ))}
                 </div>
 
                 {canGenerate ? (
-                  <form action={generateCompanionImage} className="mt-4">
+                  <form action={generateCompanionImage}>
                     <input type="hidden" name="slug" value={slug} />
-                    <button
-                      type="submit"
-                      className="w-full px-6 py-2.5 bg-violet-600 hover:bg-violet-500 active:scale-95 rounded-xl text-sm font-medium transition"
-                    >
-                      Claim Scene {used + 1}
+                    <button type="submit" className={styles.claimButton}>
+                      Preserve scene {used + 1}
                     </button>
                   </form>
                 ) : (
-                  <p className="mt-3 text-xs text-zinc-600 text-center">
-                    Deepen affinity through tasks & talk to unlock the next scene.
+                  <p className={styles.emptyCopy}>
+                    Complete quests and speak with her to deepen affinity.
                   </p>
                 )}
+
+                <Link
+                  href={`/gallery?character=${encodeURIComponent(characterName)}`}
+                  className={styles.galleryLink}
+                >
+                  Open her gallery
+                </Link>
               </div>
 
-              <div className="mt-3 w-full rounded-2xl border border-amber-800/35 bg-amber-950/15 p-4">
-                <p className="text-[11px] uppercase tracking-wider text-amber-400/80 text-center">
-                  Date night
+              <div className={`${styles.experienceCard} ${styles.experienceCardGold}`}>
+                <p className={styles.panelKicker}>Date night</p>
+                <p className={styles.experienceValue}>A night chosen together</p>
+                <p className={styles.panelCopy}>
+                  Dates are separate from affinity scenes. They create their own message, image,
+                  and shared memory without using a scene slot.
                 </p>
-                <p className="text-[10px] text-zinc-500 text-center mt-1 mb-1">
-                  Separate from affinity scenes · does not use scene slots
-                </p>
-                <TakeOnDateButton
-                  slug={slug}
-                  gold={standing.total_gold}
-                  dateCoins={standing.date_coins}
-                  action={takeCompanionOnDate}
-                />
-              </div>
-
-              <Link
-                href={`/gallery?character=${encodeURIComponent(characterName)}`}
-                className="mt-3 text-xs text-violet-400 hover:text-violet-300"
-              >
-                Open her gallery →
-              </Link>
-            </div>
-
-            {def && (
-              <div className="flex flex-wrap gap-1.5 justify-center">
-                {def.affinities.map((a) => (
-                  <span
-                    key={a}
-                    className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
-                  >
-                    {SKILL_LABELS[a]}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <div>
-              <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-2">About</p>
-              <p className="text-zinc-400 text-[15px] leading-relaxed">
-                {companion.personality_long || companion.personality || def?.personality}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-3 px-1">Memories</p>
-            <div className="space-y-3">
-              {filteredMemories.length > 0 ? (
-                filteredMemories.map((msg: { id: string; content: string }) => (
-                  <div
-                    key={msg.id}
-                    className="bg-zinc-900/60 border border-zinc-800/60 rounded-2xl p-4 text-[14px] text-zinc-300 leading-relaxed"
-                  >
-                    {msg.content}
-                  </div>
-                ))
-              ) : (
-                <div className="text-center py-10 text-zinc-600 text-sm">
-                  Complete tasks and talk with her.
-                  <br />
-                  Moments will appear here.
+                <div className={styles.dateButtonWrap}>
+                  <TakeOnDateButton
+                    slug={slug}
+                    gold={standing.total_gold}
+                    dateCoins={standing.date_coins}
+                    action={takeCompanionOnDate}
+                  />
                 </div>
-              )}
+              </div>
             </div>
-          </div>
+          </section>
+
+          <section>
+            <MythicSectionHeader
+              title="What She Remembers"
+              hint={filteredMemories.length ? `${filteredMemories.length} recent` : 'History is forming'}
+              sigil="◇"
+            />
+
+            {filteredMemories.length > 0 ? (
+              <div className={styles.memoryList}>
+                {filteredMemories.map(
+                  (message: { id: string; content: string }, index: number) => (
+                    <article className={styles.memoryCard} key={message.id}>
+                      <span className={styles.memoryMark}>{index + 1}</span>
+                      <p className={styles.memoryText}>{message.content}</p>
+                    </article>
+                  )
+                )}
+              </div>
+            ) : (
+              <MythicEmptyState
+                title="No shared words have settled here yet"
+                body="Complete quests and speak with her. The moments she carries forward will appear here."
+                mark="◇"
+              />
+            )}
+          </section>
         </div>
+      ) : (
+        <MythicEmptyState
+          title="Her path cannot be found"
+          body="Return to the roster and choose an awakened companion."
+        />
       )}
-    </main>
+    </MythicPage>
   )
 }
