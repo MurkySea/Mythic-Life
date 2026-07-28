@@ -9,12 +9,12 @@ import {
   buildScenePrompt,
   scenesEarned,
   nextSceneMilestone,
-  getIntimacyLabel,
   SCENE_MILESTONES,
 } from '@/lib/scenes'
 import { loadStanding } from '@/lib/engines/standing-store'
 import { takeCompanionOnDate } from '@/app/date-actions'
 import TakeOnDateButton from '@/components/TakeOnDateButton'
+import DualAxisStats, { DualAxisStageLine } from '@/components/DualAxisStats'
 import { persistGeneratedImage } from '@/lib/persistImage'
 import { insertGalleryImage, isAffinitySceneRow } from '@/lib/galleryKind'
 
@@ -205,6 +205,9 @@ export default async function CompanionProfilePage({
               slug?: string
               image_url?: string
               affinity_score?: number
+              bond_xp?: number
+              trust_score?: number
+              intimacy_score?: number
             }) => {
               const s = c.slug || (c.name === 'Seraphine' ? 'seraphine' : '')
               const def = getCompanionDef(s)
@@ -228,7 +231,7 @@ export default async function CompanionProfilePage({
                     </div>
                   )}
                   <p className="mt-3 font-medium text-violet-200 text-sm">{c.name}</p>
-                  <p className="text-[10px] text-zinc-500 mt-0.5">Affinity {c.affinity_score || 1}</p>
+                  <DualAxisStageLine companion={c} fallbackSlug={s} />
                 </Link>
               )
             }
@@ -327,14 +330,15 @@ export default async function CompanionProfilePage({
               <p className="text-zinc-500 text-sm mt-1">
                 {companion.title || def?.title || 'Companion'}
               </p>
-              <p className="text-violet-400/70 text-xs mt-2 tracking-wide">
-                {getIntimacyLabel(affinity)}
-              </p>
               {def && (
                 <p className="text-[11px] text-zinc-600 mt-1">
                   {def.race} · {def.className}
                 </p>
               )}
+
+              <div className="mt-5 w-full">
+                <DualAxisStats companion={companion} fallbackSlug={slug} />
+              </div>
 
               <div className="mt-5 w-full rounded-2xl border border-violet-800/40 bg-zinc-950/60 p-4 text-center">
                 <p className="text-[11px] uppercase tracking-wider text-violet-400/80">Affinity scenes</p>
@@ -402,17 +406,6 @@ export default async function CompanionProfilePage({
               >
                 Open her gallery →
               </Link>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-zinc-950/70 rounded-2xl p-4 text-center border border-zinc-800/50">
-                <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Affinity</p>
-                <p className="text-3xl font-medium text-violet-400 mt-1">{companion.affinity_score}</p>
-              </div>
-              <div className="bg-zinc-950/70 rounded-2xl p-4 text-center border border-zinc-800/50">
-                <p className="text-[11px] text-zinc-500 uppercase tracking-wider">Bond XP</p>
-                <p className="text-3xl font-medium text-violet-400 mt-1">{companion.bond_xp || 0}</p>
-              </div>
             </div>
 
             {def && (
