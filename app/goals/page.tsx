@@ -1,28 +1,30 @@
 import Link from 'next/link'
 import { listGoals, PILLAR_LABELS } from '@/lib/engines/goals-store'
 import type { Goal, GoalPillar } from '@/lib/engines/goals'
+import { MythicIcon, type MythicIconName } from '@/components/MythicIcons'
 import {
   progressGoalAction,
   abandonGoalAction,
   pauseGoalAction,
   resumeGoalAction,
 } from './actions'
+import styles from './goals.module.css'
 
 export const dynamic = 'force-dynamic'
 
-const PILLAR_EMOJI: Record<GoalPillar, string> = {
-  stewardship: '💼',
-  faith: '✝️',
-  marriage: '💍',
-  body: '🏃',
-  homestead: '🏡',
-  legacy: '🏛️',
-  self: '🎹',
+const PILLAR_ICON: Record<GoalPillar, MythicIconName> = {
+  stewardship: 'currency',
+  faith: 'spark',
+  marriage: 'relationship',
+  body: 'skills',
+  homestead: 'map',
+  legacy: 'achievement',
+  self: 'goals',
 }
 
-function progressPct(g: Goal): number {
-  if (g.target <= 0) return 0
-  return Math.min(100, Math.round((g.progress / g.target) * 100))
+function progressPct(goal: Goal): number {
+  if (goal.target <= 0) return 0
+  return Math.min(100, Math.round((goal.progress / goal.target) * 100))
 }
 
 function GoalCard({ goal }: { goal: Goal }) {
@@ -31,121 +33,104 @@ function GoalCard({ goal }: { goal: Goal }) {
   const isPaused = goal.status === 'paused'
   const isDone = goal.status === 'completed'
   const isAbandoned = goal.status === 'abandoned'
+  const stateClass = isDone
+    ? styles.completed
+    : isAbandoned
+      ? styles.abandoned
+      : isPaused
+        ? styles.paused
+        : ''
 
   return (
-    <div
-      className={`rounded-2xl border p-4 space-y-3 ${
-        isDone
-          ? 'border-emerald-800/50 bg-emerald-950/20'
-          : isAbandoned
-            ? 'border-zinc-800 bg-zinc-900/40 opacity-70'
-            : isPaused
-              ? 'border-amber-800/40 bg-amber-950/10'
-              : 'border-zinc-800 bg-zinc-900/80'
-      }`}
-    >
-      <div className="flex items-start gap-3">
-        <span className="text-2xl shrink-0" aria-hidden>
-          {PILLAR_EMOJI[goal.pillar] || '🎯'}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-medium text-white leading-snug">{goal.title}</p>
-            <span className="shrink-0 text-[10px] uppercase tracking-wider text-zinc-500">
-              {goal.horizon}
-            </span>
-          </div>
-          <p className="text-xs text-zinc-500 mt-1">
-            {PILLAR_LABELS[goal.pillar]} · weight {goal.weight}/5
-          </p>
-          {goal.notes && (
-            <p className="text-sm text-zinc-400 mt-1.5 leading-relaxed">{goal.notes}</p>
-          )}
-        </div>
+    <article className={`${styles.card} ${stateClass}`} data-pillar={goal.pillar}>
+      <div className={styles.node} aria-hidden>
+        <MythicIcon name={PILLAR_ICON[goal.pillar] || 'goals'} size={24} />
       </div>
 
-      {/* Progress bar */}
-      {!isAbandoned && (
-        <div>
-          <div className="flex justify-between text-[11px] text-zinc-500 mb-1">
-            <span>
-              {goal.progress} / {goal.target}
-            </span>
-            <span>{pct}%</span>
-          </div>
-          <div className="h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all ${
-                isDone ? 'bg-emerald-500' : 'bg-violet-500'
-              }`}
-              style={{ width: `${pct}%` }}
-            />
-          </div>
+      <div className={styles.cardBody}>
+        <div className={styles.cardTop}>
+          <h3 className={styles.goalTitle}>{goal.title}</h3>
+          <span className={styles.horizon}>{goal.horizon}</span>
         </div>
-      )}
-
-      {/* Actions */}
-      {isActive && (
-        <div className="flex flex-wrap gap-2 pt-1">
-          <form action={progressGoalAction}>
-            <input type="hidden" name="id" value={goal.id} />
-            <button
-              type="submit"
-              className="text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-500 transition"
-            >
-              + Progress
-            </button>
-          </form>
-          <form action={pauseGoalAction}>
-            <input type="hidden" name="id" value={goal.id} />
-            <button
-              type="submit"
-              className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:border-zinc-500 transition"
-            >
-              Pause
-            </button>
-          </form>
-          <form action={abandonGoalAction}>
-            <input type="hidden" name="id" value={goal.id} />
-            <button
-              type="submit"
-              className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:border-red-900 hover:text-red-400 transition"
-            >
-              Abandon
-            </button>
-          </form>
-        </div>
-      )}
-
-      {isPaused && (
-        <div className="flex flex-wrap gap-2 pt-1">
-          <form action={resumeGoalAction}>
-            <input type="hidden" name="id" value={goal.id} />
-            <button
-              type="submit"
-              className="text-xs px-3 py-1.5 rounded-lg bg-amber-700/80 text-amber-100 font-medium hover:bg-amber-600 transition"
-            >
-              Resume
-            </button>
-          </form>
-          <form action={abandonGoalAction}>
-            <input type="hidden" name="id" value={goal.id} />
-            <button
-              type="submit"
-              className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:border-red-900 hover:text-red-400 transition"
-            >
-              Abandon
-            </button>
-          </form>
-        </div>
-      )}
-
-      {isDone && (
-        <p className="text-xs text-emerald-400/90">
-          Completed{goal.completedAt ? ` · ${goal.completedAt}` : ''}
+        <p className={styles.meta}>
+          {PILLAR_LABELS[goal.pillar]} · Campaign weight{' '}
+          <span className={styles.weight} aria-label={`${goal.weight} of 5 weight`}>
+            {'◆'.repeat(Math.max(1, Math.min(5, goal.weight)))}
+          </span>
         </p>
-      )}
-      {isAbandoned && <p className="text-xs text-zinc-600">Abandoned</p>}
+        {goal.notes && <p className={styles.notes}>{goal.notes}</p>}
+
+        {!isAbandoned && (
+          <div className={styles.progressBlock}>
+            <div className={styles.progressTop}>
+              <span>Territory gained · {goal.progress} / {goal.target}</span>
+              <span className={styles.progressPct}>{pct}%</span>
+            </div>
+            <div className={styles.track} role="progressbar" aria-label={`${goal.title} progress`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+              <div className={styles.fill} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        )}
+
+        {isActive && (
+          <div className={styles.actions}>
+            <form action={progressGoalAction}>
+              <input type="hidden" name="id" value={goal.id} />
+              <button type="submit" className={styles.primaryAction}>Advance campaign</button>
+            </form>
+            <form action={pauseGoalAction}>
+              <input type="hidden" name="id" value={goal.id} />
+              <button type="submit" className={styles.secondaryAction}>Hold position</button>
+            </form>
+            <form action={abandonGoalAction}>
+              <input type="hidden" name="id" value={goal.id} />
+              <button type="submit" className={styles.dangerAction}>Abandon</button>
+            </form>
+          </div>
+        )}
+
+        {isPaused && (
+          <div className={styles.actions}>
+            <form action={resumeGoalAction}>
+              <input type="hidden" name="id" value={goal.id} />
+              <button type="submit" className={styles.resumeAction}>Resume march</button>
+            </form>
+            <form action={abandonGoalAction}>
+              <input type="hidden" name="id" value={goal.id} />
+              <button type="submit" className={styles.dangerAction}>Abandon</button>
+            </form>
+          </div>
+        )}
+
+        {isDone && (
+          <p className={styles.statusLine}>
+            Campaign completed{goal.completedAt ? ` · ${goal.completedAt}` : ''}
+          </p>
+        )}
+        {isAbandoned && <p className={styles.statusLine}>Campaign left behind</p>}
+      </div>
+    </article>
+  )
+}
+
+function SectionHeader({
+  title,
+  hint,
+  icon,
+}: {
+  title: string
+  hint?: string
+  icon: MythicIconName
+}) {
+  return (
+    <div className={styles.sectionHeader}>
+      <div className={styles.sectionTitleWrap}>
+        <span className={styles.sectionSeal} aria-hidden>
+          <MythicIcon name={icon} size={16} />
+        </span>
+        <h2 className={styles.sectionTitle}>{title}</h2>
+      </div>
+      {hint && <span className={styles.sectionHint}>{hint}</span>}
     </div>
   )
 }
@@ -164,68 +149,92 @@ export default async function GoalsPage({
   ])
 
   const history = [...done, ...abandoned].slice(0, 12)
+  const averageAdvance = active.length
+    ? Math.round(active.reduce((sum, goal) => sum + progressPct(goal), 0) / active.length)
+    : 0
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/"
-          className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
-        >
-          ←
-        </Link>
-        <div className="flex-1 min-w-0">
-          <p className="text-zinc-500 text-xs tracking-wide uppercase">Direction</p>
-          <h1 className="text-xl font-medium text-white tracking-tight">Goals</h1>
+    <main className={styles.page}>
+      <div className={styles.mapTexture} aria-hidden />
+
+      <header className={styles.header}>
+        <Link href="/" className={styles.backButton} aria-label="Back to Home">‹</Link>
+        <div>
+          <p className={styles.eyebrow}>Strategic direction</p>
+          <h1 className={styles.title}>Campaign Atlas</h1>
         </div>
-        <Link
-          href="/goals/new"
-          className="shrink-0 text-xs px-3 py-2 rounded-xl bg-violet-600 text-white font-medium hover:bg-violet-500 transition"
-        >
-          + New
+        <Link href="/goals/new" className={styles.newButton}>
+          <MythicIcon name="add" size={16} />
+          <span>New</span>
         </Link>
-      </div>
+      </header>
 
       {params.created === '1' && (
-        <div className="mb-4 rounded-2xl border border-emerald-800/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-200">
-          Goal set. Progress it when real work lands.
-        </div>
+        <div className={styles.success}>Campaign marked on the atlas. Advance it when real work lands.</div>
       )}
 
-      <p className="text-sm text-zinc-500 leading-relaxed mb-6">
-        Goals sit above daily quests. Weight them. Complete them for Consistency Tokens.
-        Abandon carefully — Shadow Debt follows neglect.
-      </p>
+      <section className={styles.overview} aria-label="Campaign overview">
+        <div className={styles.overviewTop}>
+          <div>
+            <p className={styles.overviewKicker}>The long game</p>
+            <h2 className={styles.overviewTitle}>Daily quests win moments. Campaigns decide where your life is going.</h2>
+            <p className={styles.overviewBody}>
+              Weight what matters, move it through real action, and leave room to pause deliberately instead of drifting into neglect.
+            </p>
+          </div>
+          <div className={styles.compass} aria-hidden>
+            <MythicIcon name="map" size={25} />
+          </div>
+        </div>
+        <div className={styles.stats}>
+          <div className={styles.stat}>
+            <p className={styles.statValue}>{active.length}</p>
+            <p className={styles.statLabel}>Active</p>
+          </div>
+          <div className={styles.stat}>
+            <p className={styles.statValue}>{averageAdvance}%</p>
+            <p className={styles.statLabel}>Advance</p>
+          </div>
+          <div className={styles.stat}>
+            <p className={styles.statValue}>{done.length}</p>
+            <p className={styles.statLabel}>Won</p>
+          </div>
+        </div>
+      </section>
 
-      <section className="space-y-3 mb-8">
-        <h2 className="text-[11px] uppercase tracking-wider text-zinc-500 px-1">Active</h2>
+      <section className={styles.section}>
+        <SectionHeader title="Active Campaigns" hint={`${active.length} marching`} icon="goals" />
         {active.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-zinc-800 px-5 py-10 text-center">
-            <p className="text-sm text-zinc-500">No active goals.</p>
-            <Link href="/goals/new" className="inline-block mt-3 text-sm text-violet-400">
-              Set one →
-            </Link>
+          <div className={styles.empty}>
+            <div className={styles.emptyMark} aria-hidden>
+              <MythicIcon name="map" size={24} />
+            </div>
+            <p className={styles.emptyTitle}>The atlas has no active campaign.</p>
+            <p className={styles.emptyBody}>Name one direction worthy of sustained effort.</p>
+            <Link href="/goals/new" className={styles.emptyLink}>Plot the first campaign →</Link>
           </div>
         ) : (
-          active.map((g) => <GoalCard key={g.id} goal={g} />)
+          <div className={styles.campaigns}>
+            {active.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
+          </div>
         )}
       </section>
 
       {paused.length > 0 && (
-        <section className="space-y-3 mb-8">
-          <h2 className="text-[11px] uppercase tracking-wider text-zinc-500 px-1">Paused</h2>
-          {paused.map((g) => (
-            <GoalCard key={g.id} goal={g} />
-          ))}
+        <section className={styles.section}>
+          <SectionHeader title="Held Territory" hint={`${paused.length} paused`} icon="plan" />
+          <div className={styles.campaigns}>
+            {paused.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
+          </div>
         </section>
       )}
 
       {history.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-[11px] uppercase tracking-wider text-zinc-500 px-1">History</h2>
-          {history.map((g) => (
-            <GoalCard key={g.id} goal={g} />
-          ))}
+        <section className={styles.section}>
+          <SectionHeader title="Campaign Chronicle" hint={`${history.length} recorded`} icon="achievement" />
+          <div className={styles.campaigns}>
+            {history.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
+          </div>
         </section>
       )}
     </main>
