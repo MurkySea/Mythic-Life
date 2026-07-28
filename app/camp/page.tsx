@@ -18,6 +18,7 @@ import CampfireComposer from '@/components/CampfireComposer'
 import ChatThread from '@/components/ChatThread'
 import { MythicIcon } from '@/components/MythicIcons'
 import styles from './camp.module.css'
+import directorStyles from './director.module.css'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -120,20 +121,16 @@ async function shareReflection(formData: FormData) {
   after(async () => {
     try {
       const replyWindowStart = new Date(Date.now() - 2000).toISOString()
-      const { generateCompanionResponse } = await import('../actions')
-      const [replyResult, digestResult] = await Promise.allSettled([
-        generateCompanionResponse(content, 'reflection', {
-          force: true,
-          isConversation: true,
-          companionSlug,
-        }),
-        synthesizeCampfireReflection(content, companionSlug),
-      ])
 
-      const reply = replyResult.status === 'fulfilled' ? replyResult.value : null
-      if (replyResult.status === 'rejected') {
-        console.error('campfire companion reply failed', replyResult.reason)
-      }
+      const digest = await synthesizeCampfireReflection(content, companionSlug)
+      await saveCampfireDigest(digest)
+
+      const { generateCompanionResponse } = await import('../actions')
+      const reply = await generateCompanionResponse(content, 'reflection', {
+        force: true,
+        isConversation: true,
+        companionSlug,
+      })
 
       if (reply) {
         const { data: generatedMessages, error: lookupError } = await supabase
@@ -158,12 +155,6 @@ async function shareReflection(formData: FormData) {
             if (tagError) console.error('campfire reply tagging failed', tagError)
           }
         }
-      }
-
-      if (digestResult.status === 'fulfilled') {
-        await saveCampfireDigest(digestResult.value)
-      } else {
-        console.error('campfire digest failed', digestResult.reason)
       }
 
       revalidatePath('/camp')
@@ -338,23 +329,23 @@ export default async function CampPage({
         )}
 
         {digest && (
-          <aside className={styles.digestCard} aria-label="What the fire kept from today">
-            <header className={styles.digestHeader}>
+          <aside className={directorStyles.card} aria-label="What the fire kept from today">
+            <header className={directorStyles.header}>
               <div>
                 <p>What the fire kept</p>
                 <span>{ENERGY_LABEL[digest.energy]}</span>
               </div>
-              <div className={styles.digestSeal} aria-hidden>
+              <div className={directorStyles.seal} aria-hidden>
                 <MythicIcon name="spark" size={17} />
               </div>
             </header>
-            <h3 className={styles.digestHeadline}>{digest.headline}</h3>
-            <p className={styles.digestWeather}>{digest.emotionalWeather}</p>
+            <h3 className={directorStyles.headline}>{digest.headline}</h3>
+            <p className={directorStyles.weather}>{digest.emotionalWeather}</p>
 
             {keptThreads.length > 0 && (
-              <div className={styles.digestThreads}>
+              <div className={directorStyles.threads}>
                 {keptThreads.slice(0, 3).map((threadLine, index) => (
-                  <div className={styles.digestThread} key={`${threadLine}-${index}`}>
+                  <div className={directorStyles.thread} key={`${threadLine}-${index}`}>
                     <span aria-hidden>{index + 1}</span>
                     <p>{threadLine}</p>
                   </div>
@@ -363,13 +354,13 @@ export default async function CampPage({
             )}
 
             {digest.carryForward && (
-              <div className={styles.digestCarry}>
+              <div className={directorStyles.carry}>
                 <p>Still open</p>
                 <span>{digest.carryForward}</span>
               </div>
             )}
 
-            <p className={styles.digestFoot}>
+            <p className={directorStyles.foot}>
               {displayName} can remember this tomorrow. Nothing here changes your tasks unless you choose it.
             </p>
           </aside>
