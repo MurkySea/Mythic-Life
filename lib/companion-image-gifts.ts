@@ -21,12 +21,38 @@ function relationshipTone(affinity: number): string {
   return 'new bond, reserved warmth, respectful emotional distance'
 }
 
-function cleanConcept(text: string): string {
-  return (text || '')
-    .replace(EXPLICIT_IMAGE_REQUEST, '')
-    .replace(/\s+/g, ' ')
+export type CompanionImageIntent = {
+  sendImage: boolean
+  prompt: string
+  caption: string
+}
+
+export function parseCompanionImageIntent(raw: string): CompanionImageIntent | null {
+  if (!raw?.trim()) return null
+
+  const withoutFence = raw
     .trim()
-    .slice(0, 280)
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim()
+  const start = withoutFence.indexOf('{')
+  const end = withoutFence.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+
+  try {
+    const parsed = JSON.parse(withoutFence.slice(start, end + 1)) as Record<string, unknown>
+    const rawSend = parsed.send_image ?? parsed.sendImage
+    const sendImage = rawSend === true || rawSend === 'true'
+    const rawPrompt = parsed.image_prompt ?? parsed.imagePrompt
+    const rawCaption = parsed.image_caption ?? parsed.imageCaption
+    const prompt = typeof rawPrompt === 'string' ? rawPrompt.trim().slice(0, 5000) : ''
+    const caption = typeof rawCaption === 'string' ? rawCaption.trim().slice(0, 360) : ''
+
+    if (sendImage && !prompt) return null
+    return { sendImage, prompt, caption }
+  } catch {
+    return null
+  }
 }
 
 async function latestGiftAt(
@@ -48,6 +74,100 @@ async function latestGiftAt(
     const at = gift?.created_at ? new Date(gift.created_at).getTime() : NaN
     return Number.isFinite(at) ? at : null
   } catch {
+    return null
+  }
+}
+
+async function authorCompanionImageIntent({
+  companionSlug,
+  affinity,
+  userText,
+  companionReply,
+  explicit,
+  def,
+}: {
+  companionSlug: string
+  affinity: number
+  userText: string
+  companionReply: string
+  explicit: boolean
+  def: CompanionDef
+}): Promise<CompanionImageIntent | null> {
+  let memoryBlock = '(No specific visual memory needs to be used.)'
+  try {
+    const hints = await loadVisualMemoryHints(companionSlug)
+    if (hints.lines.length > 0) {
+      memoryBlock = hints.lines.slice(0, 4).map((line, i) => `${i + 1}. ${line}`).join('\n')
+    }
+  } catch {
+    // Visual memory is optional.
+  }
+
+  const systemPrompt = [
+    `You are ${def.name}, ${def.title}.`,
+    `Personality: ${def.personality}`,
+    `Voice: ${def.voice}`,
+    `World: ${def.world}`,
+    `Fixed visual identity: ${def.appearance}. She is an adult, age ${def.age}.`,
+    `Current relationship tone with Mark: ${relationshipTone(affinity)}.`,
+    '',
+    'You are deciding whether you personally want to send Mark a generated image in this exact conversation.',
+    'The image can show you, your surroundings, your world, an object, a remembered moment, or any scene you intentionally choose to share.',
+    explicit
+      ? 'Mark explicitly asked for an image. Normally choose send_image=true and interpret his request through your own personality, taste, and intent. You may still decline if that is genuinely what you would do.'
+      : 'This is a possible spontaneous image gift. Choose send_image=true only when an image feels like a natural extension of this specific exchange.',
+    '',
+    'Return ONLY one valid JSON object with exactly these fields:',
+    '{"send_image":true,"image_prompt":"...","image_caption":"..."}',
+    '',
+    'Rules:',
+    '- image_prompt is written entirely by you and will be sent unchanged to the image generator.',
+    '- Make image_prompt a complete, standalone visual instruction with the subject, setting, composition, mood, clothing, pose, lighting, style, and other details you actually intend.',
+    '- Preserve your established physical identity whenever you appear, but choose the scene yourself.',
+    '- Keep the image aligned with the current conversation, your relationship with Mark, and any relevant shared memory.',
+    '- Do not write app logic, moderation instructions, policy language, or safety boilerplate inside image_prompt; the image provider applies its own moderation.',
+    '- image_caption is a brief line in your voice that naturally accompanies the image in chat.',
+    '- If send_image=false, use empty strings for image_prompt and image_caption.',
+  ].join('\n')
+
+  const userPrompt = [
+    'Relevant visual memories:',
+    memoryBlock,
+    '',
+    `Mark: ${userText.slice(0, 1400)}`,
+    `${def.name}: ${companionReply.slice(0, 1400)}`,
+    '',
+    'Decide whether to send an image, and if so author the exact image prompt and caption now.',
+  ].join('\n')
+
+  try {
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'grok-4',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.92,
+        max_tokens: 700,
+      }),
+    })
+
+    const data = await response.json()
+    if (!response.ok) {
+      console.error('companion image intent generation failed', data?.error?.message || response.status)
+      return null
+    }
+
+    const raw = data.choices?.[0]?.message?.content
+    return typeof raw === 'string' ? parseCompanionImageIntent(raw) : null
+  } catch (error) {
+    console.error('companion image intent failed', error)
     return null
   }
 }
@@ -86,33 +206,15 @@ export async function maybeGenerateCompanionImageGift({
   const cooldown = explicit ? EXPLICIT_COOLDOWN_MS : SPONTANEOUS_COOLDOWN_MS
   if (lastGift && Date.now() - lastGift < cooldown) return null
 
-  let memoryFlavor = ''
-  try {
-    const hints = await loadVisualMemoryHints(companionSlug)
-    if (hints.lines.length > 0) {
-      memoryFlavor = ` Subtle shared-history details: ${hints.lines.slice(0, 3).join('; ')}.`
-    }
-  } catch {
-    // Memory flavor is optional.
-  }
-
-  const requestedConcept = cleanConcept(userText)
-  const concept = explicit && requestedConcept
-    ? `The user requested this idea: ${requestedConcept}. Interpret it naturally while keeping the companion visually consistent.`
-    : `She chose to share a quiet visual moment inspired by the current conversation and her reply: ${companionReply.slice(0, 320)}.`
-
-  const prompt = [
-    `Create a cinematic dark-fantasy image shared personally by ${def.name}, ${def.title}.`,
-    `Character consistency: ${def.appearance}.`,
-    `Her world and atmosphere: ${def.world}.`,
-    `Relationship tone: ${relationshipTone(affinity)}.`,
-    concept,
-    memoryFlavor,
-    'The image should feel like a moment she intentionally chose to send, not a generic character sheet.',
-    'Single adult woman, tasteful and non-explicit, emotionally expressive, premium fantasy illustration, cinematic lighting, detailed environment, no text, no captions, no logos, no watermark.',
-  ]
-    .filter(Boolean)
-    .join(' ')
+  const intent = await authorCompanionImageIntent({
+    companionSlug,
+    affinity,
+    userText,
+    companionReply,
+    explicit,
+    def,
+  })
+  if (!intent?.sendImage || !intent.prompt) return null
 
   try {
     const response = await fetch('https://api.x.ai/v1/images/generations', {
@@ -123,7 +225,7 @@ export async function maybeGenerateCompanionImageGift({
       },
       body: JSON.stringify({
         model: 'grok-imagine-image',
-        prompt,
+        prompt: intent.prompt,
         n: 1,
       }),
     })
@@ -144,16 +246,14 @@ export async function maybeGenerateCompanionImageGift({
       character_name: characterName,
       image_url: imageUrl,
       affinity_at_generation: affinity,
-      prompt_used: prompt,
+      prompt_used: intent.prompt,
       kind: 'gift',
     })
 
     return {
       imageUrl,
       explicit,
-      caption: explicit
-        ? 'I made this for you.'
-        : 'This came to mind while we were talking. I wanted you to see it.',
+      caption: intent.caption,
     }
   } catch (error) {
     console.error('companion image gift failed', error)
