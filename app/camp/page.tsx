@@ -13,12 +13,23 @@ import {
   type CampfireDigest,
   type CampfireEnergy,
 } from '@/lib/campfire-director'
+import {
+  collectCampfireActionItems,
+  saveCampfireActionBatch,
+  synthesizeCampfireActions,
+  type CampfireActionItem,
+  type CampfireActionKind,
+  type OpenTaskForAction,
+} from '@/lib/campfire-actions'
 import CompanionAvatar from '@/components/CompanionAvatar'
 import CampfireComposer from '@/components/CampfireComposer'
 import ChatThread from '@/components/ChatThread'
 import { MythicIcon } from '@/components/MythicIcons'
+import { PendingActionButton } from '@/components/PendingSubmit'
+import { resolveCampfireAction } from './action-actions'
 import styles from './camp.module.css'
 import directorStyles from './director.module.css'
+import actionStyles from './action-bridge.module.css'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -94,6 +105,32 @@ function latestDigestForToday(thread: MessageRow[], today: string): CampfireDige
   return null
 }
 
+function actionKindLabel(kind: CampfireActionKind): string {
+  if (kind === 'complete_existing') return 'Possible completed quest'
+  if (kind === 'schedule_existing_tomorrow') return 'Possible plan for tomorrow'
+  return 'Possible new quest for tomorrow'
+}
+
+function actionButtonLabel(kind: CampfireActionKind): string {
+  if (kind === 'complete_existing') return 'Mark complete'
+  if (kind === 'schedule_existing_tomorrow') return 'Put on tomorrow'
+  return 'Add for tomorrow'
+}
+
+function actionPendingLabel(kind: CampfireActionKind): string {
+  if (kind === 'complete_existing') return 'Completing…'
+  return 'Scheduling…'
+}
+
+function resolutionLabel(item: CampfireActionItem): string {
+  if (!item.resolution) return ''
+  if (item.resolution.decision === 'remembered') return 'Kept as memory only — no task changed.'
+  if (item.resolution.decision === 'ignored') return 'Dismissed — nothing changed.'
+  if (item.kind === 'complete_existing') return 'Quest marked complete.'
+  if (item.kind === 'schedule_existing_tomorrow') return 'Quest set aside for tomorrow.'
+  return 'New quest added for tomorrow.'
+}
+
 async function shareReflection(formData: FormData) {
   'use server'
 
@@ -121,9 +158,25 @@ async function shareReflection(formData: FormData) {
   after(async () => {
     try {
       const replyWindowStart = new Date(Date.now() - 2000).toISOString()
+      const { data: openTaskRows, error: taskQueryError } = await supabase
+        .from('tasks')
+        .select('id, title, is_today, must_do')
+        .eq('is_completed', false)
+        .order('created_at', { ascending: false })
+        .limit(200)
 
-      const digest = await synthesizeCampfireReflection(content, companionSlug)
-      await saveCampfireDigest(digest)
+      if (taskQueryError) console.error('campfire action task query failed', taskQueryError)
+      const openTasks = (openTaskRows || []) as OpenTaskForAction[]
+
+      const [digest, actionBatch] = await Promise.all([
+        synthesizeCampfireReflection(content, companionSlug),
+        synthesizeCampfireActions(content, companionSlug, openTasks),
+      ])
+
+      await Promise.all([
+        saveCampfireDigest(digest),
+        actionBatch ? saveCampfireActionBatch(actionBatch) : Promise.resolve(null),
+      ])
 
       const { generateCompanionResponse } = await import('../actions')
       const reply = await generateCompanionResponse(content, 'reflection', {
@@ -177,7 +230,7 @@ export default async function CampPage({
 
   const [{ data: companions }, { data: recentMessages }] = await Promise.all([
     supabase.from('companion').select('*').or('is_unlocked.eq.true,is_unlocked.is.null'),
-    supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(220),
+    supabase.from('messages').select('*').order('created_at', { ascending: false }).limit(260),
   ])
 
   const party = (companions || []).map((companion) => ({
@@ -214,6 +267,7 @@ export default async function CampPage({
     .map(revealCampfireMessage)
     .slice(-24)
   const digest = latestDigestForToday(thread, today)
+  const actionItems = collectCampfireActionItems(thread, today)
   const reflectionCount = todayThread.filter((message) => message.role === 'user').length
   const keptThreads = digest?.whatMattered.length
     ? digest.whatMattered
@@ -362,6 +416,72 @@ export default async function CampPage({
 
             <p className={directorStyles.foot}>
               {displayName} can remember this tomorrow. Nothing here changes your tasks unless you choose it.
+            </p>
+          </aside>
+        )}
+
+        {actionItems.length > 0 && (
+          <aside className={actionStyles.bridge} aria-label="Optional task updates noticed in the reflection">
+            <header className={actionStyles.header}>
+              <div>
+                <p className={actionStyles.eyebrow}>Consent-based action bridge</p>
+                <h3>The fire noticed something actionable.</h3>
+                <p>These are suggestions, not decisions. Nothing changes until you choose.</p>
+              </div>
+              <div className={actionStyles.lock} aria-hidden>
+                <MythicIcon name="plan" size={17} />
+              </div>
+            </header>
+
+            <div className={actionStyles.list}>
+              {actionItems.map((item) => (
+                <article className={actionStyles.item} key={`${item.batchId}:${item.id}`}>
+                  <div className={actionStyles.itemTop}>
+                    <div>
+                      <p className={actionStyles.kind}>{actionKindLabel(item.kind)}</p>
+                      <h4 className={actionStyles.title}>{item.title}</h4>
+                    </div>
+                    <span className={actionStyles.confidence}>{item.confidence}</span>
+                  </div>
+                  <p className={actionStyles.evidence}>“{item.evidence}”</p>
+
+                  {item.resolution ? (
+                    <div className={actionStyles.resolved}>
+                      <span className={actionStyles.resolvedMark} aria-hidden>✓</span>
+                      <span>{resolutionLabel(item)}</span>
+                    </div>
+                  ) : (
+                    <div className={actionStyles.actions}>
+                      <form action={resolveCampfireAction}>
+                        <input type="hidden" name="batch_id" value={item.batchId} />
+                        <input type="hidden" name="proposal_id" value={item.id} />
+                        <input type="hidden" name="choice" value="apply" />
+                        <PendingActionButton
+                          label={actionButtonLabel(item.kind)}
+                          pendingLabel={actionPendingLabel(item.kind)}
+                          className={actionStyles.primary}
+                        />
+                      </form>
+                      <form action={resolveCampfireAction}>
+                        <input type="hidden" name="batch_id" value={item.batchId} />
+                        <input type="hidden" name="proposal_id" value={item.id} />
+                        <input type="hidden" name="choice" value="remember" />
+                        <PendingActionButton label="Remember only" className={actionStyles.secondary} />
+                      </form>
+                      <form action={resolveCampfireAction}>
+                        <input type="hidden" name="batch_id" value={item.batchId} />
+                        <input type="hidden" name="proposal_id" value={item.id} />
+                        <input type="hidden" name="choice" value="ignore" />
+                        <PendingActionButton label="Ignore" className={actionStyles.ghost} />
+                      </form>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
+
+            <p className={actionStyles.footer}>
+              Completing an existing quest uses the normal reward pipeline. Tomorrow plans stay off Today until tomorrow arrives.
             </p>
           </aside>
         )}

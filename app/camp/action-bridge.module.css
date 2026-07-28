@@ -1,0 +1,203 @@
+.bridge {
+  margin: 0.8rem 0.85rem 0;
+  overflow: hidden;
+  border: 1px solid rgba(var(--camp-tone), 0.28);
+  border-radius: 1rem;
+  background:
+    radial-gradient(circle at 88% 4%, rgba(var(--camp-tone), 0.09), transparent 28%),
+    linear-gradient(180deg, rgba(12, 16, 21, 0.98), rgba(5, 8, 11, 0.99));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 0.95rem 0.78rem;
+  border-bottom: 1px solid rgba(var(--camp-tone), 0.13);
+}
+
+.eyebrow {
+  color: #aa7a43;
+  font-family: var(--font-display);
+  font-size: 0.48rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.header h3 {
+  margin-top: 0.24rem;
+  color: #eee7dc;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.header p:last-child {
+  max-width: 29rem;
+  margin-top: 0.34rem;
+  color: #747e8a;
+  font-size: 0.64rem;
+  line-height: 1.5;
+}
+
+.lock {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 1px solid rgba(var(--camp-tone), 0.3);
+  border-radius: 50%;
+  color: var(--camp-ink);
+  background: rgba(4, 7, 10, 0.76);
+}
+
+.list {
+  display: grid;
+  gap: 0;
+}
+
+.item {
+  padding: 0.86rem 0.95rem 0.92rem;
+  border-bottom: 1px solid rgba(102, 113, 127, 0.12);
+}
+
+.item:last-child { border-bottom: 0; }
+
+.itemTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.kind {
+  color: #8b95a1;
+  font-size: 0.49rem;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin-top: 0.22rem;
+  color: #e5ddd1;
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.confidence {
+  flex: 0 0 auto;
+  padding: 0.28rem 0.42rem;
+  border: 1px solid rgba(var(--camp-tone), 0.18);
+  border-radius: 999px;
+  color: #77818c;
+  font-size: 0.45rem;
+  text-transform: capitalize;
+}
+
+.evidence {
+  margin-top: 0.48rem;
+  padding-left: 0.66rem;
+  border-left: 1px solid rgba(var(--camp-tone), 0.25);
+  color: #69737f;
+  font-size: 0.62rem;
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-top: 0.68rem;
+}
+
+.actions form { display: inline-flex; }
+
+.primary,
+.secondary,
+.ghost {
+  min-height: 2rem;
+  padding: 0.46rem 0.68rem;
+  border-radius: 0.58rem;
+  font-size: 0.56rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+}
+
+.primary {
+  border: 1px solid rgba(var(--camp-tone), 0.48);
+  color: #f5eee4;
+  background: rgba(var(--camp-tone), 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.secondary {
+  border: 1px solid rgba(128, 140, 155, 0.24);
+  color: #aeb7c0;
+  background: rgba(19, 24, 30, 0.74);
+}
+
+.ghost {
+  border: 1px solid transparent;
+  color: #69727d;
+  background: transparent;
+}
+
+.primary:hover,
+.secondary:hover,
+.ghost:hover { transform: translateY(-1px); }
+
+.primary:disabled,
+.secondary:disabled,
+.ghost:disabled {
+  cursor: wait;
+  opacity: 0.62;
+  transform: none;
+}
+
+.resolved {
+  display: flex;
+  align-items: center;
+  gap: 0.46rem;
+  margin-top: 0.62rem;
+  color: #7e8995;
+  font-size: 0.57rem;
+}
+
+.resolvedMark {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid rgba(var(--camp-tone), 0.24);
+  border-radius: 50%;
+  color: var(--camp-ink);
+  font-size: 0.63rem;
+}
+
+.footer {
+  padding: 0.68rem 0.95rem;
+  border-top: 1px solid rgba(var(--camp-tone), 0.1);
+  color: #515a65;
+  font-size: 0.52rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .bridge { margin-inline: 0.62rem; }
+  .header { padding-inline: 0.78rem; }
+  .item { padding-inline: 0.78rem; }
+  .primary,
+  .secondary,
+  .ghost { flex: 1 1 auto; justify-content: center; }
+}
