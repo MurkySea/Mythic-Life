@@ -1,0 +1,360 @@
+.presence {
+  --accent: #a78bfa;
+  --accent-rgb: 167, 139, 250;
+  --accent-2: #d4a853;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid rgba(var(--accent-rgb), 0.38);
+  background:
+    radial-gradient(circle at 50% 8%, rgba(var(--accent-rgb), 0.18), transparent 38%),
+    linear-gradient(160deg, #151923, #07090e 70%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.045),
+    inset 0 -30px 50px rgba(0, 0, 0, 0.44),
+    0 16px 38px rgba(0, 0, 0, 0.42),
+    0 0 24px rgba(var(--accent-rgb), 0.08);
+}
+
+.presence[data-theme='silver'] {
+  --accent: #b9d5eb;
+  --accent-rgb: 185, 213, 235;
+  --accent-2: #d9c38f;
+}
+
+.presence[data-theme='ember'] {
+  --accent: #f07d42;
+  --accent-rgb: 240, 125, 66;
+  --accent-2: #f0b85e;
+}
+
+.presence[data-theme='crimson'] {
+  --accent: #e95f72;
+  --accent-rgb: 233, 95, 114;
+  --accent-2: #efb460;
+}
+
+.presence[data-theme='void'] {
+  --accent: #8174e8;
+  --accent-rgb: 129, 116, 232;
+  --accent-2: #75c8ed;
+}
+
+.presence[data-theme='archive'] {
+  --accent: #72b890;
+  --accent-rgb: 114, 184, 144;
+  --accent-2: #d0ad63;
+}
+
+.presence[data-theme='dawn'] {
+  --accent: #f1c96d;
+  --accent-rgb: 241, 201, 109;
+  --accent-2: #f2ddd0;
+}
+
+.presence[data-theme='wild'] {
+  --accent: #8fb577;
+  --accent-rgb: 143, 181, 119;
+  --accent-2: #d4b467;
+}
+
+.presence[data-theme='tide'] {
+  --accent: #57b7cf;
+  --accent-rgb: 87, 183, 207;
+  --accent-2: #a4d8e1;
+}
+
+.presence[data-theme='rose'] {
+  --accent: #dc7cad;
+  --accent-rgb: 220, 124, 173;
+  --accent-2: #e5bd6c;
+}
+
+.aura {
+  position: absolute;
+  z-index: -1;
+  inset: -20%;
+  background:
+    radial-gradient(circle at 50% 22%, rgba(var(--accent-rgb), 0.24), transparent 34%),
+    conic-gradient(from 20deg, transparent, rgba(var(--accent-rgb), 0.08), transparent 32%);
+  filter: blur(24px);
+}
+
+.innerFrame {
+  position: absolute;
+  z-index: 4;
+  inset: 0.5rem;
+  border: 1px solid rgba(var(--accent-rgb), 0.18);
+  clip-path: polygon(0 13px, 13px 0, calc(100% - 13px) 0, 100% 13px, 100% calc(100% - 13px), calc(100% - 13px) 100%, 13px 100%, 0 calc(100% - 13px));
+  pointer-events: none;
+}
+
+.image,
+.fallback {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.image {
+  object-fit: cover;
+  object-position: center 18%;
+  filter: saturate(0.92) contrast(1.04);
+  transform: scale(1.01);
+}
+
+.fallback {
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(var(--accent-rgb), 0.26), transparent 32%),
+    linear-gradient(165deg, rgba(35, 42, 55, 0.94), #080b10);
+  color: var(--accent);
+}
+
+.fallback span {
+  font-size: 4.2rem;
+  filter: drop-shadow(0 0 22px rgba(var(--accent-rgb), 0.38));
+}
+
+.vignette {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(3, 5, 8, 0.05) 0%, transparent 36%, rgba(3, 5, 8, 0.32) 58%, rgba(3, 5, 8, 0.98) 100%),
+    linear-gradient(to right, rgba(3, 5, 8, 0.44), transparent 24%, transparent 74%, rgba(3, 5, 8, 0.36));
+  pointer-events: none;
+}
+
+.light {
+  position: absolute;
+  z-index: 3;
+  top: -30%;
+  left: 20%;
+  width: 55%;
+  height: 90%;
+  rotate: 16deg;
+  background: linear-gradient(to right, transparent, rgba(var(--accent-rgb), 0.12), transparent);
+  filter: blur(20px);
+  pointer-events: none;
+}
+
+.topBadges {
+  position: absolute;
+  z-index: 6;
+  top: 0.9rem;
+  left: 0.9rem;
+  right: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.rarity,
+.leader,
+.lockedBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.22rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--accent-rgb), 0.34);
+  background: rgba(4, 7, 11, 0.72);
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.46rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  backdrop-filter: blur(9px);
+}
+
+.leader {
+  margin-left: auto;
+  border-color: rgba(212, 168, 83, 0.48);
+  color: #e8bd65;
+}
+
+.lockedBadge {
+  color: #858b95;
+  border-color: rgba(120, 126, 137, 0.28);
+}
+
+.caption {
+  position: absolute;
+  z-index: 5;
+  left: 1rem;
+  right: 1rem;
+  bottom: 0.95rem;
+  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.8);
+}
+
+.stage {
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.name {
+  margin-top: 0.2rem;
+  color: #f4ecdf;
+  font-family: var(--font-display);
+  font-size: 1.12rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  line-height: 1.08;
+}
+
+.title {
+  margin-top: 0.22rem;
+  color: #a8adb6;
+  font-size: 0.62rem;
+  line-height: 1.3;
+}
+
+.mood {
+  margin-top: 0.38rem;
+  color: color-mix(in srgb, var(--accent) 72%, #e9e4db);
+  font-size: 0.56rem;
+  font-style: italic;
+  line-height: 1.3;
+}
+
+.hero {
+  min-height: 30rem;
+  border-radius: 1.45rem;
+}
+
+.hero .name {
+  font-size: 1.72rem;
+}
+
+.hero .title {
+  font-size: 0.76rem;
+}
+
+.hero .mood {
+  max-width: 22rem;
+  font-size: 0.66rem;
+}
+
+.hero .caption {
+  left: 1.35rem;
+  right: 1.35rem;
+  bottom: 1.35rem;
+}
+
+.roster {
+  min-height: 19rem;
+  border-radius: 1.15rem;
+}
+
+.roster .name {
+  font-size: 1.18rem;
+}
+
+.party {
+  min-height: 11.5rem;
+  border-radius: 1rem;
+}
+
+.party .caption {
+  left: 0.75rem;
+  right: 0.75rem;
+  bottom: 0.7rem;
+}
+
+.party .name {
+  font-size: 0.85rem;
+}
+
+.party .title {
+  font-size: 0.5rem;
+}
+
+.party .mood,
+.party .stage {
+  display: none;
+}
+
+.party .topBadges {
+  top: 0.6rem;
+  left: 0.6rem;
+  right: 0.6rem;
+}
+
+.party .rarity {
+  display: none;
+}
+
+.profile-card {
+  min-height: 15rem;
+  border-radius: 1rem;
+}
+
+.profile-card .name {
+  font-size: 1rem;
+}
+
+.profile-card .mood {
+  display: none;
+}
+
+.locked {
+  min-height: 14rem;
+  border-radius: 1rem;
+}
+
+.isLocked .image,
+.isLocked .fallback {
+  filter: grayscale(0.9) brightness(0.42) contrast(1.08);
+}
+
+.isLocked .vignette {
+  background:
+    linear-gradient(to bottom, rgba(3, 5, 8, 0.3), rgba(3, 5, 8, 0.94)),
+    repeating-linear-gradient(135deg, transparent 0 12px, rgba(255, 255, 255, 0.018) 12px 13px);
+}
+
+.isLocked .stage,
+.isLocked .mood {
+  color: #777d87;
+}
+
+.isLocked .name {
+  color: #b1b4ba;
+}
+
+@media (max-width: 390px) {
+  .hero { min-height: 27rem; }
+  .roster { min-height: 17rem; }
+  .party { min-height: 10.5rem; }
+  .profile-card { min-height: 13.5rem; }
+  .caption { left: 0.85rem; right: 0.85rem; }
+  .name { font-size: 1rem; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .presence:hover .image {
+    transform: scale(1.035);
+    transition: transform 550ms ease;
+  }
+
+  .light {
+    animation: breathe 8s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes breathe {
+  to {
+    opacity: 0.48;
+    transform: translateX(1.2rem);
+  }
+}
