@@ -44,3 +44,25 @@ export function PendingSendButton({ label = 'Send' }: { label?: string }) {
     </button>
   )
 }
+
+export function PendingActionButton({
+  label,
+  pendingLabel = 'Working…',
+  className,
+}: {
+  label: string
+  pendingLabel?: string
+  className?: string
+}) {
+  const { pending } = useFormStatus()
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className={className}
+      aria-busy={pending}
+    >
+      {pending ? pendingLabel : label}
+    </button>
+  )
+}
