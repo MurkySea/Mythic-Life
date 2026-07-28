@@ -15,11 +15,13 @@ import CompanionAvatar from '@/components/CompanionAvatar'
 import MarkReadOnOpen from '@/components/MarkReadOnOpen'
 import { respondWithChoice } from '@/app/response-actions'
 import {
+  fulfillExplicitCompanionImageRequest,
   isCompanionImageRequest,
   maybeGenerateCompanionImageGift,
 } from '@/lib/companion-image-gifts'
 
 export const dynamic = 'force-dynamic'
+export const maxDuration = 120
 
 function formatInboxTime(iso: string | undefined): string {
   if (!iso) return ''
@@ -81,47 +83,77 @@ async function sendMessage(formData: FormData) {
       const characterName = companion?.name || name
       const affinity = Number(companion?.affinity_score) || 1
 
-      // Explicit image requests are one coordinated action. Do not create a normal
-      // dialogue reply first, because it can contradict the image capability.
+      // An explicit image request is an action, not ordinary dialogue. This hard
+      // branch prevents the companion from answering with hypothetical prose.
       if (explicitImageRequest) {
-        try {
-          const gift = await maybeGenerateCompanionImageGift({
-            supabase,
-            companionSlug,
-            characterName,
-            affinity,
-            userText: text,
-            companionReply: '',
-            def,
+        const result = await fulfillExplicitCompanionImageRequest({
+          supabase,
+          companionSlug,
+          characterName,
+          affinity,
+          userText: text,
+          def,
+        })
+
+        if (result.success) {
+          const message = `${result.caption || 'Here.'}\n[image:${result.imageUrl}]`
+          const { error } = await supabase.from('messages').insert({
+            role: 'companion',
+            content: message,
+            companion_slug: companionSlug,
           })
 
-          if (gift) {
-            const imageMessage = `${gift.caption || 'Here.'}\n[image:${gift.imageUrl}]`
-            await supabase.from('messages').insert({
-              role: 'companion',
-              content: imageMessage,
-              companion_slug: companionSlug,
-            })
-
-            revalidatePath('/messages')
-            revalidatePath('/gallery')
-            revalidatePath('/companion-profile')
-
-            await pushIfStillUnread({
-              companionSlug,
-              messageCreatedAt: new Date().toISOString(),
-              title: `${emoji} ${name}`,
-              body: (gift.caption || 'I made something for you.').slice(0, 120),
-              tag: `chat-${companionSlug}`,
-            })
-            return
+          if (error) {
+            console.error('explicit companion image message insert failed', error)
           }
-        } catch (imageError) {
-          console.error('explicit companion image request failed', imageError)
+
+          console.log('explicit companion image delivered', {
+            companionSlug,
+            promptSource: result.promptSource,
+            imageModel: result.imageModel,
+          })
+
+          revalidatePath('/messages')
+          revalidatePath('/gallery')
+          revalidatePath('/companion-profile')
+
+          await pushIfStillUnread({
+            companionSlug,
+            messageCreatedAt: new Date().toISOString(),
+            title: `${emoji} ${name}`,
+            body: (result.caption || 'I made something for you.').slice(0, 120),
+            tag: `chat-${companionSlug}`,
+          })
+          return
         }
+
+        console.error('explicit companion image delivery failed', {
+          companionSlug,
+          stage: result.stage,
+        })
+
+        const { error } = await supabase.from('messages').insert({
+          role: 'companion',
+          content: result.fallbackText,
+          companion_slug: companionSlug,
+        })
+        if (error) {
+          console.error('explicit companion image failure message insert failed', error)
+        }
+
+        revalidatePath('/messages')
+
+        await pushIfStillUnread({
+          companionSlug,
+          messageCreatedAt: new Date().toISOString(),
+          title: `${emoji} ${name}`,
+          body: result.fallbackText.slice(0, 120),
+          tag: `chat-${companionSlug}`,
+        })
+        return
       }
 
-      // Normal dialogue, and graceful fallback when an explicit image could not be made.
+      // Ordinary conversation remains unchanged.
       const { generateCompanionResponse } = await import('../actions')
       const reply = await generateCompanionResponse(text, 'conversation', {
         force: true,
@@ -132,32 +164,33 @@ async function sendMessage(formData: FormData) {
 
       if (!reply || typeof reply !== 'string') return
 
-      // Spontaneous images remain optional and happen after a normal reply.
-      if (!explicitImageRequest) {
-        try {
-          const gift = await maybeGenerateCompanionImageGift({
-            supabase,
-            companionSlug,
-            characterName,
-            affinity,
-            userText: text,
-            companionReply: reply,
-            def,
-          })
+      // Close companions may independently choose a rare visual gift after a
+      // normal reply. This path is optional and never blocks dialogue.
+      try {
+        const gift = await maybeGenerateCompanionImageGift({
+          supabase,
+          companionSlug,
+          characterName,
+          affinity,
+          userText: text,
+          companionReply: reply,
+          def,
+        })
 
-          if (gift) {
-            await supabase.from('messages').insert({
-              role: 'companion',
-              content: `${gift.caption}\n[image:${gift.imageUrl}]`,
-              companion_slug: companionSlug,
-            })
-            revalidatePath('/messages')
-            revalidatePath('/gallery')
-            revalidatePath('/companion-profile')
-          }
-        } catch (imageError) {
-          console.error('spontaneous companion image gift failed', imageError)
+        if (gift) {
+          const { error } = await supabase.from('messages').insert({
+            role: 'companion',
+            content: `${gift.caption}\n[image:${gift.imageUrl}]`,
+            companion_slug: companionSlug,
+          })
+          if (error) console.error('spontaneous companion image message insert failed', error)
+
+          revalidatePath('/messages')
+          revalidatePath('/gallery')
+          revalidatePath('/companion-profile')
         }
+      } catch (imageError) {
+        console.error('spontaneous companion image gift failed', imageError)
       }
 
       await pushIfStillUnread({
