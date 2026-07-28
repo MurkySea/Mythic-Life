@@ -26,7 +26,7 @@ const TAG_PATTERNS: { tag: VisualPrefTag; test: RegExp; visualLine: string }[] =
   },
   {
     tag: 'music',
-    test: /\b(piano|music|song|concert|jazz|melody|play(s|ed|ing)? piano)\b/i,
+    test: /\b(piano|music|song|concert|jazz|melody)\b/i,
     visualLine: 'soft musical atmosphere or instrument detail if natural',
   },
   {
@@ -51,12 +51,12 @@ const TAG_PATTERNS: { tag: VisualPrefTag; test: RegExp; visualLine: string }[] =
   },
   {
     tag: 'rain',
-    test: /\b(rain|rainy|storm|window)\b/i,
+    test: /\b(rain|rainy|storm)\b/i,
     visualLine: 'rain on glass or post-rain quiet if it matches mood',
   },
   {
     tag: 'home',
-    test: /\b(home|house|wife|lauren|family|together at home)\b/i,
+    test: /\b(home|house|wife|lauren|family)\b/i,
     visualLine: 'lived-in private home warmth rather than a public stage',
   },
   {
@@ -79,11 +79,11 @@ const TAG_PATTERNS: { tag: VisualPrefTag; test: RegExp; visualLine: string }[] =
 /** Date idea ids that match a preference tag (soft boost only). */
 export const DATE_IDS_FOR_TAG: Record<VisualPrefTag, string[]> = {
   water: ['pier_sunset', 'boat_harbor', 'hot_springs'],
-  music: ['jazz_booth', 'concert_hall', 'piano' as string].filter(Boolean),
+  music: ['jazz_booth', 'concert_hall'],
   faith: ['tea_house', 'moon_garden', 'stargazing'],
   books: ['bookstore_cafe', 'library_after', 'art_gallery'],
   kitchen: ['cooking_together', 'bakery_dawn', 'farmers_market'],
-  outdoors: ['meadow_picnic', 'pier_sunset', 'stargazing', 'farmers_market', 'firepit'],
+  outdoors: ['picnic_meadow', 'pier_sunset', 'stargazing', 'farmers_market', 'firepit'],
   rain: ['rain_cafe', 'train_window'],
   home: ['cooking_together', 'firepit', 'silk_robe_morning'],
   stars: ['stargazing', 'observatory', 'rooftop_golden'],
