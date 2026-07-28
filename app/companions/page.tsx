@@ -9,8 +9,65 @@ import {
   actionSetLeader,
   actionTogglePartyLock,
 } from '../mode-actions'
+import {
+  MythicEmptyState,
+  MythicPage,
+  MythicPageHeader,
+  MythicPanel,
+  MythicSeal,
+  MythicSectionHeader,
+} from '@/components/MythicSurface'
+import { CompanionPresence } from '@/components/CompanionPresence'
+import { deriveDualAxis, dualAxisLabel } from '@/lib/engines/relationship-wire'
+import styles from './companions.module.css'
 
 export const dynamic = 'force-dynamic'
+
+type CompanionRow = {
+  id?: string
+  slug?: string | null
+  name?: string | null
+  image_url?: string | null
+  affinity_score?: number | null
+  bond_xp?: number | null
+  trust_score?: number | null
+  intimacy_score?: number | null
+  consecutive_bad_days?: number | null
+  consecutive_good_days?: number | null
+  is_unlocked?: boolean | null
+}
+
+function relationshipState(row: CompanionRow | undefined, slug: string): {
+  stage: string
+  mood: string
+} {
+  if (!row) return { stage: 'New bond', mood: 'Waiting at the edge of the firelight' }
+
+  const dual = deriveDualAxis({
+    slug,
+    affinity_score: Number(row.affinity_score) || 1,
+    bond_xp: Number(row.bond_xp) || 0,
+    trust_score: row.trust_score != null ? Number(row.trust_score) : null,
+    intimacy_score: row.intimacy_score != null ? Number(row.intimacy_score) : null,
+    consecutive_bad_days:
+      row.consecutive_bad_days != null ? Number(row.consecutive_bad_days) : null,
+    consecutive_good_days:
+      row.consecutive_good_days != null ? Number(row.consecutive_good_days) : null,
+  })
+
+  const stage = dual.isInLove ? 'Devoted' : dualAxisLabel(dual.stage)
+  const badDays = Number(row.consecutive_bad_days) || 0
+  const goodDays = Number(row.consecutive_good_days) || 0
+
+  if (badDays >= 3) return { stage, mood: 'Worried by the distance between you' }
+  if (badDays > 0) return { stage, mood: 'Quietly concerned, still watching for you' }
+  if (goodDays >= 3) return { stage, mood: 'Close, steady, and at ease beside you' }
+  if (stage === 'Distant') return { stage, mood: 'Still learning the shape of your days' }
+  if (stage === 'Intimate' || stage === 'Devoted') {
+    return { stage, mood: 'Her guard is lower when you are near' }
+  }
+  return { stage, mood: 'Present and attentive' }
+}
 
 export default async function CompanionsPage() {
   const supabase = await createClient()
@@ -20,6 +77,7 @@ export default async function CompanionsPage() {
     loadPlayerState(),
   ])
 
+  const companionRows = (rows || []) as CompanionRow[]
   const { party } = player
   const levelMap: Record<string, number> = {}
   for (const s of skills || []) {
@@ -27,258 +85,279 @@ export default async function CompanionsPage() {
   }
 
   const unlockedSlugs = new Set(
-    (rows || [])
+    companionRows
       .filter((c) => c.is_unlocked !== false)
       .map((c) => c.slug || (c.name === 'Seraphine' ? 'seraphine' : ''))
       .filter(Boolean)
   )
   unlockedSlugs.add('seraphine')
 
+  const rowsBySlug = new Map<string, CompanionRow>()
+  for (const row of companionRows) {
+    const slug = row.slug || (row.name === 'Seraphine' ? 'seraphine' : '')
+    if (slug) rowsBySlug.set(slug, row)
+  }
+
   const activePartySlugs = new Set(party.members.map((m) => m.slug))
   const leaderSlug = party.members.find((m) => m.isLeader)?.slug
 
   const roster = COMPANION_DEFS.filter((d) => d.starter || unlockedSlugs.has(d.slug))
   const locked = COMPANION_DEFS.filter((d) => !d.starter && !unlockedSlugs.has(d.slug))
-
-  function rarityColor(r: string) {
-    if (r === 'Legendary' || r === 'Founding') return 'text-amber-300'
-    if (r === 'SSR') return 'text-orange-300'
-    if (r === 'Epic') return 'text-violet-300'
-    return 'text-zinc-400'
-  }
+  const openSlots = Math.max(0, MAX_PARTY_SIZE - party.members.length)
 
   return (
-    <main className="max-w-md mx-auto px-4 pt-6 pb-28 min-h-screen">
-      <div className="flex items-center gap-3 mb-6">
-        <Link
-          href="/"
-          className="w-10 h-10 rounded-full bg-zinc-900/80 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white transition"
-        >
-          ←
-        </Link>
-        <div>
-          <p className="text-zinc-500 text-xs tracking-wide uppercase">Your party</p>
-          <h1 className="text-xl font-medium text-white tracking-tight">Companions</h1>
-        </div>
-      </div>
+    <MythicPage>
+      <MythicPageHeader
+        eyebrow="The fellowship"
+        title="Companions"
+        subtitle="Not inventory. Not bonuses. The women who walk beside you remember how you live."
+        aside={
+          <MythicSeal label={`${party.members.length} of ${MAX_PARTY_SIZE} active`}>
+            <p className={styles.headerSealValue}>
+              {party.members.length}/{MAX_PARTY_SIZE}
+            </p>
+            <p className={styles.headerSealLabel}>Active</p>
+          </MythicSeal>
+        }
+      />
 
-      {/* ── Active Party of 5 ── */}
-      <div className="bg-violet-950/30 border border-violet-800/40 rounded-2xl p-4 mb-6">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-[11px] uppercase tracking-wider text-violet-400 font-semibold">
-              Active Party
-            </p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              {party.members.length} / {MAX_PARTY_SIZE}
-              {party.locked ? ' · locked' : ''}
-            </p>
+      <div className={styles.stack}>
+        <MythicPanel tone="violet" emphasis>
+          <div className={styles.partyHeader}>
+            <div>
+              <p className={styles.panelEyebrow}>At your side</p>
+              <h2 className={styles.panelTitle}>Active Party</h2>
+              <p className={styles.panelSub}>
+                {party.locked ? 'The formation is locked.' : 'Choose up to five. One may lead.'}
+              </p>
+            </div>
+            <form action={actionTogglePartyLock}>
+              <button type="submit" className={styles.lockButton}>
+                {party.locked ? 'Unlock formation' : 'Lock formation'}
+              </button>
+            </form>
           </div>
-          <form action={actionTogglePartyLock}>
-            <button
-              type="submit"
-              className="text-[11px] px-3 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-zinc-400 hover:text-white transition"
-            >
-              {party.locked ? 'Unlock' : 'Lock'}
-            </button>
-          </form>
-        </div>
 
-        {party.members.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-2">
-            No one in the active party yet. Add up to 5 from the roster below.
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {party.members.map((m) => {
-              const def = getCompanionDef(m.slug)
+          <div className={styles.partyGrid}>
+            {party.members.map((member) => {
+              const def = getCompanionDef(member.slug)
               if (!def) return null
+              const row = rowsBySlug.get(member.slug)
+              const state = relationshipState(row, member.slug)
+
               return (
-                <div
-                  key={m.slug}
-                  className="flex items-center gap-3 bg-zinc-950/60 rounded-xl p-3 border border-zinc-800"
-                >
-                  <div className="w-10 h-10 rounded-lg bg-violet-900/40 border border-violet-700/40 flex items-center justify-center text-xl">
-                    {def.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-violet-200 truncate">
-                      {def.name}
-                      {m.isLeader && (
-                        <span className="ml-1.5 text-[10px] uppercase tracking-wider text-amber-400">
-                          Leader
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-[11px] text-zinc-500">{def.title}</p>
-                  </div>
-                  <div className="flex gap-1.5">
-                    {!m.isLeader && (
+                <div className={styles.partySlot} key={member.slug}>
+                  <Link
+                    href={`/companion-profile?c=${member.slug}`}
+                    className={styles.partyLink}
+                  >
+                    <CompanionPresence
+                      slug={member.slug}
+                      name={def.name}
+                      title={def.title}
+                      imageUrl={row?.image_url}
+                      emoji={def.emoji}
+                      rarity={def.rarity}
+                      stage={state.stage}
+                      mood={state.mood}
+                      variant="party"
+                      leader={member.isLeader}
+                    />
+                  </Link>
+                  <div className={styles.partyControls}>
+                    {!member.isLeader ? (
                       <form action={actionSetLeader}>
-                        <input type="hidden" name="slug" value={m.slug} />
+                        <input type="hidden" name="slug" value={member.slug} />
                         <button
                           type="submit"
-                          className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 hover:text-amber-300"
+                          className={styles.smallButton}
                           disabled={party.locked}
                         >
-                          Lead
+                          Make leader
                         </button>
                       </form>
+                    ) : (
+                      <span className={styles.partyTag}>First voice</span>
                     )}
                     <form action={actionLeaveParty}>
-                      <input type="hidden" name="slug" value={m.slug} />
+                      <input type="hidden" name="slug" value={member.slug} />
                       <button
                         type="submit"
-                        className="text-[10px] px-2 py-1 rounded bg-zinc-800 text-zinc-400 hover:text-red-300"
+                        className={`${styles.smallButton} ${styles.dangerButton}`}
                         disabled={party.locked}
                       >
-                        Remove
+                        Release
                       </button>
                     </form>
                   </div>
                 </div>
               )
             })}
+
+            {Array.from({ length: openSlots }).map((_, index) => (
+              <div className={styles.emptySlot} key={`empty-${index}`}>
+                <div>
+                  <p className={styles.emptySlotMark}>◇</p>
+                  <p className={styles.emptySlotText}>Open place</p>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
 
-      <p className="text-zinc-500 text-sm mb-6 leading-relaxed">
-        The active party (max 5) receives Trust updates and dialogue priority. The full roster stays
-        available; only the active five are “with you” day to day.
-      </p>
+          <p className={styles.partyNote}>
+            Active companions receive Trust updates and dialogue priority. The full roster remains
+            available; these are the women currently moving through the day with you.
+          </p>
+        </MythicPanel>
 
-      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">
-        Roster ({roster.length})
-      </p>
-      <div className="space-y-2 mb-8">
-        {roster.map((c) => {
-          const db = rows?.find((r) => r.slug === c.slug || r.name === c.name)
-          const inParty = activePartySlugs.has(c.slug)
-          const canJoin = !inParty && party.members.length < MAX_PARTY_SIZE && !party.locked
+        <section>
+          <MythicSectionHeader title="The Roster" hint={`${roster.length} awakened`} sigil="✦" />
+          {roster.length === 0 ? (
+            <MythicEmptyState
+              title="The hall is quiet"
+              body="New companions will appear as your skills and story deepen."
+            />
+          ) : (
+            <div className={styles.rosterGrid}>
+              {roster.map((companionDef) => {
+                const row = rowsBySlug.get(companionDef.slug)
+                const inParty = activePartySlugs.has(companionDef.slug)
+                const canJoin = !inParty && party.members.length < MAX_PARTY_SIZE && !party.locked
+                const state = relationshipState(row, companionDef.slug)
 
-          return (
-            <div
-              key={c.slug}
-              className={`bg-zinc-900/80 border rounded-2xl p-4 ${
-                inParty ? 'border-violet-700/50' : 'border-zinc-800'
-              }`}
-            >
-              <Link href={`/companion-profile?c=${c.slug}`} className="block hover:opacity-95">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-violet-900/40 border border-violet-700/40 flex items-center justify-center text-2xl">
-                    {c.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-medium text-violet-200 truncate">
-                        {c.name}
-                        {c.slug === leaderSlug && (
-                          <span className="ml-1.5 text-[10px] text-amber-400">★</span>
-                        )}
+                return (
+                  <article
+                    className={`${styles.rosterCard} ${
+                      inParty ? styles.rosterCardActive : ''
+                    }`}
+                    key={companionDef.slug}
+                  >
+                    <Link href={`/companion-profile?c=${companionDef.slug}`}>
+                      <CompanionPresence
+                        slug={companionDef.slug}
+                        name={companionDef.name}
+                        title={companionDef.title}
+                        imageUrl={row?.image_url}
+                        emoji={companionDef.emoji}
+                        rarity={companionDef.rarity}
+                        stage={state.stage}
+                        mood={state.mood}
+                        variant="roster"
+                        leader={companionDef.slug === leaderSlug}
+                      />
+                    </Link>
+
+                    <div className={styles.cardBody}>
+                      <div className={styles.cardMeta}>
+                        <p className={styles.raceClass}>
+                          {companionDef.race} · {companionDef.className}
+                        </p>
+                        {inParty && <span className={styles.partyTag}>With you</span>}
+                      </div>
+                      <p className={styles.relationshipLine}>
+                        <strong>{state.stage}</strong> · {state.mood}
                       </p>
-                      <span
-                        className={`text-[10px] uppercase tracking-wider shrink-0 ${rarityColor(c.rarity)}`}
-                      >
-                        {c.rarity}
-                      </span>
+
+                      <div className={styles.chips}>
+                        {companionDef.affinities.slice(0, 2).map((affinity) => (
+                          <span className={styles.chip} key={affinity}>
+                            {SKILL_LABELS[affinity]}
+                          </span>
+                        ))}
+                        {companionDef.traits.slice(0, 2).map((trait) => (
+                          <span className={styles.chip} key={trait}>
+                            {trait}
+                          </span>
+                        ))}
+                      </div>
+
+                      <div className={styles.cardActions}>
+                        <div className={styles.actionLinks}>
+                          <Link
+                            href={`/companion-profile?c=${companionDef.slug}`}
+                            className={styles.textLink}
+                          >
+                            Enter her space
+                          </Link>
+                          <Link
+                            href={`/messages?c=${companionDef.slug}`}
+                            className={`${styles.textLink} ${styles.textLinkMuted}`}
+                          >
+                            Write
+                          </Link>
+                        </div>
+
+                        {inParty ? (
+                          <span className={styles.statusText}>Active party</span>
+                        ) : canJoin ? (
+                          <form action={actionJoinParty}>
+                            <input type="hidden" name="slug" value={companionDef.slug} />
+                            <button type="submit" className={styles.primaryButton}>
+                              Invite
+                            </button>
+                          </form>
+                        ) : party.members.length >= MAX_PARTY_SIZE ? (
+                          <span className={styles.statusText}>Formation full</span>
+                        ) : party.locked ? (
+                          <span className={styles.statusText}>Formation locked</span>
+                        ) : null}
+                      </div>
                     </div>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {c.race} · {c.className}
-                    </p>
-                    {db && (
-                      <p className="text-[11px] text-zinc-600 mt-1">
-                        Affinity {db.affinity_score || 1} · Bond {db.bond_xp || 0}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+        </section>
+
+        <section>
+          <MythicSectionHeader title="Beyond the Veil" hint={`${locked.length} unknown`} sigil="◈" />
+          {locked.length === 0 ? (
+            <MythicEmptyState title="Every known path is open" />
+          ) : (
+            <div className={styles.lockedGrid}>
+              {locked.map((companionDef) => {
+                const ready = meetsUnlock(companionDef.unlock, levelMap)
+                const requirement = Object.entries(companionDef.unlock)
+                  .map(
+                    ([key, value]) =>
+                      `${SKILL_LABELS[key as keyof typeof SKILL_LABELS]} ${value}`
+                  )
+                  .join(' · ')
+
+                return (
+                  <article className={styles.lockedCard} key={companionDef.slug}>
+                    <CompanionPresence
+                      slug={companionDef.slug}
+                      name={companionDef.name}
+                      title={companionDef.title}
+                      emoji={companionDef.emoji}
+                      rarity={companionDef.rarity}
+                      stage={ready ? 'The veil is thinning' : 'Unawakened'}
+                      mood={ready ? 'Your growth has reached her world' : 'Her path has not crossed yours'}
+                      variant="locked"
+                      locked
+                    />
+                    <div className={styles.lockedBody}>
+                      <div className={styles.lockedMeta}>
+                        <p className={styles.lockedName}>{companionDef.race}</p>
+                        <span className={ready ? styles.readyText : styles.statusText}>
+                          {ready ? 'Requirements met' : companionDef.rarity}
+                        </span>
+                      </div>
+                      <p className={styles.lockedRequirement}>
+                        {ready
+                          ? 'Complete a quest or open Today. She is close enough to answer.'
+                          : `Requires ${requirement}`}
                       </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-1.5 mt-3">
-                  {c.affinities.map((a) => (
-                    <span
-                      key={a}
-                      className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800 text-zinc-400"
-                    >
-                      {SKILL_LABELS[a]}
-                    </span>
-                  ))}
-                </div>
-              </Link>
-
-              <div className="flex gap-3 mt-3 text-xs items-center">
-                <Link href={`/companion-profile?c=${c.slug}`} className="text-violet-400">
-                  Profile →
-                </Link>
-                <Link
-                  href={`/messages?c=${c.slug}`}
-                  className="text-zinc-500 hover:text-violet-300"
-                >
-                  Message →
-                </Link>
-                {inParty ? (
-                  <span className="ml-auto text-[10px] text-violet-400/80">In party</span>
-                ) : canJoin ? (
-                  <form action={actionJoinParty} className="ml-auto">
-                    <input type="hidden" name="slug" value={c.slug} />
-                    <button
-                      type="submit"
-                      className="text-[11px] px-2.5 py-1 rounded-lg bg-violet-900/60 border border-violet-700/50 text-violet-200 hover:bg-violet-800/60"
-                    >
-                      Add to party
-                    </button>
-                  </form>
-                ) : party.members.length >= MAX_PARTY_SIZE ? (
-                  <span className="ml-auto text-[10px] text-zinc-600">Party full</span>
-                ) : null}
-              </div>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
-          )
-        })}
+          )}
+        </section>
       </div>
-
-      <p className="text-[11px] uppercase tracking-wider text-zinc-500 mb-3">Not yet unlocked</p>
-      <div className="space-y-2">
-        {locked.map((c) => {
-          const ready = meetsUnlock(c.unlock, levelMap)
-          return (
-            <div
-              key={c.slug}
-              className={`rounded-2xl border p-4 ${
-                ready
-                  ? 'border-amber-700/40 bg-amber-950/10'
-                  : 'border-zinc-800/60 bg-zinc-950/60 opacity-80'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center text-2xl grayscale">
-                  {c.emoji}
-                </div>
-                <div className="flex-1">
-                  <div className="flex justify-between">
-                    <p className="font-medium text-zinc-400">{c.name}</p>
-                    <span className={`text-[10px] uppercase ${rarityColor(c.rarity)}`}>
-                      {c.rarity}
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-600 mt-0.5">
-                    {c.race} · {c.className}
-                  </p>
-                  <p className="text-[11px] text-zinc-500 mt-1">
-                    {ready
-                      ? 'Requirements met — complete a task or open Today to bond'
-                      : `Needs ${Object.entries(c.unlock)
-                          .map(
-                            ([k, v]) =>
-                              `${SKILL_LABELS[k as keyof typeof SKILL_LABELS]} ${v}`
-                          )
-                          .join(', ')}`}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </main>
+    </MythicPage>
   )
 }
