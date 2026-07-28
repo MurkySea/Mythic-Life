@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/utils/supabase/server'
 import { COMPANION_DEFS } from '@/lib/companions'
 import { sendPushToAll } from '@/lib/push'
+import { backfillScoresFromAffinity } from '@/lib/engines/relationship-wire'
 
 function revalidateApp() {
   revalidatePath('/companions')
@@ -26,7 +27,6 @@ export async function devUnlockAllCompanions(_formData: FormData): Promise<void>
       .eq('slug', def.slug)
       .maybeSingle()
 
-    // Also match by old masculine names if slug row missing
     let row = existing
     if (!row) {
       const { data: byName } = await supabase
@@ -77,6 +77,61 @@ export async function devBoostAllAffinity(_formData: FormData): Promise<void> {
       .update({ affinity_score: level, bond_xp: level * 35 })
       .eq('id', r.id)
   }
+  revalidateApp()
+}
+
+/**
+ * One-time (or re-runnable) backfill:
+ * derive trust_score + intimacy_score from current affinity_score + bond_xp.
+ *
+ * Default: only fill rows where trust/intimacy are null or 0.
+ * Pass force=1 in formData to overwrite existing dual-axis values.
+ */
+export async function backfillDualAxisCompanions(
+  formData: FormData
+): Promise<void> {
+  const force = String(formData.get('force') || '') === '1'
+  const supabase = await createClient()
+
+  const { data: rows } = await supabase
+    .from('companion')
+    .select('id, slug, name, affinity_score, bond_xp, trust_score, intimacy_score')
+
+  for (const row of rows || []) {
+    const hasTrust =
+      row.trust_score != null && Number(row.trust_score) > 0
+    const hasIntimacy =
+      row.intimacy_score != null && Number(row.intimacy_score) > 0
+
+    if (!force && hasTrust && hasIntimacy) continue
+
+    const slug =
+      row.slug ||
+      (row.name === 'Seraphine'
+        ? 'seraphine'
+        : String(row.name || '')
+            .toLowerCase()
+            .replace(/\s+/g, '_'))
+
+    const scores = backfillScoresFromAffinity({
+      slug,
+      affinity_score: Number(row.affinity_score) || 1,
+      bond_xp: Number(row.bond_xp) || 0,
+    })
+
+    try {
+      await supabase
+        .from('companion')
+        .update({
+          trust_score: scores.trust,
+          intimacy_score: scores.intimacy,
+        })
+        .eq('id', row.id)
+    } catch (e) {
+      console.error('backfill dual-axis failed for', slug, e)
+    }
+  }
+
   revalidateApp()
 }
 
@@ -154,6 +209,12 @@ export async function hardResetGame(_formData: FormData): Promise<void> {
   }
 
   const sera = COMPANION_DEFS.find((c) => c.slug === 'seraphine') || COMPANION_DEFS[0]
+  const seed = backfillScoresFromAffinity({
+    slug: sera.slug,
+    affinity_score: 1,
+    bond_xp: 0,
+  })
+
   await supabase.from('companion').insert({
     name: sera.name,
     slug: sera.slug,
@@ -163,6 +224,10 @@ export async function hardResetGame(_formData: FormData): Promise<void> {
     is_unlocked: true,
     affinity_score: 1,
     bond_xp: 0,
+    trust_score: seed.trust,
+    intimacy_score: seed.intimacy,
+    consecutive_bad_days: 0,
+    consecutive_good_days: 0,
   })
 
   revalidateApp()

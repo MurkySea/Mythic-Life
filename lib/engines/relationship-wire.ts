@@ -1,17 +1,17 @@
 /**
  * Relationship wire layer
  *
- * Bridges the pure dual-axis engine (Trust + Intimacy) to the live
- * companion rows that currently store affinity_score + bond_xp.
+ * Bridges the pure dual-axis engine (Trust + Intimacy) to live companion rows.
  *
- * Until dedicated trust/intimacy columns exist in Supabase, we:
- * 1. Derive approximate Trust/Intimacy from affinity + bond
- * 2. Apply effects back onto affinity_score / bond_xp
- * 3. Expose helpers for outreach responses and light chat
+ * Primary store (2026-07-27):
+ *   trust_score, intimacy_score, consecutive_bad/good_days
+ * Mirror (legacy UI):
+ *   affinity_score, bond_xp — still updated so scenes / profile keep moving
  *
- * Designed 2026-07-24. Response-loop completion 2026-07-27.
+ * deriveDualAxis prefers stored dual-axis values; falls back to affinity/bond
+ * mapping only when columns are null (pre-backfill rows).
  *
- * Optional companion columns (run once):
+ * Companion columns (run once):
  *   alter table companion add column if not exists consecutive_bad_days int default 0;
  *   alter table companion add column if not exists consecutive_good_days int default 0;
  *   alter table companion add column if not exists trust_score numeric;
@@ -36,16 +36,10 @@ import {
 // Mapping current scores → dual axis
 // ─────────────────────────────────────────────
 
-/**
- * Live companion shape we care about.
- * affinity_score is the primary displayed closeness number (1–24+).
- * bond_xp is cumulative XP-style progress.
- */
 export interface LiveCompanionScores {
   slug: string
   affinity_score: number
   bond_xp: number
-  /** Optional future columns — used when present */
   trust_score?: number | null
   intimacy_score?: number | null
   consecutive_bad_days?: number | null
@@ -54,14 +48,10 @@ export interface LiveCompanionScores {
 
 /**
  * Convert live affinity (roughly 1–24 scale) into 0–100 Intimacy.
- * Affinity 6 ≈ Warming ≈ ~50 Intimacy
- * Affinity 12 ≈ Deeply Intimate ≈ ~75
- * Affinity 20+ ≈ Bound Beyond Words ≈ ~90+
  */
 export function affinityToIntimacy(affinity: number): number {
   if (affinity <= 0) return 15
   if (affinity >= 24) return 96
-  // piecewise linear through known scene milestones
   const points: [number, number][] = [
     [1, 22],
     [3, 35],
@@ -85,16 +75,18 @@ export function affinityToIntimacy(affinity: number): number {
 
 /**
  * Bond XP → Trust proxy.
- * Higher cumulative bond implies more demonstrated consistency over time.
- * Founding / high bond starts healthier.
  */
 export function bondToTrust(bondXp: number, isFounding = false): number {
   const base = isFounding ? 78 : 55
-  // soft log-ish growth so early XP moves the needle, late XP less so
   const gained = Math.min(22, Math.sqrt(Math.max(0, bondXp)) * 1.1)
   return Math.round(Math.min(96, base + gained) * 10) / 10
 }
 
+/**
+ * Resolve dual-axis values.
+ * Stored trust_score / intimacy_score are primary when present (> 0).
+ * Otherwise derive from bond / affinity (backfill path).
+ */
 export function deriveDualAxis(c: LiveCompanionScores): {
   trust: TrustState
   intimacy: IntimacyState
@@ -131,15 +123,30 @@ export function deriveDualAxis(c: LiveCompanionScores): {
   }
 }
 
+/**
+ * Pure backfill values for one companion.
+ * Always derives from affinity/bond (ignores existing dual-axis so you can re-run).
+ * Use force=false path in the server action to skip rows that already have scores.
+ */
+export function backfillScoresFromAffinity(c: {
+  slug: string
+  affinity_score: number
+  bond_xp: number
+}): { trust: number; intimacy: number; stage: RelationshipStage } {
+  const isFounding = c.slug === 'seraphine'
+  const trust = bondToTrust(c.bond_xp || 0, isFounding)
+  const intimacy = affinityToIntimacy(c.affinity_score || 1)
+  return {
+    trust,
+    intimacy,
+    stage: getRelationshipStage(trust, intimacy),
+  }
+}
+
 // ─────────────────────────────────────────────
 // Check-in / concern detection (UI gate)
 // ─────────────────────────────────────────────
 
-/**
- * Heuristic: last companion message is a check-in / concern style outreach
- * rather than casual chat. Used to gate ResponseChoices so the four
- * answers only appear when the dual-axis effects are meant to fire.
- */
 export function isCheckInMessage(text: string | null | undefined): boolean {
   if (!text || !text.trim()) return false
   const t = text.toLowerCase()
@@ -206,17 +213,11 @@ export function intensityFromMessage(
 // Apply effects back onto live scores
 // ─────────────────────────────────────────────
 
-/**
- * Convert dual-axis deltas back into affinity_score + bond_xp changes.
- * Rough inverse of the mapping above so the existing UI still moves.
- */
 export function dualDeltasToLive(opts: {
   trustDelta: number
   intimacyDelta: number
 }): { affinityDelta: number; bondXpDelta: number } {
-  // Intimacy 5 ≈ roughly +0.6–0.8 affinity on the 1–24 scale
   const affinityDelta = Math.round(opts.intimacyDelta * 0.14 * 10) / 10
-  // Trust feeds bond XP more directly
   const bondXpDelta = Math.round(opts.trustDelta * 4 + opts.intimacyDelta * 2)
   return { affinityDelta, bondXpDelta }
 }
@@ -226,14 +227,20 @@ export interface AppliedResponse {
   bondXpDelta: number
   trustDelta: number
   intimacyDelta: number
+  /** Absolute next dual-axis values (primary write) */
+  trustAfter: number
+  intimacyAfter: number
   stage: RelationshipStage
   note: string
   intensity: 'gentle' | 'direct' | 'urgent'
 }
 
+function clampScore(n: number): number {
+  return Math.round(Math.max(0, Math.min(100, n)) * 10) / 10
+}
+
 /**
  * Full pipeline: companion reached out → player chose a response.
- * Returns deltas ready to write back to the companion row.
  */
 export function applyOutreachResponse(
   companion: LiveCompanionScores,
@@ -243,12 +250,16 @@ export function applyOutreachResponse(
   const dual = deriveDualAxis(companion)
   const effect = getResponseEffect(choice, dual.stage, intensity)
   const live = dualDeltasToLive(effect)
+  const trustAfter = clampScore(dual.trust.value + effect.trustDelta)
+  const intimacyAfter = clampScore(dual.intimacy.value + effect.intimacyDelta)
 
   return {
     ...live,
     trustDelta: effect.trustDelta,
     intimacyDelta: effect.intimacyDelta,
-    stage: dual.stage,
+    trustAfter,
+    intimacyAfter,
+    stage: getRelationshipStage(trustAfter, intimacyAfter),
     note: effect.note,
     intensity,
   }
@@ -264,12 +275,16 @@ export function applyLightInteraction(
   const dual = deriveDualAxis(companion)
   const effect = getInteractionEffect(type, dual.stage)
   const live = dualDeltasToLive(effect)
+  const trustAfter = clampScore(dual.trust.value + effect.trustDelta)
+  const intimacyAfter = clampScore(dual.intimacy.value + effect.intimacyDelta)
 
   return {
     ...live,
     trustDelta: effect.trustDelta,
     intimacyDelta: effect.intimacyDelta,
-    stage: dual.stage,
+    trustAfter,
+    intimacyAfter,
+    stage: getRelationshipStage(trustAfter, intimacyAfter),
     note: effect.note,
     intensity: 'gentle',
   }
@@ -279,10 +294,6 @@ export function applyLightInteraction(
 // Rhythm → Trust (patience-aware)
 // ─────────────────────────────────────────────
 
-/**
- * Apply today's Rhythm tier to a companion's Trust, respecting love-patience.
- * Returns the live score deltas plus updated streak counters.
- */
 export function applyRhythmToCompanion(
   companion: LiveCompanionScores,
   tier: RhythmTier | string,
@@ -291,6 +302,7 @@ export function applyRhythmToCompanion(
   affinityDelta: number
   bondXpDelta: number
   trustAfter: number
+  intimacyAfter: number
   consecutiveBadDays: number
   consecutiveGoodDays: number
   stage: RelationshipStage
@@ -305,24 +317,23 @@ export function applyRhythmToCompanion(
   )
   const trustDelta = updated.value - dual.trust.value
   const live = dualDeltasToLive({ trustDelta, intimacyDelta: 0 })
-
   const intensity = outreachIntensityFromStreak(updated.consecutiveBadDays)
+  const intimacyAfter = dual.intimacy.value
 
   return {
     ...live,
     trustAfter: updated.value,
+    intimacyAfter,
     consecutiveBadDays: updated.consecutiveBadDays,
     consecutiveGoodDays: updated.consecutiveGoodDays,
-    stage: getRelationshipStage(updated.value, dual.intimacy.value),
+    stage: getRelationshipStage(updated.value, intimacyAfter),
     outreachIntensity: intensity,
   }
 }
 
 /**
- * Build a Supabase update payload for companion score writes.
- * Always includes affinity + bond. Includes consecutive / dual-axis
- * fields when we have values (columns may not exist yet — callers
- * should catch or use a soft write).
+ * Supabase update payload.
+ * Dual-axis fields are included whenever provided (primary write).
  */
 export function companionScorePatch(opts: {
   affinity: number
@@ -370,7 +381,6 @@ export function dualAxisLabel(stage: RelationshipStage): string {
   }
 }
 
-/** Prefer dual-axis label when we can derive it; fall back to classic intimacy label. */
 export function relationshipLabelForCompanion(c: LiveCompanionScores): string {
   const dual = deriveDualAxis(c)
   if (dual.isInLove) return 'Devoted ♥'

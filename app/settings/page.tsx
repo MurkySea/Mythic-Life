@@ -4,6 +4,7 @@ import {
   devBoostAllAffinity,
   hardResetGame,
   sendTestPush,
+  backfillDualAxisCompanions,
 } from '../dev-actions'
 import {
   actionEnterVacation,
@@ -137,8 +138,9 @@ export default async function SettingsPage() {
               Developer mode
             </p>
             <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              Testing tools. Unlock opens the full roster. Boost raises affinity for scene tiers. Hard
-              reset keeps tasks but wipes progression.
+              Testing tools. Unlock opens the full roster. Boost raises affinity for scene tiers. Dual-axis
+              backfill seeds Trust / Intimacy from affinity + bond. Hard reset keeps tasks but wipes
+              progression.
             </p>
           </div>
 
@@ -159,6 +161,19 @@ export default async function SettingsPage() {
               Boost all affinity → 20
             </button>
           </form>
+
+          <form action={backfillDualAxisCompanions}>
+            <button
+              type="submit"
+              className="w-full py-3.5 rounded-xl bg-zinc-900 border border-violet-700/60 text-violet-100 text-sm font-medium hover:border-violet-500 active:scale-[0.99] transition"
+            >
+              Backfill Trust / Intimacy from affinity
+            </button>
+          </form>
+          <p className="text-[10px] text-zinc-600 leading-relaxed">
+            Run companion column SQL first (below). Fills null/zero trust_score + intimacy_score from
+            current affinity + bond. Safe to re-run — skips rows that already have values.
+          </p>
 
           <form action={sendTestPush}>
             <button
@@ -182,7 +197,8 @@ export default async function SettingsPage() {
             </button>
           </form>
           <p className="text-[10px] text-zinc-600 leading-relaxed">
-            Hard reset: Seraphine only, affinity 1, empty inbox & gallery, skills cleared. Tasks stay.
+            Hard reset: Seraphine only, affinity 1, dual-axis seeded, empty inbox & gallery, skills
+            cleared. Tasks stay.
           </p>
         </div>
 
@@ -233,7 +249,15 @@ export default async function SettingsPage() {
         <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-5 space-y-3">
           <p className="text-[11px] uppercase tracking-wider text-zinc-500">Supabase SQL (one-time)</p>
           <p className="text-[11px] text-zinc-500 leading-relaxed">
-            Run in Supabase → SQL Editor if tables are missing:
+            Companion dual-axis columns (run before Backfill):
+          </p>
+          <pre className="text-[10px] text-zinc-400 bg-zinc-950 rounded-xl p-3 overflow-x-auto leading-relaxed">{`alter table companion add column if not exists consecutive_bad_days int default 0;
+alter table companion add column if not exists consecutive_good_days int default 0;
+alter table companion add column if not exists trust_score numeric;
+alter table companion add column if not exists intimacy_score numeric;
+`}</pre>
+          <p className="text-[11px] text-zinc-500 leading-relaxed pt-2">
+            Other tables if missing:
           </p>
           <pre className="text-[10px] text-zinc-400 bg-zinc-950 rounded-xl p-3 overflow-x-auto leading-relaxed">{`create table if not exists player_state (
   id text primary key default 'main',
