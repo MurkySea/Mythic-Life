@@ -36,7 +36,7 @@ describe('conversation director', () => {
     })
 
     expect(direction.continuity).toBe('continuation')
-    expect(direction.mode).toBe('problem_solving')
+    expect(direction.mode).toBe('guided_clarity')
     expect(direction.clarificationNeeded).toBe(false)
     expect(direction.goal).toContain('one small')
   })
