@@ -1,17 +1,14 @@
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { GATE_COOKIE, isValidGateToken, passwordConfigured } from '@/lib/gate'
 
 /**
- * Access gate
- *
- * Primary: SITE_PASSWORD → cookie (see /unlock)
- * Optional extra: ALLOWED_IPS (AND with cookie if set)
- * Cron: /api/cron/* uses CRON_SECRET in the route, not this gate
- *
- * If SITE_PASSWORD is unset, the gate is open (local/dev).
+ * Two-layer access control:
+ * 1. Optional SITE_PASSWORD gate.
+ * 2. Supabase owner authentication for every private app route.
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   if (
@@ -28,41 +25,85 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Unlock page + action always reachable
+  // The password gate must remain reachable without either credential.
   if (path === '/unlock' || path.startsWith('/unlock/')) {
     return NextResponse.next()
   }
 
-  if (!passwordConfigured()) {
-    return NextResponse.next()
-  }
+  if (passwordConfigured()) {
+    const token = request.cookies.get(GATE_COOKIE)?.value
+    if (!isValidGateToken(token)) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/unlock'
+      url.searchParams.set('next', `${path}${request.nextUrl.search}`)
+      return NextResponse.redirect(url)
+    }
 
-  const token = request.cookies.get(GATE_COOKIE)?.value
-  if (!isValidGateToken(token)) {
-    const url = request.nextUrl.clone()
-    url.pathname = '/unlock'
-    url.searchParams.set('next', path)
-    return NextResponse.redirect(url)
-  }
+    const allowedRaw = process.env.ALLOWED_IPS || ''
+    const allowed = allowedRaw
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
 
-  // Optional second lock: IP allowlist
-  const allowedRaw = process.env.ALLOWED_IPS || ''
-  const allowed = allowedRaw
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean)
-
-  if (allowed.length > 0) {
-    const ip = clientIp(request)
-    if (!ip || !allowed.includes(ip)) {
-      return new NextResponse('Forbidden — IP not on the list.', {
-        status: 403,
-        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
-      })
+    if (allowed.length > 0) {
+      const ip = clientIp(request)
+      if (!ip || !allowed.includes(ip)) {
+        return new NextResponse('Forbidden — IP not on the list.', {
+          status: 403,
+          headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+        })
+      }
     }
   }
 
-  return NextResponse.next()
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+  if (!url || !anonKey) {
+    return new NextResponse('Supabase environment variables are missing.', { status: 500 })
+  }
+
+  let response = NextResponse.next({ request })
+  const supabase = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+        response = NextResponse.next({ request })
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        )
+      },
+    },
+  })
+
+  // getUser validates and refreshes the session instead of trusting stale cookie data.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user && path !== '/login' && !path.startsWith('/login/')) {
+    const loginUrl = request.nextUrl.clone()
+    loginUrl.pathname = '/login'
+    loginUrl.search = ''
+    loginUrl.searchParams.set('next', `${path}${request.nextUrl.search}`)
+
+    const redirectResponse = NextResponse.redirect(loginUrl)
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+    return redirectResponse
+  }
+
+  if (user && (path === '/login' || path.startsWith('/login/'))) {
+    const homeUrl = request.nextUrl.clone()
+    homeUrl.pathname = '/'
+    homeUrl.search = ''
+
+    const redirectResponse = NextResponse.redirect(homeUrl)
+    response.cookies.getAll().forEach((cookie) => redirectResponse.cookies.set(cookie))
+    return redirectResponse
+  }
+
+  return response
 }
 
 function clientIp(request: NextRequest): string {
@@ -74,10 +115,9 @@ function clientIp(request: NextRequest): string {
   const real = request.headers.get('x-real-ip')?.trim()
   if (real) return real
   const anyReq = request as NextRequest & { ip?: string }
-  if (anyReq.ip) return anyReq.ip
-  return ''
+  return anyReq.ip || ''
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|.*\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico)$).*)'],
 }
