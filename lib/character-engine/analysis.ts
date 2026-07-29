@@ -11,7 +11,7 @@ export function analyzeCharacterMessage(userText: string): CharacterAnalysis {
     lower
   )
   const isExplicitAdviceRequest = test(
-    /\b(?:what should i do|what do you think i should|give me advice|help me decide|how would you|what's the best way|what is the best way)\b/i,
+    /\b(?:what should i do|what do you think i should|give me advice|help me decide|how would you|what's the best way|what is the best way|any suggestions|what might i need)\b/i,
     lower
   )
   const isExplicitFlirtation = test(
@@ -19,7 +19,7 @@ export function analyzeCharacterMessage(userText: string): CharacterAnalysis {
     lower
   )
   const isVulnerable = test(
-    /\b(?:afraid|scared|ashamed|hurt|alone|overwhelmed|exhausted|grief|lost|can't sleep|cannot sleep|i feel|i felt)\b/i,
+    /\b(?:afraid|scared|ashamed|hurt|alone|overwhelmed|exhausted|grief|lost|can't sleep|cannot sleep|i feel|i felt|running on fumes|drained|burned out|burnt out|i (?:do not|don't) know what i need)\b/i,
     lower
   )
   const asksQuestion = /\?\s*$/.test(text) || /^(?:who|what|when|where|why|how|should|could|would|do|does|did|is|are|can)\b/i.test(lower)
