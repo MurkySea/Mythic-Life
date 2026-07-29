@@ -35,6 +35,29 @@ export type CharacterMood =
   | 'guarded'
   | 'hungry_for_him'
 
+export type ConversationMode =
+  | 'conversation'
+  | 'comfort'
+  | 'company'
+  | 'guided_clarity'
+  | 'problem_solving'
+  | 'celebration'
+  | 'play'
+  | 'repair'
+
+export type ConversationDirection = {
+  version: 1
+  mode: ConversationMode
+  topic: string
+  continuity: 'new_turn' | 'continuation'
+  emotionalWeight: 'normal' | 'medium' | 'high'
+  likelyNeed: CharacterNeed
+  goal: string
+  clarificationNeeded: boolean
+  responseRequirements: string[]
+  avoid: string[]
+}
+
 export type CharacterRelationship = {
   version: 1
   trust: number
@@ -106,4 +129,5 @@ export type CharacterEngineContext = {
   affinity: number
   hour: number
   state?: CharacterState
+  recentHistory?: string
 }
