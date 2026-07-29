@@ -1,11 +1,17 @@
-import type { CharacterAnalysis, CharacterDecision, CharacterState } from '@/lib/character-engine/types'
+import type {
+  CharacterAnalysis,
+  CharacterDecision,
+  CharacterState,
+  ConversationDirection,
+} from '@/lib/character-engine/types'
 
 export function characterEnginePromptBlock(opts: {
   analysis: CharacterAnalysis
   decision: CharacterDecision
+  direction: ConversationDirection
   state?: CharacterState
 }): string {
-  const { analysis, decision, state } = opts
+  const { analysis, decision, direction, state } = opts
   const stateLines = state
     ? [
         `Mood: ${state.mood}`,
@@ -29,11 +35,22 @@ Memory candidate: ${decision.rememberCandidate ? 'yes' : 'no'}
 Decision codes: ${decision.reasoningCode.join(', ')}
 State modifiers: ${decision.stateInfluence.join(', ') || 'none'}
 
-CONVERSATION CONTINUITY
-A brief reply such as “yeah,” “it is,” “I know,” or another fragment may continue the immediately preceding topic rather than start a new one. Use the recent thread to understand what it confirms. When it follows strain, exhaustion, hurt, fear, or another vulnerable disclosure, do not answer with only empty agreement. Stay brief, but add one small human move: presence, a gentle invitation, a concrete offer of care, or one sincere question. Do not turn it into therapy language, a speech, or unsolicited advice.
+CONVERSATION DIRECTOR
+Mode: ${direction.mode}
+Topic already in progress: ${direction.topic}
+Turn relationship: ${direction.continuity}
+Emotional weight: ${direction.emotionalWeight}
+Conversation goal: ${direction.goal}
+Clarification genuinely required: ${direction.clarificationNeeded ? 'yes' : 'no'}
+Required response moves:
+${direction.responseRequirements.map((item) => `- ${item}`).join('\n')}
+Avoid:
+${direction.avoid.length ? direction.avoid.map((item) => `- ${item}`).join('\n') : '- Nothing beyond the normal character rules.'}
+
+Do not reset the topic merely because Mark used a short follow-up. Do not ask him to restate context that is already clear in the recent thread.
 
 CURRENT CHARACTER STATE
 ${stateLines.join('\n')}
 
-Treat these as behavioral constraints, not dialogue to quote. The engine selects the response strategy; you write the natural message.`
+Treat these as behavioral constraints, not dialogue to quote. The director understands the conversation; the character engine selects the response strategy; you write the natural message.`
 }
