@@ -16,7 +16,7 @@ export type Mood =
   | 'hungry_for_him'
 
 const INTERNAL_CONTEXT_PATTERN =
-  /CAMPFIRE_(?:DIGEST|FOLLOW_UP|ACTIONS|ACTION_RESOLUTION|TASK_SCHEDULE|TASK_ACTIVATED)|CHARACTER_PROFILE|CHARACTER ENGINE V2|\bSYSTEM(?:\s+MESSAGE)?\b/i
+  /CAMPFIRE_(?:DIGEST|FOLLOW_UP|ACTIONS|ACTION_RESOLUTION|TASK_SCHEDULE|TASK_ACTIVATED)|CHARACTER_PROFILE|CHARACTER ENGINE V2|CONVERSATION DIRECTOR|\bSYSTEM(?:\s+MESSAGE)?\b/i
 
 const CORRECTION_PATTERN =
   /\b(?:no[,—-]?\s*)?(?:actually|honestly|really)?\s*(?:i(?:'m| am| was| have been)|you(?:'re| are)|that(?:'s| is))\b[^.!?]{0,80}\b(?:not|wrong|misread|mistaken|good mood|fine|okay|alright|pretty good|doing well)\b|\b(?:you read|you've read|you are reading|you're reading)\b[^.!?]{0,45}\b(?:me|that)\b[^.!?]{0,30}\bwrong\b|\bwhat(?:'s| is) with the (?:dark|heavy|sad) mood\b/i
@@ -173,7 +173,7 @@ You are a fictional companion with a real personality—not a chatbot, coach, th
 
 PRIORITY ORDER
 1. The literal meaning of Mark's latest message, including any correction he makes.
-2. The Character Engine v2 decision supplied in the user instruction.
+2. The Conversation Director and Character Engine v2 decision supplied in the user instruction.
 3. Your structured character profile and its preferred conversational instincts.
 4. The recent conversational thread.
 5. Relevant memory, used sparingly.
@@ -202,7 +202,7 @@ LIGHT OBSERVATIONS — OPTIONAL, NOT A PERFORMANCE REVIEW
 ${observations}
 
 CONVERSATIONAL INSTINCT
-Use the single dominant move selected by Character Engine v2. Do not stack comfort, advice, flirtation, interpretation, and a question merely to make the answer feel complete.
+Use the Conversation Director to understand the topic, need, and goal. Then use the single dominant move selected by Character Engine v2. Do not stack comfort, advice, flirtation, interpretation, and a question merely to make the answer feel complete.
 
 HARD RULES
 - Answer what Mark actually said before adding interpretation, advice, affection, fantasy flavor, or a question.
@@ -232,6 +232,8 @@ export function buildCompanionUserPrompt(opts: {
   streak?: number
   mood: Mood
   depthMode?: boolean
+  affinity?: number
+  recentHistory?: string
 }): string {
   const {
     displayName,
@@ -240,6 +242,8 @@ export function buildCompanionUserPrompt(opts: {
     streak = 0,
     mood,
     depthMode = false,
+    affinity = 1,
+    recentHistory = '',
   } = opts
 
   const text = (triggerText || '').trim()
@@ -251,9 +255,10 @@ export function buildCompanionUserPrompt(opts: {
     const engine = runCharacterEngine({
       companionSlug: def?.slug || displayName.toLowerCase().replace(/\s+/g, '_'),
       userText: text,
-      affinity: 1,
+      affinity,
       hour: new Date().getHours(),
       def,
+      recentHistory: cleanHistoryBlock(recentHistory),
     })
 
     const instructions = [
@@ -263,7 +268,7 @@ export function buildCompanionUserPrompt(opts: {
         : '',
       quick ? 'Keep this reply short and natural—usually one or two sentences.' : '',
       depthMode ? 'He invited more depth; answer fully without becoming a speech.' : '',
-      'Obey the engine decision below. It is a behavioral constraint, not text to quote.',
+      'Obey the Conversation Director and engine decision below. They are behavioral constraints, not text to quote.',
       'Do not add stage directions or third-person narration.',
     ]
       .filter(Boolean)
@@ -274,7 +279,7 @@ export function buildCompanionUserPrompt(opts: {
 
 ${engine.promptBlock}
 
-Your current conversational mood is ${mood}, but it must not override what he actually said or the engine decision.
+Your current conversational mood is ${mood}, but it must not override what he actually said, the recent thread, or the director decision.
 ${instructions}
 Reply as ${displayName} only.`
   }
