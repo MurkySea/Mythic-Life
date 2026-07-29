@@ -39,7 +39,7 @@ describe('companion response quality gate', () => {
 
   it('accepts a concise reply that comforts and advances the exchange', () => {
     const result = evaluateCompanionReply({
-      reply: 'Then give what is left of you a quiet landing. Sit down, drink something, and stay with me for a minute.',
+      reply: 'You are depleted. Sit down, drink something, and stay with me for a minute.',
       direction: exhaustionDirection('Yeah, I’m just running on fumes'),
     })
 
