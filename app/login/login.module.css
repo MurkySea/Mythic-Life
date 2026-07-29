@@ -1,0 +1,105 @@
+.page {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 70% 10%, rgba(152, 112, 47, 0.2), transparent 34%),
+    radial-gradient(circle at 15% 80%, rgba(26, 70, 112, 0.22), transparent 40%),
+    #05090f;
+  color: #f3eee4;
+}
+
+.glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.55;
+  background-image: radial-gradient(circle, rgba(218, 178, 88, 0.7) 0 1px, transparent 1.5px);
+  background-size: 140px 140px;
+}
+
+.card {
+  width: min(100%, 430px);
+  position: relative;
+  z-index: 1;
+  padding: 34px 28px;
+  border: 1px solid rgba(210, 167, 76, 0.38);
+  border-radius: 24px;
+  background: rgba(7, 12, 20, 0.88);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(18px);
+}
+
+.eyebrow {
+  margin: 0 0 10px;
+  color: #d6a94d;
+  font-size: 0.78rem;
+  letter-spacing: 0.24em;
+}
+
+.card h1 {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(2rem, 8vw, 3rem);
+  font-weight: 500;
+  line-height: 1.02;
+}
+
+.copy {
+  margin: 14px 0 24px;
+  color: #aeb7c6;
+  line-height: 1.6;
+}
+
+.error {
+  margin: 0 0 18px;
+  padding: 12px 14px;
+  border: 1px solid rgba(226, 102, 102, 0.45);
+  border-radius: 12px;
+  background: rgba(115, 30, 30, 0.2);
+  color: #ffd0d0;
+  font-size: 0.92rem;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.form label {
+  display: grid;
+  gap: 8px;
+  color: #cdd4df;
+  font-size: 0.86rem;
+}
+
+.form input {
+  width: 100%;
+  border: 1px solid rgba(173, 188, 211, 0.22);
+  border-radius: 12px;
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.045);
+  color: #fff;
+  font: inherit;
+  outline: none;
+}
+
+.form input:focus {
+  border-color: rgba(220, 174, 78, 0.75);
+  box-shadow: 0 0 0 3px rgba(220, 174, 78, 0.11);
+}
+
+.form button {
+  margin-top: 4px;
+  border: 1px solid rgba(221, 178, 83, 0.7);
+  border-radius: 12px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #a77c2f, #d2aa55);
+  color: #090b0f;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
