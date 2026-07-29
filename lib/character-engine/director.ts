@@ -2,6 +2,7 @@ import type {
   CharacterAnalysis,
   ConversationDirection,
   ConversationMode,
+  ReplyObjective,
 } from '@/lib/character-engine/types'
 
 type DirectorTurn = {
@@ -28,7 +29,7 @@ function parseHistory(history: string): DirectorTurn[] {
       } satisfies DirectorTurn
     })
     .filter((turn): turn is DirectorTurn => Boolean(turn))
-    .slice(-10)
+    .slice(-12)
 }
 
 function isBriefContinuation(text: string): boolean {
@@ -42,7 +43,7 @@ function isBriefContinuation(text: string): boolean {
 
 function detectTopic(text: string): string {
   const value = text.toLowerCase()
-  if (/\b(?:exhausted|running on fumes|burned out|burnt out|drained|worn out|tired)\b/.test(value)) {
+  if (/\b(?:exhausted|running on fumes|depleted|burned out|burnt out|drained|worn out|tired)\b/.test(value)) {
     return 'exhaustion and depleted capacity'
   }
   if (/\b(?:work|office|client|appointment|meeting|business)\b/.test(value)) return 'work pressure'
@@ -64,6 +65,44 @@ function modeFor(analysis: CharacterAnalysis, contextText: string): Conversation
     return 'guided_clarity'
   }
   return 'conversation'
+}
+
+function objectivesFor(opts: {
+  analysis: CharacterAnalysis
+  mode: ConversationMode
+  emotionallyLoaded: boolean
+  continuation: boolean
+}): ReplyObjective[] {
+  const { analysis, mode, emotionallyLoaded, continuation } = opts
+
+  if (analysis.isCorrection) return ['acknowledge', 'clarify', 'deepen_trust']
+  if (analysis.isExplicitFlirtation) return ['acknowledge', 'flirt']
+  if (mode === 'celebration') return ['celebrate', 'deepen_trust']
+  if (mode === 'play') return ['play', 'share_self']
+  if (mode === 'problem_solving' || mode === 'guided_clarity') {
+    return emotionallyLoaded
+      ? ['acknowledge', 'comfort', 'offer_next_step']
+      : ['acknowledge', 'offer_next_step']
+  }
+  if (emotionallyLoaded) {
+    return continuation
+      ? ['acknowledge', 'comfort', 'deepen_trust']
+      : ['acknowledge', 'comfort']
+  }
+  if (mode === 'company') return ['acknowledge', 'deepen_trust', 'share_self']
+  return ['acknowledge', 'reflect']
+}
+
+function trajectoryFor(opts: {
+  continuation: boolean
+  emotionallyLoaded: boolean
+  analysis: CharacterAnalysis
+  recentUserTurns: number
+}): 'opening' | 'steady' | 'deepening' | 'resolving' | 'shifting' {
+  if (opts.analysis.isCorrection) return 'shifting'
+  if (!opts.continuation) return 'opening'
+  if (opts.emotionallyLoaded && opts.recentUserTurns >= 2) return 'deepening'
+  return 'steady'
 }
 
 export function directConversation(opts: {
@@ -89,7 +128,7 @@ export function directConversation(opts: {
 
   const emotionallyLoaded =
     opts.analysis.isVulnerable ||
-    /\b(?:exhausted|running on fumes|burned out|drained|hurt|alone|scared|afraid|overwhelmed|lost)\b/i.test(
+    /\b(?:exhausted|running on fumes|depleted|burned out|drained|hurt|alone|scared|afraid|overwhelmed|lost)\b/i.test(
       contextText
     )
 
@@ -97,37 +136,66 @@ export function directConversation(opts: {
     opts.analysis.isCorrection ||
     (!continuation && opts.analysis.asksQuestion && opts.analysis.confidence < 0.6)
 
+  const objectives = objectivesFor({
+    analysis: opts.analysis,
+    mode,
+    emotionallyLoaded,
+    continuation,
+  })
+
   const goal = emotionallyLoaded
     ? mode === 'problem_solving' || mode === 'guided_clarity'
       ? 'Understand the strain already established, then offer one small practical or comforting option.'
-      : 'Help Mark feel accompanied and understood without forcing a solution.'
+      : 'Help Mark feel accompanied and understood, then move the relationship forward by one small step.'
     : mode === 'problem_solving'
       ? 'Answer the request directly with one useful next move.'
       : 'Keep the conversation moving naturally from the established topic.'
 
   const avoid = [
     continuation ? 'asking what he means when the recent thread already makes it clear' : '',
+    emotionallyLoaded ? 'a dead-end acknowledgment with no relational or conversational movement' : '',
     emotionallyLoaded ? 'empty agreement such as “yeah,” “that is fine,” or “that sounds rough” with no further move' : '',
     emotionallyLoaded ? 'therapy language, diagnosis, or a motivational speech' : '',
     mode !== 'problem_solving' && mode !== 'guided_clarity' ? 'unsolicited problem-solving' : '',
   ].filter(Boolean)
 
+  const activeTurns = Math.max(1, Math.min(6, previousUserTurns.length + 1))
+
   return {
-    version: 1,
+    version: 2,
     mode,
     topic,
     continuity: continuation ? 'continuation' : 'new_turn',
     emotionalWeight: emotionallyLoaded ? 'high' : 'normal',
     likelyNeed: opts.analysis.need,
     goal,
+    objectives,
+    momentum: {
+      activeTopic: topic,
+      activeTurns,
+      trajectory: trajectoryFor({
+        continuation,
+        emotionallyLoaded,
+        analysis: opts.analysis,
+        recentUserTurns: previousUserTurns.length,
+      }),
+      continueUntil: emotionallyLoaded
+        ? ['Mark changes the subject', 'the need is meaningfully answered', 'the companion intentionally transitions']
+        : ['Mark changes the subject', 'the current question or exchange is complete'],
+    },
     clarificationNeeded,
     responseRequirements: emotionallyLoaded
       ? [
           'Acknowledge the established strain specifically.',
+          'Complete the primary reply objectives instead of stopping after acknowledgment.',
           'Add one human move: presence, a small choice, one concrete suggestion, or one sincere question.',
           'Stay concise and in character.',
         ]
-      : ['Respond to the actual topic.', 'Move the exchange forward rather than merely echoing Mark.'],
+      : [
+          'Respond to the actual topic.',
+          'Complete the primary reply objective.',
+          'Move the exchange forward rather than merely echoing Mark.',
+        ],
     avoid,
   }
 }
