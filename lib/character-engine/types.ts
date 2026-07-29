@@ -45,14 +45,39 @@ export type ConversationMode =
   | 'play'
   | 'repair'
 
+export type ReplyObjective =
+  | 'acknowledge'
+  | 'comfort'
+  | 'deepen_trust'
+  | 'encourage'
+  | 'challenge'
+  | 'celebrate'
+  | 'play'
+  | 'flirt'
+  | 'protect'
+  | 'inspire'
+  | 'reflect'
+  | 'clarify'
+  | 'offer_next_step'
+  | 'share_self'
+
+export type ConversationMomentum = {
+  activeTopic: string
+  activeTurns: number
+  trajectory: 'opening' | 'steady' | 'deepening' | 'resolving' | 'shifting'
+  continueUntil: string[]
+}
+
 export type ConversationDirection = {
-  version: 1
+  version: 2
   mode: ConversationMode
   topic: string
   continuity: 'new_turn' | 'continuation'
   emotionalWeight: 'normal' | 'medium' | 'high'
   likelyNeed: CharacterNeed
   goal: string
+  objectives: ReplyObjective[]
+  momentum: ConversationMomentum
   clarificationNeeded: boolean
   responseRequirements: string[]
   avoid: string[]
