@@ -1,6 +1,7 @@
 import type { CompanionDef } from '@/lib/companions'
-import { relationshipStage } from '@/lib/companions'
+import { COMPANION_DEFS, relationshipStage } from '@/lib/companions'
 import { characterProfilePrompt, getCharacterProfile } from '@/lib/characterStudio'
+import { runCharacterEngine } from '@/lib/character-engine'
 
 const USER_NAME = 'Mark'
 
@@ -15,7 +16,7 @@ export type Mood =
   | 'hungry_for_him'
 
 const INTERNAL_CONTEXT_PATTERN =
-  /CAMPFIRE_(?:DIGEST|FOLLOW_UP|ACTIONS|ACTION_RESOLUTION|TASK_SCHEDULE|TASK_ACTIVATED)|CHARACTER_PROFILE|\bSYSTEM(?:\s+MESSAGE)?\b/i
+  /CAMPFIRE_(?:DIGEST|FOLLOW_UP|ACTIONS|ACTION_RESOLUTION|TASK_SCHEDULE|TASK_ACTIVATED)|CHARACTER_PROFILE|CHARACTER ENGINE V2|\bSYSTEM(?:\s+MESSAGE)?\b/i
 
 const CORRECTION_PATTERN =
   /\b(?:no[,—-]?\s*)?(?:actually|honestly|really)?\s*(?:i(?:'m| am| was| have been)|you(?:'re| are)|that(?:'s| is))\b[^.!?]{0,80}\b(?:not|wrong|misread|mistaken|good mood|fine|okay|alright|pretty good|doing well)\b|\b(?:you read|you've read|you are reading|you're reading)\b[^.!?]{0,45}\b(?:me|that)\b[^.!?]{0,30}\bwrong\b|\bwhat(?:'s| is) with the (?:dark|heavy|sad) mood\b/i
@@ -172,10 +173,11 @@ You are a fictional companion with a real personality—not a chatbot, coach, th
 
 PRIORITY ORDER
 1. The literal meaning of Mark's latest message, including any correction he makes.
-2. Your structured character profile and its preferred conversational instincts.
-3. The recent conversational thread.
-4. Relevant memory, used sparingly.
-5. Mood and fantasy-world flavor, used only when they genuinely fit.
+2. The Character Engine v2 decision supplied in the user instruction.
+3. Your structured character profile and its preferred conversational instincts.
+4. The recent conversational thread.
+5. Relevant memory, used sparingly.
+6. Mood and fantasy-world flavor, used only when they genuinely fit.
 Never sacrifice a higher priority to demonstrate a lower one.
 
 CHARACTER FOUNDATION
@@ -200,7 +202,7 @@ LIGHT OBSERVATIONS — OPTIONAL, NOT A PERFORMANCE REVIEW
 ${observations}
 
 CONVERSATIONAL INSTINCT
-Choose one dominant move for this reply from the profile's preferred moves. React, clarify, stay, tease, challenge, share, or care—but do not stack several moves merely to make the answer feel complete. A human reply may simply react.
+Use the single dominant move selected by Character Engine v2. Do not stack comfort, advice, flirtation, interpretation, and a question merely to make the answer feel complete.
 
 HARD RULES
 - Answer what Mark actually said before adding interpretation, advice, affection, fantasy flavor, or a question.
@@ -245,6 +247,15 @@ export function buildCompanionUserPrompt(opts: {
   const quick = text.length <= 45 && !depthMode
 
   if (isConversation) {
+    const def = COMPANION_DEFS.find((candidate) => candidate.name === displayName)
+    const engine = runCharacterEngine({
+      companionSlug: def?.slug || displayName.toLowerCase().replace(/\s+/g, '_'),
+      userText: text,
+      affinity: 1,
+      hour: new Date().getHours(),
+      def,
+    })
+
     const instructions = [
       'Respond to the literal message first.',
       correction
@@ -252,7 +263,7 @@ export function buildCompanionUserPrompt(opts: {
         : '',
       quick ? 'Keep this reply short and natural—usually one or two sentences.' : '',
       depthMode ? 'He invited more depth; answer fully without becoming a speech.' : '',
-      'Choose one dominant conversational move rather than trying to comfort, advise, flirt, and ask a question at once.',
+      'Obey the engine decision below. It is a behavioral constraint, not text to quote.',
       'Do not add stage directions or third-person narration.',
     ]
       .filter(Boolean)
@@ -261,7 +272,9 @@ export function buildCompanionUserPrompt(opts: {
     return `${USER_NAME} just said:
 "${text}"
 
-Your current mood is ${mood}, but it must not override what he actually said.
+${engine.promptBlock}
+
+Your current conversational mood is ${mood}, but it must not override what he actually said or the engine decision.
 ${instructions}
 Reply as ${displayName} only.`
   }
