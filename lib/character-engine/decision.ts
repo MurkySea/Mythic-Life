@@ -60,7 +60,7 @@ export function decideCharacterResponse(opts: {
       reasoningCode.push('presence')
       break
     case 'play':
-      candidates = ['tease', 'react', 'share', 'flirt' as never]
+      candidates = ['tease', 'react', 'share']
       reasoningCode.push('playful-response')
       break
     case 'space':
@@ -72,7 +72,7 @@ export function decideCharacterResponse(opts: {
       reasoningCode.push('default-react')
   }
 
-  let move = firstPreferred(preferred, candidates.filter(Boolean))
+  let move = firstPreferred(preferred, candidates)
 
   if (state) {
     if (state.energy <= 25 && move === 'challenge') {
