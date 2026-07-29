@@ -35,22 +35,32 @@ Memory candidate: ${decision.rememberCandidate ? 'yes' : 'no'}
 Decision codes: ${decision.reasoningCode.join(', ')}
 State modifiers: ${decision.stateInfluence.join(', ') || 'none'}
 
-CONVERSATION DIRECTOR
+CONVERSATION INTENT ENGINE
 Mode: ${direction.mode}
 Topic already in progress: ${direction.topic}
 Turn relationship: ${direction.continuity}
 Emotional weight: ${direction.emotionalWeight}
 Conversation goal: ${direction.goal}
+Primary reply objectives, in order:
+${direction.objectives.map((objective, index) => `${index + 1}. ${objective}`).join('\n')}
 Clarification genuinely required: ${direction.clarificationNeeded ? 'yes' : 'no'}
+
+CONVERSATION MOMENTUM
+Active topic: ${direction.momentum.activeTopic}
+Active for approximately ${direction.momentum.activeTurns} user turns
+Trajectory: ${direction.momentum.trajectory}
+Continue this thread until:
+${direction.momentum.continueUntil.map((item) => `- ${item}`).join('\n')}
+
 Required response moves:
 ${direction.responseRequirements.map((item) => `- ${item}`).join('\n')}
 Avoid:
 ${direction.avoid.length ? direction.avoid.map((item) => `- ${item}`).join('\n') : '- Nothing beyond the normal character rules.'}
 
-Do not reset the topic merely because Mark used a short follow-up. Do not ask him to restate context that is already clear in the recent thread.
+Do not reset the topic merely because Mark used a short follow-up. Do not ask him to restate context that is already clear in the recent thread. Acknowledgment alone is not a complete reply when the objective includes comfort, trust, encouragement, or a next step.
 
 CURRENT CHARACTER STATE
 ${stateLines.join('\n')}
 
-Treat these as behavioral constraints, not dialogue to quote. The director understands the conversation; the character engine selects the response strategy; you write the natural message.`
+Treat these as behavioral constraints, not dialogue to quote. The director understands the conversation and sets the objectives; the character engine selects the response strategy; you write the natural message.`
 }

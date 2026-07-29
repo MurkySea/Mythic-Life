@@ -1,7 +1,7 @@
 import type { CompanionDef } from '@/lib/companions'
 import { COMPANION_DEFS, relationshipStage } from '@/lib/companions'
 import { characterProfilePrompt, getCharacterProfile } from '@/lib/characterStudio'
-import { runCharacterEngine } from '@/lib/character-engine'
+import { qualityGatePrompt, runCharacterEngine } from '@/lib/character-engine'
 
 const USER_NAME = 'Mark'
 
@@ -16,7 +16,7 @@ export type Mood =
   | 'hungry_for_him'
 
 const INTERNAL_CONTEXT_PATTERN =
-  /CAMPFIRE_(?:DIGEST|FOLLOW_UP|ACTIONS|ACTION_RESOLUTION|TASK_SCHEDULE|TASK_ACTIVATED)|CHARACTER_PROFILE|CHARACTER ENGINE V2|CONVERSATION DIRECTOR|\bSYSTEM(?:\s+MESSAGE)?\b/i
+  /CAMPFIRE_(?:DIGEST|FOLLOW_UP|ACTIONS|ACTION_RESOLUTION|TASK_SCHEDULE|TASK_ACTIVATED)|CHARACTER_PROFILE|CHARACTER ENGINE V2|CONVERSATION DIRECTOR|CONVERSATION INTENT ENGINE|RESPONSE QUALITY GATE|\bSYSTEM(?:\s+MESSAGE)?\b/i
 
 const CORRECTION_PATTERN =
   /\b(?:no[,—-]?\s*)?(?:actually|honestly|really)?\s*(?:i(?:'m| am| was| have been)|you(?:'re| are)|that(?:'s| is))\b[^.!?]{0,80}\b(?:not|wrong|misread|mistaken|good mood|fine|okay|alright|pretty good|doing well)\b|\b(?:you read|you've read|you are reading|you're reading)\b[^.!?]{0,45}\b(?:me|that)\b[^.!?]{0,30}\bwrong\b|\bwhat(?:'s| is) with the (?:dark|heavy|sad) mood\b/i
@@ -157,7 +157,7 @@ You are a fictional companion with a real personality—not a chatbot, coach, th
 
 PRIORITY ORDER
 1. The literal meaning of Mark's latest message, including any correction he makes.
-2. The Conversation Director and Character Engine v2 decision supplied in the user instruction.
+2. The Conversation Intent Engine and Character Engine v2 decision supplied in the user instruction.
 3. Your structured character profile and its preferred conversational instincts.
 4. The recent conversational thread.
 5. Relevant memory, used sparingly.
@@ -186,7 +186,7 @@ LIGHT OBSERVATIONS — OPTIONAL, NOT A PERFORMANCE REVIEW
 ${observations}
 
 CONVERSATIONAL INSTINCT
-Use the Conversation Director to understand the topic, need, and goal. Then use the single dominant move selected by Character Engine v2. Do not stack comfort, advice, flirtation, interpretation, and a question merely to make the answer feel complete.
+Use the Conversation Intent Engine to understand the topic, momentum, need, and reply objectives. Then use the dominant move selected by Character Engine v2. The reply must accomplish its primary objective; acknowledgment alone is not completion.
 
 HARD RULES
 - Answer what Mark actually said before adding interpretation, advice, affection, fantasy flavor, or a question.
@@ -252,7 +252,7 @@ export function buildCompanionUserPrompt(opts: {
         : '',
       quick ? 'Keep this reply short and natural—usually one or two sentences.' : '',
       depthMode ? 'He invited more depth; answer fully without becoming a speech.' : '',
-      'Obey the Conversation Director and engine decision below. They are behavioral constraints, not text to quote.',
+      'Obey the Conversation Intent Engine and engine decision below. They are behavioral constraints, not text to quote.',
       'Do not add stage directions or third-person narration.',
     ]
       .filter(Boolean)
@@ -262,6 +262,9 @@ export function buildCompanionUserPrompt(opts: {
 "${text}"
 
 ${engine.promptBlock}
+
+RESPONSE QUALITY GATE
+${qualityGatePrompt(engine.direction)}
 
 Your current conversational mood is ${mood}, but it must not override what he actually said, the recent thread, or the director decision.
 ${instructions}

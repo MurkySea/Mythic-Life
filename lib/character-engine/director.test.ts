@@ -18,6 +18,8 @@ describe('conversation director', () => {
     expect(direction.continuity).toBe('continuation')
     expect(direction.topic).toContain('exhaustion')
     expect(direction.emotionalWeight).toBe('high')
+    expect(direction.objectives).toEqual(expect.arrayContaining(['comfort', 'deepen_trust']))
+    expect(direction.momentum.trajectory).toBe('deepening')
     expect(direction.avoid.join(' ')).toContain('empty agreement')
   })
 
@@ -38,6 +40,7 @@ describe('conversation director', () => {
     expect(direction.continuity).toBe('continuation')
     expect(direction.mode).toBe('problem_solving')
     expect(direction.clarificationNeeded).toBe(false)
+    expect(direction.objectives).toEqual(expect.arrayContaining(['acknowledge', 'offer_next_step']))
     expect(direction.goal).toContain('one small')
   })
 
@@ -51,5 +54,6 @@ describe('conversation director', () => {
 
     expect(direction.emotionalWeight).toBe('normal')
     expect(direction.continuity).toBe('new_turn')
+    expect(direction.momentum.trajectory).toBe('opening')
   })
 })
