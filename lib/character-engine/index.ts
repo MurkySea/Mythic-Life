@@ -30,5 +30,7 @@ export function runCharacterEngine(opts: CharacterEngineContext & { def?: Compan
 export * from '@/lib/character-engine/analysis'
 export * from '@/lib/character-engine/compiler'
 export * from '@/lib/character-engine/decision'
+export * from '@/lib/character-engine/memory'
+export * from '@/lib/character-engine/persistence'
 export * from '@/lib/character-engine/state'
 export * from '@/lib/character-engine/types'
