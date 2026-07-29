@@ -94,7 +94,7 @@ export function scoreMemoryCandidate(opts: {
   // Ordinary conversational fragments should not become permanent memories.
   if (!explicitRememberRequest && kind === 'fact' && importance < 50) return null
 
-  const tags = [kind]
+  const tags: string[] = [kind]
   if (opts.analysis.intent !== 'unknown') tags.push(`intent:${opts.analysis.intent}`)
   if (opts.analysis.need !== 'unknown') tags.push(`need:${opts.analysis.need}`)
 
