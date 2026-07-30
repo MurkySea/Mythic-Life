@@ -19,6 +19,7 @@ import {
   replyTokenBudget,
   USER_NAME,
 } from '@/lib/companionVoice'
+import { runCharacterEngine, generateCompanionWithQualityLoop } from '@/lib/character-engine'
 import {
   loadPersistedMood,
   savePersistedMood,
@@ -492,34 +493,49 @@ export async function generateCompanionResponse(
   })
 
   const temperature = 0.88 + Math.random() * 0.12
-
   try {
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'grok-4',
-        messages: [
-          { role: 'system', content: systemRules },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature,
-        max_tokens: maxTokens,
-      }),
+    const engine = runCharacterEngine({
+      companionSlug,
+      userText: userText,
+      affinity,
+      hour: localHourChicago(),
+      def,
+      recentHistory: historyBlock,
     })
 
-    const data = await response.json()
-    let message =
-      data.choices?.[0]?.message?.content?.trim() || `Still here.`
+    const final = await generateCompanionWithQualityLoop({
+      systemPrompt: systemRules,
+      userPrompt,
+      displayName,
+      companionSlug,
+      direction: engine.direction,
+      maxTokens,
+      temperature,
+      generate: async (system, user, options) => {
+        const resp = await fetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${process.env.GROK_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: 'grok-4',
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: user },
+            ],
+            temperature: options.temperature,
+            max_tokens: options.maxTokens,
+          }),
+        })
 
-    message = message
-      .replace(/^["']|["']$/g, '')
-      .replace(new RegExp(`^${displayName}\\s*:\\s*`, 'i'), '')
-      .replace(/^\\*[^*]+\\*\\s*/g, '')
-      .trim()
+        const data = await resp.json()
+        return data.choices?.[0]?.message?.content?.trim() || ''
+      },
+    })
+
+    const fallback = `I'm still here.`
+    const message = final && final.trim() ? final : fallback
 
     await supabase.from('messages').insert({
       role: 'companion',
