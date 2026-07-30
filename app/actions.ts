@@ -35,6 +35,7 @@ import {
 import {
   buildCompanionRewritePrompt,
   generateCompanionWithQualityLoop,
+  requireApprovedCompanionReply,
   runCharacterEngine,
   type CompanionDraftContext,
 } from '@/lib/character-engine'
@@ -558,7 +559,7 @@ export async function generateCompanionResponse(
         generate: requestDraft,
       })
 
-      message = sanitizeReply(result.reply)
+      message = requireApprovedCompanionReply(result)
 
       if (result.attempts > 1) {
         console.info('Companion reply rewritten by quality loop', {
@@ -592,7 +593,7 @@ export async function generateCompanionResponse(
         maxAttempts: 1,
         generate: async () => fallback,
       })
-      fallback = sanitizeReply(checkedFallback.reply)
+      fallback = requireApprovedCompanionReply(checkedFallback)
     }
 
     await supabase.from('messages').insert({

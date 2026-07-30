@@ -53,12 +53,30 @@ function questionCount(reply: string): number {
   return reply.match(/\?/g)?.length ?? 0
 }
 
-function hasMeaningfulRelationalMove(reply: string): boolean {
-  const groundedCuriosity =
-    questionCount(reply) > 0 && !CLARIFICATION_RESET.test(reply)
+function hasGroundedCuriosity(reply: string): boolean {
+  if (questionCount(reply) === 0 || CLARIFICATION_RESET.test(reply)) return false
 
+  const questions = reply
+    .split(/(?<=[?])/)
+    .filter((sentence) => sentence.includes('?'))
+
+  return questions.some((question) => {
+    const words = question.match(/\b[\p{L}\p{N}'’-]+\b/gu) ?? []
+    return (
+      words.length >= 6 &&
+      /\b(?:what|which|when|where|who|why|how|is|are|do|does|did|would|could|can|has|have)\b/i.test(
+        question
+      ) &&
+      /\b(?:you|your|it|that|this|something|part|feel|keeping|want|need|matter|happened)\b/i.test(
+        question
+      )
+    )
+  })
+}
+
+function hasMeaningfulRelationalMove(reply: string): boolean {
   return (
-    groundedCuriosity ||
+    hasGroundedCuriosity(reply) ||
     SPECIFIC_INSIGHT.test(reply) ||
     MEANINGFUL_CHOICE.test(reply) ||
     CONCRETE_PRESENCE.test(reply) ||

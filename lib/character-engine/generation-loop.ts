@@ -17,6 +17,29 @@ export type CompanionGenerationResult = {
   quality: ReplyQualityResult
 }
 
+export class CompanionReplyQualityError extends Error {
+  readonly quality: ReplyQualityResult
+
+  constructor(quality: ReplyQualityResult) {
+    super(`Companion reply failed the relationship quality gate: ${quality.failures.join(' ')}`)
+    this.name = 'CompanionReplyQualityError'
+    this.quality = quality
+  }
+}
+
+/**
+ * Persistence boundary for conversational companion text. Callers must use the
+ * returned string rather than the unchecked draft.
+ */
+export function requireApprovedCompanionReply(
+  result: CompanionGenerationResult
+): string {
+  if (!result.quality.passed) {
+    throw new CompanionReplyQualityError(result.quality)
+  }
+  return result.reply
+}
+
 /**
  * Generates, evaluates, and—when necessary—rewrites a companion reply.
  *
@@ -61,11 +84,14 @@ export async function generateCompanionWithQualityLoop(opts: {
     direction: opts.direction,
   })
 
-  return {
+  const result = {
     reply: fallback,
     attempts: maxAttempts,
     quality: fallbackQuality,
   }
+
+  requireApprovedCompanionReply(result)
+  return result
 }
 
 /** Creates the rewrite instruction for the next API call. */

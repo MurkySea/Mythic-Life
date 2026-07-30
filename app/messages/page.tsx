@@ -25,6 +25,7 @@ import { companionRelationshipState } from '@/lib/companion-presentation'
 import { companionTone } from '@/lib/companion-tone'
 import {
   generateCompanionWithQualityLoop,
+  requireApprovedCompanionReply,
   runCharacterEngine,
 } from '@/lib/character-engine'
 import styles from './messages.module.css'
@@ -106,7 +107,7 @@ async function qualityGateImageText({
     generate: async ({ attempt }) => (attempt === 1 ? draft : retryDraft),
   })
 
-  return result.reply
+  return requireApprovedCompanionReply(result)
 }
 
 async function sendMessage(formData: FormData) {

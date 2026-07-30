@@ -5,7 +5,11 @@ import {
   evaluateCompanionReply,
   type ReplyQualityResult,
 } from '@/lib/character-engine/quality'
-import { generateCompanionWithQualityLoop } from '@/lib/character-engine/generation-loop'
+import {
+  CompanionReplyQualityError,
+  generateCompanionWithQualityLoop,
+  requireApprovedCompanionReply,
+} from '@/lib/character-engine/generation-loop'
 
 function liveSmokeDirection() {
   const userText = "Drained but still can't sleep"
@@ -69,6 +73,19 @@ describe('live companion relationship quality gate', () => {
     expect(result.passed).toBe(true)
   })
 
+  it.each(['You okay?', 'Want to talk?', 'What do you mean?'])(
+    'does not count a bare or context-resetting question as grounded curiosity: %s',
+    (reply) => {
+      const result = evaluateCompanionReply({
+        reply,
+        direction: liveSmokeDirection(),
+      })
+
+      expect(result.passed).toBe(false)
+      expect(result.failures.join(' ')).toContain('meaningful relational move')
+    }
+  )
+
   it('forces a rewrite when the first generated draft lacks a relational move', async () => {
     const drafts = [
       'That’s a rough one. Body’s tapped out but the head won’t follow.',
@@ -87,5 +104,21 @@ describe('live companion relationship quality gate', () => {
     expect(result.attempts).toBe(2)
     expect(firstQuality?.passed).toBe(false)
     expect(result.quality.passed).toBe(true)
+  })
+
+  it('blocks an unapproved conversational reply at the persistence boundary', () => {
+    const reply = 'Yeah, that tracks.'
+    const quality = evaluateCompanionReply({
+      reply,
+      direction: liveSmokeDirection(),
+    })
+
+    expect(() =>
+      requireApprovedCompanionReply({
+        reply,
+        attempts: 3,
+        quality,
+      })
+    ).toThrow(CompanionReplyQualityError)
   })
 })
