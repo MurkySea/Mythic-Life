@@ -19,7 +19,6 @@ import {
   replyTokenBudget,
   USER_NAME,
 } from '@/lib/companionVoice'
-import { runCharacterEngine, generateCompanionWithQualityLoop } from '@/lib/character-engine'
 import {
   loadPersistedMood,
   savePersistedMood,
@@ -33,6 +32,12 @@ import {
   companionPrivateFocus,
   curiosityWhenThin,
 } from '@/lib/memory'
+import {
+  buildCompanionRewritePrompt,
+  generateCompanionWithQualityLoop,
+  runCharacterEngine,
+  type CompanionDraftContext,
+} from '@/lib/character-engine'
 
 function normalizeAffinities(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String)
@@ -493,49 +498,76 @@ export async function generateCompanionResponse(
   })
 
   const temperature = 0.88 + Math.random() * 0.12
-  try {
-    const engine = runCharacterEngine({
-      companionSlug,
-      userText: userText,
-      affinity,
-      hour: localHourChicago(),
-      def,
-      recentHistory: historyBlock,
-    })
 
-    const final = await generateCompanionWithQualityLoop({
-      systemPrompt: systemRules,
-      userPrompt,
-      displayName,
-      companionSlug,
-      direction: engine.direction,
-      maxTokens,
-      temperature,
-      generate: async (system, user, options) => {
-        const resp = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${process.env.GROK_API_KEY}`,
-          },
-          body: JSON.stringify({
-            model: 'grok-4',
-            messages: [
-              { role: 'system', content: system },
-              { role: 'user', content: user },
-            ],
-            temperature: options.temperature,
-            max_tokens: options.maxTokens,
-          }),
-        })
+  const sanitizeReply = (value: string) =>
+    String(value || '')
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .replace(new RegExp(`^${displayName}\\s*:\\s*`, 'i'), '')
+      .replace(/^\\*[^*]+\\*\\s*/g, '')
+      .trim()
 
-        const data = await resp.json()
-        return data.choices?.[0]?.message?.content?.trim() || ''
+  const requestDraft = async (context?: CompanionDraftContext): Promise<string> => {
+    const rewritePrompt = context ? buildCompanionRewritePrompt(context) : ''
+    const response = await fetch('https://api.x.ai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
       },
+      body: JSON.stringify({
+        model: 'grok-4',
+        messages: [
+          { role: 'system', content: systemRules },
+          {
+            role: 'user',
+            content: rewritePrompt ? `${userPrompt}\n\n${rewritePrompt}` : userPrompt,
+          },
+        ],
+        temperature: context && context.attempt > 1 ? 0.72 : temperature,
+        max_tokens: maxTokens,
+      }),
     })
 
-    const fallback = `I'm still here.`
-    const message = final && final.trim() ? final : fallback
+    if (!response.ok) {
+      throw new Error(`Grok API returned ${response.status}`)
+    }
+
+    const data = await response.json()
+    return sanitizeReply(data.choices?.[0]?.message?.content || '')
+  }
+
+  try {
+    let message: string
+
+    if (isConversation) {
+      const engine = runCharacterEngine({
+        companionSlug,
+        userText: taskTitle,
+        affinity,
+        hour: localHourChicago(),
+        recentHistory: historyBlock,
+        def,
+      })
+
+      const result = await generateCompanionWithQualityLoop({
+        direction: engine.direction,
+        maxAttempts: 3,
+        generate: requestDraft,
+      })
+
+      message = sanitizeReply(result.reply)
+
+      if (result.attempts > 1) {
+        console.info('Companion reply rewritten by quality loop', {
+          companionSlug,
+          attempts: result.attempts,
+          score: result.quality.score,
+        })
+      }
+    } else {
+      message = (await requestDraft()) || `I noticed.`
+    }
 
     await supabase.from('messages').insert({
       role: 'companion',
@@ -548,7 +580,9 @@ export async function generateCompanionResponse(
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = `I'm still here.`
+    const fallback = isConversation
+      ? `I don't want to answer you with something empty. Tell me what feels most important in this moment.`
+      : `I noticed.`
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
