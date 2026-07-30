@@ -1,55 +1,54 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { analyzeCharacterMessage } from '@/lib/character-engine/analysis'
 import { directConversation } from '@/lib/character-engine/director'
-import generateCompanionWithQualityLoop, { buildCompanionRewritePrompt } from '@/lib/character-engine/generation-loop'
+import {
+  buildCompanionRewritePrompt,
+  generateCompanionWithQualityLoop,
+} from '@/lib/character-engine/generation-loop'
 
-function simpleDirection(userText: string) {
+function sleepDirection() {
+  const userText = "Drained but still can't sleep"
   return directConversation({
     userText,
-    recentHistory: `Mark: ${userText}`,
+    recentHistory: [
+      "Seraphine: Tired, but the fire's still warm. You?",
+      `Mark: ${userText}`,
+    ].join('\n'),
     analysis: analyzeCharacterMessage(userText),
   })
 }
 
-describe('generation quality loop', () => {
-  it('retries failed drafts and returns the accepted final reply', async () => {
-    const dir = simpleDirection('I am exhausted and drained')
-    const gen = vi.fn()
-    gen.mockResolvedValueOnce('Yeah.')
-    gen.mockResolvedValueOnce("You are exhausted. Sit down, drink something, and stay with me for a minute.")
+describe('enforced companion generation loop', () => {
+  it('rejects a hollow first draft and returns the corrected draft', async () => {
+    const drafts = [
+      "Drained and restless is a hard loop. The fire's still going if that helps at all.",
+      "Your body sounds finished, but your mind clearly isn't. Is something specific keeping it moving, or are you stuck in that wired-tired place?",
+    ]
 
-    const final = await generateCompanionWithQualityLoop({
-      systemPrompt: 'system',
-      userPrompt: 'user',
-      displayName: 'Seraphine',
-      companionSlug: 'seraphine',
-      direction: dir,
-      maxTokens: 200,
-      temperature: 0.9,
-      generate: async (s, u, opts) => gen(s, u, opts),
+    const result = await generateCompanionWithQualityLoop({
+      direction: sleepDirection(),
+      generate: async ({ attempt }) => drafts[attempt - 1],
     })
 
-    expect(gen).toHaveBeenCalledTimes(2)
-    expect(final).toContain('Sit down')
+    expect(result.attempts).toBe(2)
+    expect(result.reply).toContain('wired-tired')
+    expect(result.quality.passed).toBe(true)
   })
 
-  it('returns empty string when all attempts fail', async () => {
-    const dir = simpleDirection('I am exhausted and drained')
-    const gen = vi.fn()
-    gen.mockResolvedValue('Yeah.')
-
-    const final = await generateCompanionWithQualityLoop({
-      systemPrompt: 'system',
-      userPrompt: 'user',
-      displayName: 'Seraphine',
-      companionSlug: 'seraphine',
-      direction: dir,
-      maxTokens: 200,
-      temperature: 0.9,
-      generate: async (s, u, opts) => gen(s, u, opts),
+  it('provides concrete failure feedback to the rewrite call', () => {
+    const prompt = buildCompanionRewritePrompt({
+      attempt: 2,
+      direction: sleepDirection(),
+      previousDraft: "The fire's still going.",
+      quality: {
+        passed: false,
+        score: 52,
+        failures: ['The reply does not add a human or conversational next move.'],
+      },
     })
 
-    expect(gen).toHaveBeenCalled()
-    expect(final).toBe('')
+    expect(prompt).toContain('PREVIOUS DRAFT')
+    expect(prompt).toContain('FAILURES')
+    expect(prompt).toContain('specific relational move')
   })
 })
