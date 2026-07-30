@@ -1,83 +1,102 @@
 import type { ConversationDirection } from '@/lib/character-engine/types'
-import { evaluateCompanionReply } from '@/lib/character-engine/quality'
+import {
+  evaluateCompanionReply,
+  type ReplyQualityResult,
+} from '@/lib/character-engine/quality'
 
-function sanitizeDraft(message: string, displayName: string): string {
-  return String(message || '')
-    .trim()
-    .replace(/^['"]|['"]$/g, '')
-    .replace(new RegExp(`^${displayName}\s*:\s*`, 'i'), '')
-    .replace(/^\*[^*]+\*\s*/g, '')
-    .trim()
-}
-
-export function buildCompanionRewritePrompt(opts: {
-  displayName: string
-  previousDraft: string
-  failures: string[]
-}) {
-  const { displayName, previousDraft, failures } = opts
-  return `Rewrite ${displayName}'s message. The previous draft is below.
-
-Previous draft:
-"""
-${previousDraft}
-"""
-
-The draft failed these checks:
-${failures.map((f) => `- ${f}`).join('\n')}
-
-Rewrite once. Keep the same character voice and length, but fix the listed failures. Output only the final companion message.`
-}
-
-export async function generateCompanionWithQualityLoop(opts: {
-  systemPrompt: string
-  userPrompt: string
-  displayName: string
-  companionSlug: string
+export type CompanionDraftContext = {
+  attempt: number
   direction: ConversationDirection
+  previousDraft?: string
+  quality?: ReplyQualityResult
+}
+
+export type CompanionGenerationResult = {
+  reply: string
+  attempts: number
+  quality: ReplyQualityResult
+}
+
+/**
+ * Generates, evaluates, and—when necessary—rewrites a companion reply.
+ *
+ * The caller owns the model/API request. This function owns the corrective loop,
+ * so a failed quality check can no longer be treated as a suggestion inside a prompt.
+ */
+export async function generateCompanionWithQualityLoop(opts: {
+  direction: ConversationDirection
+  generate: (context: CompanionDraftContext) => Promise<string>
   maxAttempts?: number
-  maxTokens: number
-  temperature: number
-  generate: (system: string, user: string, options: { maxTokens: number; temperature: number }) => Promise<string>
-}): Promise<string> {
-  const {
-    systemPrompt,
-    userPrompt,
-    displayName,
-    direction,
-    maxAttempts = 3,
-    maxTokens,
-    temperature,
-    generate,
-  } = opts
+}): Promise<CompanionGenerationResult> {
+  const maxAttempts = Math.max(1, Math.min(opts.maxAttempts ?? 3, 4))
+  let previousDraft: string | undefined
+  let previousQuality: ReplyQualityResult | undefined
 
-  let attempt = 0
-  let lastDraft = ''
-
-  try {
-    let currentUser = userPrompt
-    while (attempt < maxAttempts) {
-      attempt += 1
-      const raw = await generate(systemPrompt, currentUser, { maxTokens, temperature })
-      const draft = sanitizeDraft(raw || '', displayName)
-      lastDraft = draft
-
-      const result = evaluateCompanionReply({ reply: draft, direction })
-      if (result.passed) return draft
-
-      if (attempt >= maxAttempts) break
-
-      currentUser = buildCompanionRewritePrompt({
-        displayName,
-        previousDraft: draft,
-        failures: result.failures,
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const reply = String(
+      await opts.generate({
+        attempt,
+        direction: opts.direction,
+        previousDraft,
+        quality: previousQuality,
       })
+    ).trim()
+
+    const quality = evaluateCompanionReply({
+      reply,
+      direction: opts.direction,
+    })
+
+    if (quality.passed) {
+      return { reply, attempts: attempt, quality }
     }
 
-    return ''
-  } catch (e) {
-    throw e
+    previousDraft = reply
+    previousQuality = quality
+  }
+
+  const fallback = buildGroundedFallback(opts.direction)
+  const fallbackQuality = evaluateCompanionReply({
+    reply: fallback,
+    direction: opts.direction,
+  })
+
+  return {
+    reply: fallback,
+    attempts: maxAttempts,
+    quality: fallbackQuality,
   }
 }
 
-export default generateCompanionWithQualityLoop
+/** Creates the rewrite instruction for the next API call. */
+export function buildCompanionRewritePrompt(context: CompanionDraftContext): string {
+  if (!context.previousDraft || !context.quality) return ''
+
+  return `The previous draft failed the relationship quality gate.
+
+PREVIOUS DRAFT:
+${context.previousDraft}
+
+FAILURES:
+${context.quality.failures.map((failure) => `- ${failure}`).join('\n')}
+
+Rewrite the message as the same companion. Do not defend or discuss the draft. Add one specific relational move—accurate reflection, grounded curiosity, a meaningful choice, or character-specific presence. Avoid merely paraphrasing Mark or repeating decorative setting imagery. Output only the revised companion message.`
+}
+
+function buildGroundedFallback(direction: ConversationDirection): string {
+  const topic = direction.topic.toLowerCase()
+
+  if (topic.includes('exhaustion') || topic.includes('sleep')) {
+    return "Your body sounds finished, but your mind clearly isn't. Is something specific keeping it moving, or are you stuck in that wired-tired place?"
+  }
+
+  if (direction.disclosure.depth >= 4) {
+    return "I don't want to skim past what you just trusted me with. You don't have to explain more right now, but I am staying with you in it."
+  }
+
+  if (direction.contract?.active && direction.contract.nextActor === 'companion') {
+    return 'I heard your answer. What part of that matters most to you?'
+  }
+
+  return 'I heard what you said, and I do not want to answer with something empty. What part of this feels most important right now?'
+}
