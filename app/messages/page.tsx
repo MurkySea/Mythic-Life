@@ -23,6 +23,10 @@ import {
 import { buildSceneAwareImageRequest } from '@/lib/companion-scene-context'
 import { companionRelationshipState } from '@/lib/companion-presentation'
 import { companionTone } from '@/lib/companion-tone'
+import {
+  generateCompanionWithQualityLoop,
+  runCharacterEngine,
+} from '@/lib/character-engine'
 import styles from './messages.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -56,6 +60,53 @@ function messagePreview(content: string | null | undefined): string {
     .replace(/\s+/g, ' ')
     .trim()
   return clean || 'No letters yet — open the chamber.'
+}
+
+type ConversationMessage = {
+  role: string
+  content: string
+}
+
+async function qualityGateImageText({
+  draft,
+  retryDraft,
+  userText,
+  companionSlug,
+  affinity,
+  recentMessagesNewestFirst,
+}: {
+  draft: string
+  retryDraft: string
+  userText: string
+  companionSlug: string
+  affinity: number
+  recentMessagesNewestFirst: ConversationMessage[]
+}): Promise<string> {
+  const def = getCompanionDef(companionSlug)
+  const displayName = def?.name || 'Companion'
+  const recentHistory = [...recentMessagesNewestFirst]
+    .reverse()
+    .map((message) => {
+      const speaker = message.role === 'user' ? 'Mark' : displayName
+      return `${speaker}: ${message.content}`
+    })
+    .join('\n')
+  const direction = runCharacterEngine({
+    companionSlug,
+    userText,
+    affinity,
+    hour: new Date().getHours(),
+    recentHistory,
+    def,
+  }).direction
+
+  const result = await generateCompanionWithQualityLoop({
+    direction,
+    maxAttempts: 2,
+    generate: async ({ attempt }) => (attempt === 1 ? draft : retryDraft),
+  })
+
+  return result.reply
 }
 
 async function sendMessage(formData: FormData) {
@@ -131,7 +182,17 @@ async function sendMessage(formData: FormData) {
         })
 
         if (result.success) {
-          const message = `${result.caption || 'Here.'}\n[image:${result.imageUrl}]`
+          const approvedCaption = await qualityGateImageText({
+            draft: result.caption || 'Here.',
+            retryDraft:
+              'I chose this for you. Tell me what it brings up when you see it?',
+            userText: text,
+            companionSlug,
+            affinity,
+            recentMessagesNewestFirst:
+              (recentMessages || []) as ConversationMessage[],
+          })
+          const message = `${approvedCaption}\n[image:${result.imageUrl}]`
           const { error } = await supabase.from('messages').insert({
             role: 'companion',
             content: message,
@@ -157,7 +218,7 @@ async function sendMessage(formData: FormData) {
             companionSlug,
             messageCreatedAt: new Date().toISOString(),
             title: `${emoji} ${name}`,
-            body: (result.caption || 'I made something for you.').slice(0, 120),
+            body: approvedCaption.slice(0, 120),
             tag: `chat-${companionSlug}`,
           })
           return
@@ -168,9 +229,19 @@ async function sendMessage(formData: FormData) {
           stage: result.stage,
         })
 
+        const approvedFailureText = await qualityGateImageText({
+          draft: result.fallbackText,
+          retryDraft:
+            'I tried to make this for you, but it did not come through. Do you want me to try again?',
+          userText: text,
+          companionSlug,
+          affinity,
+          recentMessagesNewestFirst:
+            (recentMessages || []) as ConversationMessage[],
+        })
         const { error } = await supabase.from('messages').insert({
           role: 'companion',
-          content: result.fallbackText,
+          content: approvedFailureText,
           companion_slug: companionSlug,
         })
         if (error) {
@@ -183,7 +254,7 @@ async function sendMessage(formData: FormData) {
           companionSlug,
           messageCreatedAt: new Date().toISOString(),
           title: `${emoji} ${name}`,
-          body: result.fallbackText.slice(0, 120),
+          body: approvedFailureText.slice(0, 120),
           tag: `chat-${companionSlug}`,
         })
         return
@@ -214,12 +285,30 @@ async function sendMessage(formData: FormData) {
         })
 
         if (gift) {
-          const { error } = await supabase.from('messages').insert({
-            role: 'companion',
-            content: `${gift.caption}\n[image:${gift.imageUrl}]`,
-            companion_slug: companionSlug,
-          })
-          if (error) console.error('spontaneous companion image message insert failed', error)
+          const { data: persistedReply, error: lookupError } = await supabase
+            .from('messages')
+            .select('id')
+            .eq('role', 'companion')
+            .eq('companion_slug', companionSlug)
+            .eq('content', reply)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (lookupError) {
+            console.error('spontaneous companion image reply lookup failed', lookupError)
+          } else if (persistedReply) {
+            const { error: updateError } = await supabase
+              .from('messages')
+              .update({ content: `${reply}\n[image:${gift.imageUrl}]` })
+              .eq('id', persistedReply.id)
+
+            if (updateError) {
+              console.error('spontaneous companion image attachment failed', updateError)
+            }
+          } else {
+            console.error('spontaneous companion image had no approved reply to attach to')
+          }
 
           revalidatePath('/messages')
           revalidatePath('/gallery')

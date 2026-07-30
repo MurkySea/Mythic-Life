@@ -537,21 +537,23 @@ export async function generateCompanionResponse(
     return sanitizeReply(data.choices?.[0]?.message?.content || '')
   }
 
-  try {
-    let message: string
-
-    if (isConversation) {
-      const engine = runCharacterEngine({
+  const conversationDirection = isConversation
+    ? runCharacterEngine({
         companionSlug,
         userText: taskTitle,
         affinity,
         hour: localHourChicago(),
         recentHistory: historyBlock,
         def,
-      })
+      }).direction
+    : null
 
+  try {
+    let message: string
+
+    if (conversationDirection) {
       const result = await generateCompanionWithQualityLoop({
-        direction: engine.direction,
+        direction: conversationDirection,
         maxAttempts: 3,
         generate: requestDraft,
       })
@@ -580,9 +582,19 @@ export async function generateCompanionResponse(
     return message
   } catch (error) {
     console.error('Grok API error:', error)
-    const fallback = isConversation
+    let fallback = isConversation
       ? `I don't want to answer you with something empty. Tell me what feels most important in this moment.`
       : `I noticed.`
+
+    if (conversationDirection) {
+      const checkedFallback = await generateCompanionWithQualityLoop({
+        direction: conversationDirection,
+        maxAttempts: 1,
+        generate: async () => fallback,
+      })
+      fallback = sanitizeReply(checkedFallback.reply)
+    }
+
     await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
