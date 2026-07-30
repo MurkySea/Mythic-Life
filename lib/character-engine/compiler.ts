@@ -23,6 +23,14 @@ export function characterEnginePromptBlock(opts: {
       ]
     : ['No persistent state supplied. Do not invent internal events or feelings.']
 
+  const contractLines = direction.contract?.active
+    ? [
+        `Type: ${direction.contract.type}`,
+        `Next actor: ${direction.contract.nextActor}`,
+        `Agreement source: ${direction.contract.source}`,
+      ]
+    : ['No active conversation contract.']
+
   return `CHARACTER ENGINE V2
 Detected intent: ${analysis.intent}
 Likely need: ${analysis.need}
@@ -45,6 +53,18 @@ Primary reply objectives, in order:
 ${direction.objectives.map((objective, index) => `${index + 1}. ${objective}`).join('\n')}
 Clarification genuinely required: ${direction.clarificationNeeded ? 'yes' : 'no'}
 
+DISCLOSURE WEIGHT
+Depth: ${direction.disclosure.depth}/5
+Categories: ${direction.disclosure.categories.join(', ') || 'none'}
+Requires the conversation to pause: ${direction.disclosure.requiresPause ? 'yes' : 'no'}
+Reasons: ${direction.disclosure.rationale.join('; ') || 'ordinary conversational content'}
+
+CONVERSATION CONTRACT
+${contractLines.join('\n')}
+
+RESPONSE OBLIGATIONS
+${direction.obligations.length ? direction.obligations.map((item) => `- ${item}`).join('\n') : '- No special obligation beyond the reply objectives.'}
+
 CONVERSATION MOMENTUM
 Active topic: ${direction.momentum.activeTopic}
 Active for approximately ${direction.momentum.activeTurns} user turns
@@ -57,10 +77,10 @@ ${direction.responseRequirements.map((item) => `- ${item}`).join('\n')}
 Avoid:
 ${direction.avoid.length ? direction.avoid.map((item) => `- ${item}`).join('\n') : '- Nothing beyond the normal character rules.'}
 
-Do not reset the topic merely because Mark used a short follow-up. Do not ask him to restate context that is already clear in the recent thread. Acknowledgment alone is not a complete reply when the objective includes comfort, trust, encouragement, or a next step.
+Do not reset the topic merely because Mark used a short follow-up. Acknowledgment alone is not a complete reply when the objective includes comfort, trust, exploration, or a next step. A depth-4 or depth-5 disclosure must visibly affect the response. An active conversation contract must be honored before the companion changes the interaction pattern.
 
 CURRENT CHARACTER STATE
 ${stateLines.join('\n')}
 
-Treat these as behavioral constraints, not dialogue to quote. The director understands the conversation and sets the objectives; the character engine selects the response strategy; you write the natural message.`
+Treat these as behavioral constraints, not dialogue to quote. The director understands the conversation and sets the obligations; the character engine selects the response strategy; you write the natural message.`
 }

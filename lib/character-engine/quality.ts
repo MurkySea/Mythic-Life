@@ -1,4 +1,8 @@
-import type { ConversationDirection, ReplyObjective } from '@/lib/character-engine/types'
+import type {
+  ConversationDirection,
+  DisclosureAssessment,
+  ReplyObjective,
+} from '@/lib/character-engine/types'
 
 export type ReplyQualityResult = {
   passed: boolean
@@ -7,13 +11,47 @@ export type ReplyQualityResult = {
   retryInstruction?: string
 }
 
-const EMPTY_AGREEMENT = /^(?:yeah|yep|yes|right|i know|that'?s fine|that sounds rough|that kind of day again)[.!…]*$/i
+const EMPTY_AGREEMENT = /^(?:yeah|yep|yes|right|i know|that'?s fine|that sounds rough|that kind of day again|that tracks)[.!…]*$/i
 const CLARIFICATION_RESET = /\b(?:suggestions for what|what do you mean|what are you after|ideas for what)\b/i
 const THERAPY_CADENCE = /\b(?:hold space|valid feelings|process your emotions|trauma response|regulate your nervous system)\b/i
-const FORWARD_MOVE = /\?|\b(?:stay|tell me|want to|you could|try|start with|let me|come|sit|rest|breathe|drink|eat|quiet|company|here with you|we can)\b/i
+const PRESENCE_MOVE = /\b(?:here|with you|with me|stay|quiet|take your time|no rush|not going anywhere|do not have to|don't have to|sit with|we can leave it here)\b/i
+const FORWARD_MOVE = /\?|\b(?:stay|tell me|want to|you could|try|start with|let me|come|sit|rest|breathe|drink|eat|quiet|company|here with you|with me|we can|take your time|no rush|do not have to|don't have to)\b/i
 const SPECIFIC_STRAIN = /\b(?:exhaust|deplet|fumes|drain|tired|rough|heavy|overwhelm|hurt|afraid|alone|work|day)\b/i
 
-function objectiveSatisfied(objective: ReplyObjective, reply: string): boolean {
+const DISCLOSURE_EVIDENCE: Partial<
+  Record<DisclosureAssessment['categories'][number], RegExp>
+> = {
+  preference: /\b(?:prefer|favorite|like|love|hate)\b/i,
+  identity: /\b(?:identity|who you are|part of you|see yourself)\b/i,
+  relationship: /\b(?:love|loved|chosen|tolerated|affection|belong|valued|relationship)\b/i,
+  fear: /\b(?:fear|afraid|scared|worry)\b/i,
+  childhood: /\b(?:childhood|raised|growing up|home|household|family|parent|mother|father)\b/i,
+  trauma: /\b(?:abuse|abused|assault|violence|what happened|survive|should not have happened)\b/i,
+  grief: /\b(?:grief|lost|death|died|passed|miss)\b/i,
+  shame: /\b(?:shame|ashamed|fault|worthy|deserve)\b/i,
+  hope: /\b(?:hope|dream|future|want)\b/i,
+}
+
+function questionCount(reply: string): number {
+  return reply.match(/\?/g)?.length ?? 0
+}
+
+function acknowledgesDisclosure(direction: ConversationDirection, reply: string): boolean {
+  if (direction.disclosure.depth < 4) return true
+
+  const patterns = direction.disclosure.categories
+    .map((category) => DISCLOSURE_EVIDENCE[category])
+    .filter((pattern): pattern is RegExp => Boolean(pattern))
+
+  if (patterns.length === 0) return reply.trim().length >= 24
+  return patterns.some((pattern) => pattern.test(reply))
+}
+
+function objectiveSatisfied(
+  objective: ReplyObjective,
+  reply: string,
+  direction: ConversationDirection
+): boolean {
   const text = reply.toLowerCase()
 
   switch (objective) {
@@ -43,6 +81,15 @@ function objectiveSatisfied(objective: ReplyObjective, reply: string): boolean {
       return text.length >= 12
     case 'share_self':
       return /\b(?:i|my|me)\b/i.test(reply)
+    case 'honor_contract':
+      return direction.contract?.type === 'turn_taking_questions' &&
+        direction.contract.nextActor === 'companion'
+        ? questionCount(reply) === 1
+        : true
+    case 'explore_disclosure':
+      return acknowledgesDisclosure(direction, reply) && reply.trim().length >= 20
+    case 'stay_present':
+      return PRESENCE_MOVE.test(reply)
     default:
       return true
   }
@@ -63,33 +110,80 @@ export function evaluateCompanionReply(opts: {
   if (THERAPY_CADENCE.test(reply)) failures.push('The reply uses clinical or therapy-style language.')
 
   if (opts.direction.emotionalWeight === 'high') {
-    if (!SPECIFIC_STRAIN.test(reply)) failures.push('The reply does not acknowledge the established strain specifically.')
+    if (opts.direction.disclosure.depth >= 4) {
+      if (!acknowledgesDisclosure(opts.direction, reply)) {
+        failures.push('The reply does not reflect the specific meaning of the significant disclosure.')
+      }
+    } else if (!SPECIFIC_STRAIN.test(reply)) {
+      failures.push('The reply does not acknowledge the established strain specifically.')
+    }
+
     if (!FORWARD_MOVE.test(reply)) failures.push('The reply does not add a human or conversational next move.')
   }
 
+  if (
+    opts.direction.obligations.includes('fulfill_conversation_contract') &&
+    opts.direction.contract?.type === 'turn_taking_questions' &&
+    opts.direction.contract.nextActor === 'companion' &&
+    questionCount(reply) !== 1
+  ) {
+    failures.push('The reply does not fulfill the active turn-taking question contract with exactly one question.')
+  }
+
+  if (
+    opts.direction.obligations.includes('reflect_specific_meaning') &&
+    !acknowledgesDisclosure(opts.direction, reply)
+  ) {
+    failures.push('The reply does not show that the disclosure’s specific meaning landed.')
+  }
+
+  if (
+    opts.direction.obligations.includes('ask_one_grounded_question') &&
+    questionCount(reply) !== 1
+  ) {
+    failures.push('The reply does not ask the one grounded question required by the disclosure.')
+  }
+
+  if (
+    opts.direction.obligations.includes('offer_quiet_presence') &&
+    !PRESENCE_MOVE.test(reply)
+  ) {
+    failures.push('The reply does not offer grounded quiet presence after the depth-five disclosure.')
+  }
+
   for (const objective of opts.direction.objectives.slice(0, 3)) {
-    if (!objectiveSatisfied(objective, reply)) {
+    if (!objectiveSatisfied(objective, reply, opts.direction)) {
       failures.push(`The reply does not clearly accomplish the objective: ${objective}.`)
     }
   }
 
-  const score = Math.max(0, 100 - failures.length * 24)
-  const passed = failures.length === 0
+  const uniqueFailures = [...new Set(failures)]
+  const score = Math.max(0, 100 - uniqueFailures.length * 24)
+  const passed = uniqueFailures.length === 0
 
   return {
     passed,
     score,
-    failures,
+    failures: uniqueFailures,
     retryInstruction: passed
       ? undefined
-      : `Rewrite once. Keep the same character voice and length, but fix these failures: ${failures.join(' ')}`,
+      : `Rewrite once. Keep the same character voice and length, but fix these failures: ${uniqueFailures.join(' ')}`,
   }
 }
 
 export function qualityGatePrompt(direction: ConversationDirection): string {
+  const contractRule =
+    direction.contract?.active && direction.contract.nextActor === 'companion'
+      ? `- Honor the active ${direction.contract.type} agreement in this reply.`
+      : '- There is no active conversation contract to fulfill.'
+
   return `Before returning the final message, silently check it against these requirements:
 - It addresses the active topic: ${direction.topic}.
 - It accomplishes these objectives: ${direction.objectives.join(', ')}.
+- Disclosure depth is ${direction.disclosure.depth}/5; categories: ${direction.disclosure.categories.join(', ') || 'none'}.
+- It fulfills these response obligations: ${direction.obligations.join(', ') || 'none'}.
+${contractRule}
+- A depth-4 or depth-5 disclosure is reflected specifically before advice, flirtation, or a topic change.
 - It does not stop at empty agreement.
 - It does not request clarification unless clarification is marked as required.
 - It moves the conversation or relationship forward by one small step.

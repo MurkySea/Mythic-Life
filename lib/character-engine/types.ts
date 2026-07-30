@@ -60,6 +60,9 @@ export type ReplyObjective =
   | 'clarify'
   | 'offer_next_step'
   | 'share_self'
+  | 'honor_contract'
+  | 'explore_disclosure'
+  | 'stay_present'
 
 export type ConversationMomentum = {
   activeTopic: string
@@ -68,8 +71,30 @@ export type ConversationMomentum = {
   continueUntil: string[]
 }
 
+export type ConversationContract = {
+  type: 'turn_taking_questions'
+  active: boolean
+  nextActor: 'user' | 'companion'
+  source: string
+}
+
+export type DisclosureAssessment = {
+  depth: 1 | 2 | 3 | 4 | 5
+  categories: Array<'preference' | 'identity' | 'relationship' | 'fear' | 'childhood' | 'trauma' | 'grief' | 'shame' | 'hope'>
+  requiresPause: boolean
+  rationale: string[]
+}
+
+export type ResponseObligation =
+  | 'reflect_specific_meaning'
+  | 'validate_without_diagnosing'
+  | 'ask_one_grounded_question'
+  | 'connect_to_known_pattern'
+  | 'offer_quiet_presence'
+  | 'fulfill_conversation_contract'
+
 export type ConversationDirection = {
-  version: 2
+  version: 3
   mode: ConversationMode
   topic: string
   continuity: 'new_turn' | 'continuation'
@@ -78,6 +103,9 @@ export type ConversationDirection = {
   goal: string
   objectives: ReplyObjective[]
   momentum: ConversationMomentum
+  contract: ConversationContract | null
+  disclosure: DisclosureAssessment
+  obligations: ResponseObligation[]
   clarificationNeeded: boolean
   responseRequirements: string[]
   avoid: string[]
