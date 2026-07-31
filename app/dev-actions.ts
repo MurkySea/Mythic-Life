@@ -66,17 +66,57 @@ export async function devUnlockAllCompanions(_formData: FormData): Promise<void>
   revalidateApp()
 }
 
-/** Developer: boost all companions to affinity 20 for scene testing. */
+/**
+ * Developer: raise every companion to the affinity-20 scene tier while keeping
+ * the primary Trust / Intimacy state synchronized with the legacy mirrors.
+ */
 export async function devBoostAllAffinity(_formData: FormData): Promise<void> {
-  const level = 20
+  const affinity = 20
+  const bondXp = affinity * 35
   const supabase = await createClient()
-  const { data: rows } = await supabase.from('companion').select('id')
-  for (const r of rows || []) {
-    await supabase
-      .from('companion')
-      .update({ affinity_score: level, bond_xp: level * 35 })
-      .eq('id', r.id)
+
+  const { data: rows, error: loadError } = await supabase
+    .from('companion')
+    .select('id, slug, name')
+
+  if (loadError) {
+    throw new Error(`Unable to load companions for affinity boost: ${loadError.message}`)
   }
+
+  for (const row of rows || []) {
+    const slug =
+      row.slug ||
+      (row.name === 'Seraphine'
+        ? 'seraphine'
+        : String(row.name || '')
+            .toLowerCase()
+            .replace(/\s+/g, '_'))
+
+    const scores = backfillScoresFromAffinity({
+      slug,
+      affinity_score: affinity,
+      bond_xp: bondXp,
+    })
+
+    const { error: updateError } = await supabase
+      .from('companion')
+      .update({
+        affinity_score: affinity,
+        bond_xp: bondXp,
+        trust_score: scores.trust,
+        intimacy_score: scores.intimacy,
+        consecutive_bad_days: 0,
+        consecutive_good_days: 0,
+      })
+      .eq('id', row.id)
+
+    if (updateError) {
+      throw new Error(
+        `Unable to boost relationship for ${slug || row.id}: ${updateError.message}`
+      )
+    }
+  }
+
   revalidateApp()
 }
 
