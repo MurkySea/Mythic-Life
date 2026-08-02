@@ -25,11 +25,15 @@ export function characterEnginePromptBlock(opts: {
 
   const contractLines = direction.contract?.active
     ? [
+        'ACTIVE: yes — this is a binding conversational agreement, not flavor text.',
         `Type: ${direction.contract.type}`,
         `Next actor: ${direction.contract.nextActor}`,
+        direction.contract.nextActor === 'companion'
+          ? 'MUST HONOR THIS TURN. Fulfill the agreement before changing the interaction pattern.'
+          : 'Waiting on Mark. Do not seize the turn or abandon the agreement.',
         `Agreement source: ${direction.contract.source}`,
       ]
-    : ['No active conversation contract.']
+    : ['ACTIVE: no. There is no conversation contract in force.']
 
   return `CHARACTER ENGINE V2
 Detected intent: ${analysis.intent}
