@@ -10,8 +10,13 @@ import type {
   CharacterState,
   ConversationDirection,
 } from '@/lib/character-engine/types'
+import type { CuriosityIntent } from '@/lib/character-engine/curiosity'
 
-export function runCharacterEngine(opts: CharacterEngineContext & { def?: CompanionDef }): {
+export function runCharacterEngine(opts: CharacterEngineContext & {
+  def?: CompanionDef
+  knowledgeLines?: string[]
+  curiosity?: CuriosityIntent
+}): {
   analysis: ReturnType<typeof analyzeCharacterMessage>
   direction: ConversationDirection
   decision: CharacterDecision
@@ -32,12 +37,19 @@ export function runCharacterEngine(opts: CharacterEngineContext & { def?: Compan
     direction,
     decision,
     state,
-    promptBlock: characterEnginePromptBlock({ analysis, direction, decision, state }),
+    promptBlock: characterEnginePromptBlock({
+      analysis,
+      direction,
+      decision,
+      state,
+      curiosity: opts.curiosity,
+    }),
   }
 }
 
 export * from '@/lib/character-engine/analysis'
 export * from '@/lib/character-engine/compiler'
+export * from '@/lib/character-engine/curiosity'
 export * from '@/lib/character-engine/decision'
 export * from '@/lib/character-engine/director'
 export * from '@/lib/character-engine/generation-loop'
