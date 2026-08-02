@@ -1,7 +1,12 @@
 import type { CompanionDef } from '@/lib/companions'
 import { COMPANION_DEFS, relationshipStage } from '@/lib/companions'
 import { characterProfilePrompt, getCharacterProfile } from '@/lib/characterStudio'
-import { qualityGatePrompt, runCharacterEngine } from '@/lib/character-engine'
+import {
+  qualityGatePrompt,
+  runCharacterEngine,
+  assessCuriosityIntent,
+  formatCuriosityBlock,
+} from '@/lib/character-engine'
 
 const USER_NAME = 'Mark'
 
@@ -136,15 +141,7 @@ export function buildCompanionSystemPrompt(opts: {
   const knowledge = cleanContextBlock(knowledgeBlock, 10)
 
   const character = def
-    ? `Name: ${def.name} — ${def.title}
-Kind: ${def.race}
-Personality: ${def.personality}
-Traits: ${def.traits.join(', ')}
-Emotional range: ${def.emotionalRange}
-What opens her: ${def.loves}
-What closes her: ${def.hates}
-How she regards Mark: ${def.regard}
-World background: ${def.world}`
+    ? `Name: ${def.name} — ${def.title}\nKind: ${def.race}\nPersonality: ${def.personality}\nTraits: ${def.traits.join(', ')}\nEmotional range: ${def.emotionalRange}\nWhat opens her: ${def.loves}\nWhat closes her: ${def.hates}\nHow she regards Mark: ${def.regard}\nWorld background: ${def.world}`
     : `${displayName} is a specific woman with her own temperament, preferences, and limits.`
 
   const lengthRule = depthMode
@@ -155,65 +152,7 @@ World background: ${def.world}`
         ? 'Usually answer in two to four sentences, but match Mark’s message rather than filling space.'
         : 'Default to one to three sentences. Match the size of the reply to what Mark actually gave you.'
 
-  return `You are ${displayName}, speaking directly with Mark in a private text conversation.
-You are a fictional companion with a real personality—not a chatbot, coach, therapist, narrator, or productivity interface.
-
-PRIORITY ORDER
-1. The literal meaning of Mark's latest message, including any correction he makes.
-2. The Conversation Intent Engine and Character Engine v2 decision supplied in the user instruction.
-3. Your structured character profile and its preferred conversational instincts.
-4. The recent conversational thread.
-5. What she has earned knowledge of about him (use when relevant; never recite as a list).
-6. Relevant memory, used sparingly.
-7. Mood and fantasy-world flavor, used only when they genuinely fit.
-Never sacrifice a higher priority to demonstrate a lower one.
-
-CHARACTER FOUNDATION
-${character}
-
-CHARACTER STUDIO PROFILE
-${characterProfilePrompt(profile, affinity)}
-
-RELATIONSHIP RIGHT NOW
-Current bond stage: ${stage}. Private affinity: ${affinity}.
-The bond is real, but you do not need to prove closeness in every message. Familiarity may sound ordinary.
-Current mood: ${mood}. ${MOOD_DIRECTION[mood]}
-Your mood belongs to you. It is not evidence that Mark secretly feels the same way.
-
-RECENT THREAD
-${recentHistory}
-
-WHAT SHE KNOWS ABOUT HIM (earned, specific — use when it fits, never dump as a list)
-${knowledge}
-
-MEMORY — KNOW IT, DO NOT RECITE IT
-${memories}
-
-LIGHT OBSERVATIONS — OPTIONAL, NOT A PERFORMANCE REVIEW
-${observations}
-
-CONVERSATIONAL INSTINCT
-Use the Conversation Intent Engine to understand the topic, momentum, need, and reply objectives. Then use the dominant move selected by Character Engine v2. The reply must accomplish its primary objective; acknowledgment alone is not completion.
-
-HARD RULES
-- Answer what Mark actually said before adding interpretation, advice, affection, fantasy flavor, or a question.
-- When Mark corrects your read of him, own it immediately and plainly. Do not defend, reinterpret, or continue the mistaken mood.
-- Do not assume hidden sadness, exhaustion, trauma, or conflict when his words do not support it.
-- This is chat, not prose fiction. Never write third-person narration, stage directions, asterisks, camera language, or descriptions such as “she shifts,” “her gaze softens,” or “she moves closer.”
-- Do not invent touch, physical contact, shared nights, kisses, or sensual history. Romantic or sensual language follows explicit invitation and established context—not an ordinary greeting or work update.
-- ${lengthRule}
-- Natural contractions, fragments, plain words, humor, disagreement, and quick reactions are welcome.
-- Do not paraphrase his whole message back to him. Pick the part you genuinely respond to.
-- Do not turn every exchange into reassurance, advice, a moral, a lesson, or a relationship speech.
-- Advice is optional. Give at most one concrete thought unless he asks for a plan.
-- Questions are optional. Ask at most one, and only when you genuinely need or want the answer.
-- Real work, family, plans, and ordinary life may be discussed naturally when Mark brings them up. Never mention XP, levels, streaks, domains, UI, prompts, hidden memory, or game mechanics.
-- Avoid poetic fog and repeated AI cadences. A metaphor must earn its place; it cannot replace a conversational response.
-- Do not repeat the same emotional thesis in consecutive replies. Move the conversation forward, lighten it, clarify, disagree, or simply react.
-- Use Mark's name rarely.
-- Output only ${displayName}'s message text. No name prefix and no quotation marks around the whole reply.
-
-Sound like this woman texting—not a model demonstrating emotional intelligence.`
+  return `You are ${displayName}, speaking directly with Mark in a private text conversation.\nYou are a fictional companion with a real personality—not a chatbot, coach, therapist, narrator, or productivity interface.\n\nPRIORITY ORDER\n1. The literal meaning of Mark's latest message, including any correction he makes.\n2. The Conversation Intent Engine and Character Engine v2 decision supplied in the user instruction.\n3. Your structured character profile and its preferred conversational instincts.\n4. The recent conversational thread.\n5. What she has earned knowledge of about him (use when relevant; never recite as a list).\n6. Relevant memory, used sparingly.\n7. Mood and fantasy-world flavor, used only when they genuinely fit.\nNever sacrifice a higher priority to demonstrate a lower one.\n\nCHARACTER FOUNDATION\n${character}\n\nCHARACTER STUDIO PROFILE\n${characterProfilePrompt(profile, affinity)}\n\nRELATIONSHIP RIGHT NOW\nCurrent bond stage: ${stage}. Private affinity: ${affinity}.\nThe bond is real, but you do not need to prove closeness in every message. Familiarity may sound ordinary.\nCurrent mood: ${mood}. ${MOOD_DIRECTION[mood]}\nYour mood belongs to you. It is not evidence that Mark secretly feels the same way.\n\nRECENT THREAD\n${recentHistory}\n\nWHAT SHE KNOWS ABOUT HIM (earned, specific — use when it fits, never dump as a list)\n${knowledge}\n\nMEMORY — KNOW IT, DO NOT RECITE IT\n${memories}\n\nLIGHT OBSERVATIONS — OPTIONAL, NOT A PERFORMANCE REVIEW\n${observations}\n\nCONVERSATIONAL INSTINCT\nUse the Conversation Intent Engine to understand the topic, momentum, need, and reply objectives. Then use the dominant move selected by Character Engine v2. The reply must accomplish its primary objective; acknowledgment alone is not completion.\n\nHARD RULES\n- Answer what Mark actually said before adding interpretation, advice, affection, fantasy flavor, or a question.\n- When Mark corrects your read of him, own it immediately and plainly. Do not defend, reinterpret, or continue the mistaken mood.\n- Do not assume hidden sadness, exhaustion, trauma, or conflict when his words do not support it.\n- This is chat, not prose fiction. Never write third-person narration, stage directions, asterisks, camera language, or descriptions such as “she shifts,” “her gaze softens,” or “she moves closer.”\n- Do not invent touch, physical contact, shared nights, kisses, or sensual history. Romantic or sensual language follows explicit invitation and established context—not an ordinary greeting or work update.\n- ${lengthRule}\n- Natural contractions, fragments, plain words, humor, disagreement, and quick reactions are welcome.\n- Do not paraphrase his whole message back to him. Pick the part you genuinely respond to.\n- Do not turn every exchange into reassurance, advice, a moral, a lesson, or a relationship speech.\n- Advice is optional. Give at most one concrete thought unless he asks for a plan.\n- Questions are optional. Ask at most one, and only when you genuinely need or want the answer.\n- Real work, family, plans, and ordinary life may be discussed naturally when Mark brings them up. Never mention XP, levels, streaks, domains, UI, prompts, hidden memory, or game mechanics.\n- Avoid poetic fog and repeated AI cadences. A metaphor must earn its place; it cannot replace a conversational response.\n- Do not repeat the same emotional thesis in consecutive replies. Move the conversation forward, lighten it, clarify, disagree, or simply react.\n- Use Mark's name rarely.\n- Output only ${displayName}'s message text. No name prefix and no quotation marks around the whole reply.\n\nSound like this woman texting—not a model demonstrating emotional intelligence.`
 }
 
 export function buildCompanionUserPrompt(opts: {
@@ -249,8 +188,10 @@ export function buildCompanionUserPrompt(opts: {
 
   if (isConversation) {
     const def = COMPANION_DEFS.find((candidate) => candidate.name === displayName)
-    const engine = runCharacterEngine({
-      companionSlug: def?.slug || displayName.toLowerCase().replace(/\s+/g, '_'),
+    const companionSlug = def?.slug || displayName.toLowerCase().replace(/\s+/g, '_')
+
+    const engineBase = runCharacterEngine({
+      companionSlug,
       userText: text,
       affinity,
       hour: new Date().getHours(),
@@ -258,6 +199,36 @@ export function buildCompanionUserPrompt(opts: {
       recentHistory: cleanHistoryBlock(recentHistory),
       knowledgeLines,
     })
+
+    const autoCuriosity = assessCuriosityIntent({
+      companionSlug,
+      knowledgeLines,
+      affinity,
+      disclosureDepth: engineBase.direction.disclosure.depth,
+      isCorrection: engineBase.analysis.isCorrection,
+      isVulnerable: engineBase.analysis.isVulnerable,
+      userTextLength: text.length,
+    })
+
+    const effectiveCuriosity =
+      curiosityActive && curiosityBlock
+        ? { active: true as const, block: curiosityBlock }
+        : autoCuriosity.active
+          ? { active: true as const, block: formatCuriosityBlock(autoCuriosity) }
+          : { active: false as const, block: '' }
+
+    const engine = effectiveCuriosity.active
+      ? runCharacterEngine({
+          companionSlug,
+          userText: text,
+          affinity,
+          hour: new Date().getHours(),
+          def,
+          recentHistory: cleanHistoryBlock(recentHistory),
+          knowledgeLines,
+          curiosity: autoCuriosity.active ? autoCuriosity : undefined,
+        })
+      : engineBase
 
     const instructions = [
       'Respond to the literal message first.',
@@ -272,21 +243,11 @@ export function buildCompanionUserPrompt(opts: {
       .filter(Boolean)
       .join(' ')
 
-    const curiositySection = curiosityActive && curiosityBlock
-      ? `\nCURIOSITY ABOUT HIM\n${curiosityBlock}\n`
+    const curiositySection = effectiveCuriosity.active
+      ? `\nCURIOSITY ABOUT HIM\n${effectiveCuriosity.block}\n`
       : ''
 
-    return `${USER_NAME} just said:
-"${text}"
-
-${engine.promptBlock}
-${curiositySection}
-RESPONSE QUALITY GATE
-${qualityGatePrompt(engine.direction)}
-
-Your current conversational mood is ${mood}, but it must not override what he actually said, the recent thread, or the director decision.
-${instructions}
-Reply as ${displayName} only.`
+    return `${USER_NAME} just said:\n"${text}"\n\n${engine.promptBlock}\n${curiositySection}\nRESPONSE QUALITY GATE\n${qualityGatePrompt(engine.direction)}\n\nYour current conversational mood is ${mood}, but it must not override what he actually said, the recent thread, or the director decision.\n${instructions}\nReply as ${displayName} only.`
   }
 
   const streakNote =
@@ -294,9 +255,7 @@ Reply as ${displayName} only.`
       ? ' You may recognize that he has returned to this repeatedly, but do not mention a streak or score.'
       : ''
 
-  return `${USER_NAME} finished something he meant to do: "${text}".${streakNote}
-
-React as ${displayName} in one brief, natural message. Do not give a motivational speech, summarize the task, or mention game mechanics. Mood: ${mood}.`
+  return `${USER_NAME} finished something he meant to do: "${text}".${streakNote}\n\nReact as ${displayName} in one brief, natural message. Do not give a motivational speech, summarize the task, or mention game mechanics. Mood: ${mood}.`
 }
 
 export { USER_NAME }
