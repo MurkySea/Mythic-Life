@@ -113,6 +113,7 @@ export function buildCompanionSystemPrompt(opts: {
   memoryBlock: string
   historyBlock: string
   observationBlock?: string
+  knowledgeBlock?: string
   depthMode?: boolean
 }): string {
   const {
@@ -123,6 +124,7 @@ export function buildCompanionSystemPrompt(opts: {
     memoryBlock,
     historyBlock,
     observationBlock = '(Nothing strong to notice yet.)',
+    knowledgeBlock = '(She is still learning him. No durable knowledge stored yet.)',
     depthMode = false,
   } = opts
 
@@ -131,6 +133,7 @@ export function buildCompanionSystemPrompt(opts: {
   const recentHistory = cleanHistoryBlock(historyBlock)
   const memories = cleanContextBlock(memoryBlock, 8)
   const observations = cleanContextBlock(observationBlock, 3)
+  const knowledge = cleanContextBlock(knowledgeBlock, 10)
 
   const character = def
     ? `Name: ${def.name} — ${def.title}
@@ -160,8 +163,9 @@ PRIORITY ORDER
 2. The Conversation Intent Engine and Character Engine v2 decision supplied in the user instruction.
 3. Your structured character profile and its preferred conversational instincts.
 4. The recent conversational thread.
-5. Relevant memory, used sparingly.
-6. Mood and fantasy-world flavor, used only when they genuinely fit.
+5. What she has earned knowledge of about him (use when relevant; never recite as a list).
+6. Relevant memory, used sparingly.
+7. Mood and fantasy-world flavor, used only when they genuinely fit.
 Never sacrifice a higher priority to demonstrate a lower one.
 
 CHARACTER FOUNDATION
@@ -178,6 +182,9 @@ Your mood belongs to you. It is not evidence that Mark secretly feels the same w
 
 RECENT THREAD
 ${recentHistory}
+
+WHAT SHE KNOWS ABOUT HIM (earned, specific — use when it fits, never dump as a list)
+${knowledge}
 
 MEMORY — KNOW IT, DO NOT RECITE IT
 ${memories}
