@@ -225,6 +225,9 @@ export function buildCompanionUserPrompt(opts: {
   depthMode?: boolean
   affinity?: number
   recentHistory?: string
+  knowledgeLines?: string[]
+  curiosityActive?: boolean
+  curiosityBlock?: string
 }): string {
   const {
     displayName,
@@ -235,6 +238,9 @@ export function buildCompanionUserPrompt(opts: {
     depthMode = false,
     affinity = 1,
     recentHistory = '',
+    knowledgeLines = [],
+    curiosityActive = false,
+    curiosityBlock = '',
   } = opts
 
   const text = (triggerText || '').trim()
@@ -250,6 +256,7 @@ export function buildCompanionUserPrompt(opts: {
       hour: new Date().getHours(),
       def,
       recentHistory: cleanHistoryBlock(recentHistory),
+      knowledgeLines,
     })
 
     const instructions = [
@@ -265,11 +272,15 @@ export function buildCompanionUserPrompt(opts: {
       .filter(Boolean)
       .join(' ')
 
+    const curiositySection = curiosityActive && curiosityBlock
+      ? `\nCURIOSITY ABOUT HIM\n${curiosityBlock}\n`
+      : ''
+
     return `${USER_NAME} just said:
 "${text}"
 
 ${engine.promptBlock}
-
+${curiositySection}
 RESPONSE QUALITY GATE
 ${qualityGatePrompt(engine.direction)}
 
