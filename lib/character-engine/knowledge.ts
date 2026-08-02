@@ -66,15 +66,16 @@ export function extractKnowledgeCandidate(opts: {
       'He measures success by becoming the kind of person worthy of winning, not by the win itself.'
     confidence = 0.85
   }
-  // Quiet under pressure
+  // Quiet under pressure — soft, contextual, not a sticky thesis
   else if (
     /\b(?:go quiet|go silent|disappear|withdraw|shut down|don't ask for help|rather handle it alone)\b/i.test(
       lower
     )
   ) {
     kind = 'pattern'
-    content = 'He tends to go quiet or handle pressure alone rather than ask for help.'
-    confidence = 0.8
+    content =
+      'Under real pressure he sometimes goes quieter and carries more alone than he has to.'
+    confidence = 0.68
   }
   // Carries others
   else if (
@@ -287,7 +288,13 @@ export async function loadCompanionKnowledge(
       const ageDays =
         (now - new Date(row.created_at || now).getTime()) / (1000 * 60 * 60 * 24)
       const recency = Math.max(0, 8 - ageDays / 21)
-      const score = parsed.importance * 1.8 + recency
+      // Soft penalty for sticky "quiet / alone under pressure" lines so they do not dominate every prompt
+      const quietSticky =
+        /go(?:es)? quieter|handle pressure alone|carries more alone|go quiet|withdraw/.test(
+          parsed.text.toLowerCase()
+        )
+      const stickyPenalty = quietSticky ? 1.4 : 0
+      const score = parsed.importance * 1.8 + recency - stickyPenalty
       return { text: parsed.text, score }
     })
 
@@ -315,5 +322,6 @@ export function formatKnowledgeBlock(lines: string[]): string {
   if (!lines.length) {
     return '(She is still learning him. No durable knowledge stored yet — learn from what he actually says and does.)'
   }
-  return lines.map((line, i) => `${i + 1}. ${line}`).join('\n')
+  const body = lines.map((line, i) => `${i + 1}. ${line}`).join('\n')
+  return `${body}\n\nUse at most one of these when it truly fits this turn. Do not restate the same observation across consecutive replies. Patterns (especially quietness under pressure) are background color — never a thesis to keep returning to or a diagnosis of his mood.`
 }
