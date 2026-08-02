@@ -36,6 +36,9 @@ import {
   buildCompanionRewritePrompt,
   generateCompanionWithQualityLoop,
   runCharacterEngine,
+  maybeWriteKnowledge,
+  loadCompanionKnowledge,
+  formatKnowledgeBlock,
   type CompanionDraftContext,
 } from '@/lib/character-engine'
 
@@ -456,6 +459,10 @@ export async function generateCompanionResponse(
       ? memoryParts.map((m, i) => `${i + 1}. ${m}`).join('\n')
       : '(Nothing stored yet — learn him from what he actually says and does.)'
 
+  // Knowledge: load first so the prompt can use it this turn
+  const knowledgeLines = await loadCompanionKnowledge(companionSlug, 8)
+  const knowledgeBlock = formatKnowledgeBlock(knowledgeLines)
+
   if (isConversation) {
     await maybeCaptureMemory(companionSlug, taskTitle)
   }
@@ -485,6 +492,7 @@ export async function generateCompanionResponse(
     memoryBlock,
     historyBlock,
     observationBlock,
+    knowledgeBlock,
     depthMode,
   })
 
@@ -548,6 +556,14 @@ export async function generateCompanionResponse(
         hour: localHourChicago(),
         recentHistory: historyBlock,
         def,
+      })
+
+      // Persist high-signal knowledge from this disclosure (async, non-blocking for reply)
+      void maybeWriteKnowledge({
+        companionSlug,
+        userText: taskTitle,
+        analysis: engine.analysis,
+        disclosure: engine.direction.disclosure,
       })
 
       const result = await generateCompanionWithQualityLoop({
