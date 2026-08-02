@@ -39,6 +39,7 @@ import {
   maybeWriteKnowledge,
   loadCompanionKnowledge,
   formatKnowledgeBlock,
+  assessCuriosityIntent,
   type CompanionDraftContext,
 } from '@/lib/character-engine'
 
@@ -549,14 +550,39 @@ export async function generateCompanionResponse(
     let message: string
 
     if (isConversation) {
-      const engine = runCharacterEngine({
+      // First pass: analysis + direction (needed for disclosure gates on curiosity)
+      const engineBase = runCharacterEngine({
         companionSlug,
         userText: taskTitle,
         affinity,
         hour: localHourChicago(),
         recentHistory: historyBlock,
         def,
+        knowledgeLines,
       })
+
+      const curiosityIntent = assessCuriosityIntent({
+        companionSlug,
+        knowledgeLines,
+        affinity,
+        disclosureDepth: engineBase.direction.disclosure.depth,
+        isCorrection: engineBase.analysis.isCorrection,
+        isVulnerable: engineBase.analysis.isVulnerable,
+        userTextLength: taskTitle.length,
+      })
+
+      const engine = curiosityIntent.active
+        ? runCharacterEngine({
+            companionSlug,
+            userText: taskTitle,
+            affinity,
+            hour: localHourChicago(),
+            recentHistory: historyBlock,
+            def,
+            knowledgeLines,
+            curiosity: curiosityIntent,
+          })
+        : engineBase
 
       // Persist high-signal knowledge from this disclosure (async, non-blocking for reply)
       void maybeWriteKnowledge({
