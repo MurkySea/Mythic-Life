@@ -3,7 +3,7 @@
   isolation: isolate;
   width: min(100%, 34rem);
   margin: 0 auto;
-  padding: 1rem 1rem 2.5rem;
+  padding: 0.75rem 1rem 2.5rem;
   overflow: hidden;
 }
 
@@ -70,7 +70,7 @@
 
 .hero {
   border-radius: 1.4rem;
-  padding: 1.15rem;
+  padding: 0.95rem 1.05rem;
   background:
     radial-gradient(circle at 82% 0%, rgba(226, 169, 69, 0.16), transparent 36%),
     radial-gradient(circle at 15% 84%, rgba(44, 101, 168, 0.18), transparent 42%),
@@ -90,8 +90,8 @@
   position: relative;
   display: grid;
   place-items: center;
-  width: 5rem;
-  height: 5rem;
+  width: 4.35rem;
+  height: 4.35rem;
   border-radius: 50%;
   color: #f2cf7a;
   background:
@@ -175,7 +175,7 @@
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 0.48rem;
-  margin-top: 1.28rem;
+  margin-top: 0.95rem;
 }
 
 .resource {
@@ -183,7 +183,7 @@
   min-width: 0;
   align-items: center;
   gap: 0.45rem;
-  padding: 0.64rem 0.54rem;
+  padding: 0.52rem 0.54rem;
   border: 1px solid rgba(112, 128, 148, 0.27);
   border-radius: 0.78rem;
   background: rgba(3, 6, 10, 0.7);
@@ -352,6 +352,22 @@
     0 0 26px rgba(182, 131, 41, 0.09),
     0 24px 52px rgba(0,0,0,0.52);
 }
+.primaryCard {
+  min-height: 7.2rem;
+  border-color: rgba(228, 181, 84, 0.58);
+  background:
+    radial-gradient(circle at 88% 0%, rgba(226, 169, 69, 0.2), transparent 40%),
+    radial-gradient(circle at 8% 100%, rgba(47, 94, 148, 0.16), transparent 42%),
+    linear-gradient(145deg, rgba(25, 34, 45, 0.99), rgba(5, 8, 13, 0.995));
+}
+.primaryCard h2 { font-size: 1.02rem; }
+.secondaryCard {
+  min-height: 5rem;
+  border-color: rgba(112, 128, 148, 0.25);
+  background: linear-gradient(145deg, rgba(17, 23, 31, 0.96), rgba(5, 8, 13, 0.98));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025), 0 14px 32px rgba(0, 0, 0, 0.35);
+}
+.secondaryCard::before { border-color: rgba(112, 128, 148, 0.1); }
 .campaignCard h2 {
   margin-top: 0.4rem;
   color: #f2ebdf;
@@ -445,6 +461,44 @@
 }
 .emptyText { margin-top: 0.72rem; color: #89919d; font-size: 0.68rem; }
 
+.statusSection {
+  padding: 1rem;
+  border: 1px solid rgba(112, 128, 148, 0.25);
+  border-radius: 1.08rem;
+  background: rgba(6, 10, 15, 0.74);
+}
+.statusHeading h2 {
+  margin-top: 0.32rem;
+  color: #e8e0d3;
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+}
+.destinationGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.58rem;
+  margin-top: 0.78rem;
+}
+.destinationCard {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.68rem;
+  border: 1px solid rgba(112, 128, 148, 0.25);
+  border-radius: 0.82rem;
+  color: inherit;
+  background: rgba(14, 20, 27, 0.82);
+  text-decoration: none;
+}
+.destinationCard:hover { border-color: rgba(217, 173, 87, 0.45); }
+.destinationCard .standingSeal { width: 2.2rem; height: 2.2rem; }
+.destinationCard > span:last-child { min-width: 0; }
+.destinationCard strong,
+.destinationCard small { display: block; }
+.destinationCard strong { color: #eee6d8; font-family: var(--font-display); font-size: 0.66rem; }
+.destinationCard small { margin-top: 0.2rem; color: #737d8a; font-size: 0.52rem; }
+
 .sectionHeading {
   display: flex;
   align-items: center;
@@ -469,13 +523,23 @@
   text-transform: uppercase;
 }
 
+.directory { display: grid; gap: 1rem; }
+.directoryGroup > h2 {
+  margin: 0 0 0.5rem 0.18rem;
+  color: #967a50;
+  font-family: var(--font-display);
+  font-size: 0.56rem;
+  font-weight: 600;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
 .moduleGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.62rem;
 }
 .moduleCard {
-  min-height: 7.25rem;
+  min-height: 4.5rem;
   border-radius: 1rem;
   text-decoration: none;
   transition: transform 170ms ease, border-color 170ms ease, box-shadow 170ms ease;
@@ -490,20 +554,20 @@
   position: relative;
   z-index: 1;
   display: flex;
-  min-height: 7.25rem;
-  flex-direction: column;
+  min-height: 4.5rem;
+  flex-direction: row;
   align-items: center;
-  justify-content: center;
-  padding: 0.85rem 0.4rem 0.72rem;
-  text-align: center;
+  gap: 0.72rem;
+  padding: 0.72rem;
+  text-align: left;
 }
 .iconHalo {
   position: relative;
   display: grid;
   place-items: center;
-  width: 3.2rem;
-  height: 3.2rem;
-  margin-bottom: 0.52rem;
+  flex: 0 0 auto;
+  width: 2.45rem;
+  height: 2.45rem;
   border-radius: 50%;
   color: #e6b95e;
   background:
@@ -532,7 +596,19 @@
   letter-spacing: 0.045em;
   text-transform: uppercase;
 }
+.moduleText { min-width: 0; }
 .moduleContent small { margin-top: 0.24rem; color: #777f8b; font-size: 0.49rem; line-height: 1.25; }
+.moduleContent small,
+.moduleContent em { display: block; }
+.moduleContent em {
+  margin-top: 0.3rem;
+  color: #8ea9c7;
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 
 .footerVow {
   margin-top: 1.2rem;
@@ -546,8 +622,8 @@
 
 @media (max-width: 390px) {
   .home { padding-inline: 0.75rem; }
-  .hero { padding: 1rem; }
-  .crest { width: 4.35rem; height: 4.35rem; }
+  .hero { padding: 0.88rem; }
+  .crest { width: 3.9rem; height: 3.9rem; }
   .resource { padding-inline: 0.42rem; gap: 0.32rem; }
   .resourceOrb { width: 1.42rem; height: 1.42rem; }
   .resource strong { font-size: 0.64rem; }
@@ -555,7 +631,15 @@
   .progressRing { width: 4.95rem; height: 4.95rem; }
   .progressRing::before { width: 3.8rem; height: 3.8rem; }
   .moduleGrid { gap: 0.46rem; }
-  .moduleCard, .moduleContent { min-height: 6.72rem; }
-  .iconHalo { width: 2.88rem; height: 2.88rem; }
-  .moduleContent p { font-size: 0.57rem; }
+  .moduleCard, .moduleContent { min-height: 4.3rem; }
+  .moduleContent { gap: 0.58rem; padding: 0.62rem; }
+  .iconHalo { width: 2.2rem; height: 2.2rem; }
+  .moduleContent p { font-size: 0.56rem; }
+}
+
+@media (max-width: 340px) {
+  .identityRow { gap: 0.72rem; }
+  .resource small { letter-spacing: 0.08em; }
+  .destinationGrid,
+  .moduleGrid { grid-template-columns: 1fr; }
 }
