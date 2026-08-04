@@ -17,6 +17,7 @@ import { activateApprovedCampfireTasks } from '@/lib/campfire-actions'
 import { MODULE_ICONS, MythicIcon, type ModuleIconKey, type MythicIconName } from '@/components/MythicIcons'
 import { listGoals, PILLAR_LABELS } from '@/lib/engines/goals-store'
 import type { GoalPillar } from '@/lib/engines/goals'
+import HomeDashboardTabs from './HomeDashboardTabs'
 import styles from './home.module.css'
 
 export const dynamic = 'force-dynamic'
@@ -52,11 +53,11 @@ export default async function HubPage() {
   const musterClaimed = standingRow.last_muster_date === chicagoYmd()
   const topGoals = activeGoals.slice(0, 3)
   const modules: { href: string; label: ModuleIconKey; sub: string; disabled?: boolean }[] = [
-    { href: '/today', label: 'Quests', sub: 'Today' }, { href: '/skills', label: 'Skills', sub: 'Growth' },
-    { href: '/companions', label: 'Party', sub: 'Allies' }, { href: '/messages', label: 'Letters', sub: 'Messages' },
-    { href: '/companion-profile', label: 'Mirror', sub: 'Profile' }, { href: '/settings', label: 'Codex', sub: 'Settings' },
-    { href: '/standing', label: 'Standing', sub: rhythm ? tier.label : 'Status' },
-    { href: '/goals', label: 'Goals', sub: activeGoals.length ? `${activeGoals.length} active` : 'Direction' },
+    { href: '/skills', label: 'Skills', sub: 'Growth' },
+    { href: '/companions', label: 'Party', sub: 'Allies' },
+    { href: '/messages', label: 'Letters', sub: 'Messages' },
+    { href: '/companion-profile', label: 'Mirror', sub: 'Profile' },
+    { href: '/settings', label: 'Codex', sub: 'Settings' },
     { href: '#', label: 'Map', sub: 'Soon', disabled: true },
   ]
 
@@ -75,26 +76,40 @@ export default async function HubPage() {
         </div>
       </section>
 
-      <section className={styles.rankPanel} aria-label="Rank and daily progress">
-        <div><p className={styles.eyebrow}>Current mantle</p><h2 className={styles.rankTitle}>Knight of Purpose</h2><p className={styles.rankMeta}>Rank III</p><p className={styles.vow}>Whatever you do, do it all for the glory of God.<span>1 Corinthians 10:31</span></p></div>
-        <div className={styles.progressRing} style={{ '--progress': `${focusPct}%` } as CSSProperties} aria-label={`${focusPct}% of today's focus complete`}><div><p>{focusPct}%</p><small>Today</small></div></div>
-      </section>
+      <HomeDashboardTabs
+        command={
+          <div className={styles.stack}>
+            {feedback && <FeedbackBanners feedback={feedback} />}
+            {!musterClaimed && <div className={styles.systemInset}><MusterCard claimed={false} streak={standingRow.muster_streak || 0} dateCoins={standingRow.date_coins || 0} action={claimDailyMuster} /></div>}
+            <Link href="/today" className={styles.campaignCard}><div><p className={styles.cardKicker}>Primary campaign</p><h2>{focusOpen === 0 ? 'The board is clear. Choose the next worthy thing.' : `${focusOpen} quest${focusOpen === 1 ? '' : 's'} await your hand.`}</h2><span>Routine · Must-dos · Master List</span></div><div className={styles.questSeal}>{focusOpen}</div></Link>
+            <Link href="/camp" className={styles.campaignCard}><div><p className={styles.cardKicker}>Evening campfire</p><h2>Someone is waiting to hear how your day really went.</h2><span>Type or speak · remembered as conversation · no score attached</span></div><div className={styles.standingSeal}><MythicIcon name="spark" size={20} /></div></Link>
+          </div>
+        }
+        journey={
+          <>
+            <section className={styles.rankPanel} aria-label="Rank and daily progress">
+              <div><p className={styles.eyebrow}>Current mantle</p><h2 className={styles.rankTitle}>Knight of Purpose</h2><p className={styles.rankMeta}>Rank III</p><p className={styles.vow}>Whatever you do, do it all for the glory of God.<span>1 Corinthians 10:31</span></p></div>
+              <div className={styles.progressRing} style={{ '--progress': `${focusPct}%` } as CSSProperties} aria-label={`${focusPct}% of today's focus complete`}><div><p>{focusPct}%</p><small>Today</small></div></div>
+            </section>
 
-      <div className={styles.stack}>
-        {feedback && <FeedbackBanners feedback={feedback} />}
-        {!musterClaimed && <div className={styles.systemInset}><MusterCard claimed={false} streak={standingRow.muster_streak || 0} dateCoins={standingRow.date_coins || 0} action={claimDailyMuster} /></div>}
-        <Link href="/camp" className={styles.campaignCard}><div><p className={styles.cardKicker}>Evening campfire</p><h2>Someone is waiting to hear how your day really went.</h2><span>Type or speak · remembered as conversation · no score attached</span></div><div className={styles.standingSeal}><MythicIcon name="spark" size={20} /></div></Link>
-        <Link href="/today" className={styles.campaignCard}><div><p className={styles.cardKicker}>Primary campaign</p><h2>{focusOpen === 0 ? 'The board is clear. Choose the next worthy thing.' : `${focusOpen} quest${focusOpen === 1 ? '' : 's'} await your hand.`}</h2><span>Routine · Must-dos · Master List</span></div><div className={styles.questSeal}>{focusOpen}</div></Link>
-        <Link href="/goals" className={styles.campaignCard}><div className={styles.cardBody}><div className={styles.cardHeading}><div><p className={styles.cardKicker}>Long campaigns</p><h2>Active Goals</h2></div><MythicIcon name="goals" size={22} /></div>{topGoals.length === 0 ? <p className={styles.emptyText}>No active goals. Name the direction before chasing speed.</p> : <div className={styles.goalList}>{topGoals.map((goal) => { const pct = goal.target > 0 ? Math.min(100, Math.round((goal.progress / goal.target) * 100)) : 0; return <div className={styles.goalRow} key={goal.id}><span className={styles.goalSigil}><MythicIcon name={PILLAR_ICON[goal.pillar]} size={15} /></span><p>{goal.title}</p><small>{goal.progress}/{goal.target}</small><div className={styles.goalTrack}><span style={{ width: `${pct}%` }} /></div><em>{PILLAR_LABELS[goal.pillar]} · {goal.horizon}</em></div> })}</div>}</div></Link>
-        <Link href="/standing" className={styles.campaignCard}><div><p className={styles.cardKicker}>World standing</p><h2>{rhythm ? <>Rhythm · {tier.label}{standingRow.baseline_phase ? ` · Phase ${standingRow.baseline_phase}` : ''}</> : 'Self · Consistency · Shadow Debt'}</h2><span>Your condition changes how the world answers.</span></div><div className={styles.standingSeal}><MythicIcon name="standing" size={20} /></div></Link>
-        <Link href="/character-studio" className={styles.campaignCard}><div><p className={styles.cardKicker}>Developer codex</p><h2>Character Studio</h2><span>Voice · instincts · blind spots · relationship arcs · calibration</span></div><div className={styles.standingSeal}><MythicIcon name="relationship" size={20} /></div></Link>
-      </div>
-
-      <div className={styles.sectionHeading}><span>The Grimoire</span></div>
-      <section className={styles.moduleGrid} aria-label="Game modules">
-        {modules.map((module) => { const Icon = MODULE_ICONS[module.label]; const content = <div className={styles.moduleContent}><div className={styles.iconHalo}><Icon size={27} /></div><p>{module.label}</p><small>{module.sub}</small></div>; return module.disabled ? <div key={module.label} className={`${styles.moduleCard} ${styles.disabled}`} aria-disabled="true">{content}</div> : <Link key={module.label} href={module.href} className={styles.moduleCard}>{content}</Link> })}
-      </section>
-      <p className={styles.footerVow}>Enter deliberately. Leave stronger.</p>
+            <div className={styles.stack}>
+              <Link href="/goals" className={styles.campaignCard}><div className={styles.cardBody}><div className={styles.cardHeading}><div><p className={styles.cardKicker}>Long campaigns</p><h2>Active Goals</h2></div><MythicIcon name="goals" size={22} /></div>{topGoals.length === 0 ? <p className={styles.emptyText}>No active goals. Name the direction before chasing speed.</p> : <div className={styles.goalList}>{topGoals.map((goal) => { const pct = goal.target > 0 ? Math.min(100, Math.round((goal.progress / goal.target) * 100)) : 0; return <div className={styles.goalRow} key={goal.id}><span className={styles.goalSigil}><MythicIcon name={PILLAR_ICON[goal.pillar]} size={15} /></span><p>{goal.title}</p><small>{goal.progress}/{goal.target}</small><div className={styles.goalTrack}><span style={{ width: `${pct}%` }} /></div><em>{PILLAR_LABELS[goal.pillar]} · {goal.horizon}</em></div> })}</div>}</div></Link>
+              <Link href="/standing" className={styles.campaignCard}><div><p className={styles.cardKicker}>World standing</p><h2>{rhythm ? <>Rhythm · {tier.label}{standingRow.baseline_phase ? ` · Phase ${standingRow.baseline_phase}` : ''}</> : 'Self · Consistency · Shadow Debt'}</h2><span>Standing and vital signs now live together.</span></div><div className={styles.standingSeal}><MythicIcon name="standing" size={20} /></div></Link>
+            </div>
+          </>
+        }
+        grimoire={
+          <>
+            <section className={styles.moduleGrid} aria-label="Game modules">
+              {modules.map((module) => { const Icon = MODULE_ICONS[module.label]; const content = <div className={styles.moduleContent}><div className={styles.iconHalo}><Icon size={27} /></div><p>{module.label}</p><small>{module.sub}</small></div>; return module.disabled ? <div key={module.label} className={`${styles.moduleCard} ${styles.disabled}`} aria-disabled="true">{content}</div> : <Link key={module.label} href={module.href} className={styles.moduleCard}>{content}</Link> })}
+            </section>
+            <div className={styles.stack}>
+              <Link href="/character-studio" className={styles.campaignCard}><div><p className={styles.cardKicker}>Developer codex</p><h2>Character Studio</h2><span>Voice · instincts · blind spots · relationship arcs · calibration</span></div><div className={styles.standingSeal}><MythicIcon name="relationship" size={20} /></div></Link>
+            </div>
+            <p className={styles.footerVow}>Enter deliberately. Leave stronger.</p>
+          </>
+        }
+      />
     </main>
   )
 }
