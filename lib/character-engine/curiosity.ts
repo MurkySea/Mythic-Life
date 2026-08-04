@@ -21,6 +21,20 @@ export type CuriosityIntent = {
   gaps: KnowledgeGap[]
 }
 
+const MIN_OCCURRENCE_CHANCE = 0.12
+const MAX_OCCURRENCE_CHANCE = 0.3
+
+function recentlyMadeCuriosityMove(text = ''): boolean {
+  const normalized = text.trim().toLowerCase()
+  if (!normalized) return false
+  return (
+    normalized.includes('?') ||
+    /\b(?:i wonder|i'm curious|tell me (?:more|about)|what's that like|what does that|how do you)\b/i.test(
+      normalized
+    )
+  )
+}
+
 /** Facets Seraphine is drawn to learn about Mark as closeness grows. */
 const SERAPHINE_TARGETS: {
   kind: KnowledgeGap['kind']
@@ -154,12 +168,17 @@ export function assessCuriosityIntent(opts: {
   isCorrection?: boolean
   isVulnerable?: boolean
   userTextLength?: number
+  recentCompanionText?: string
+  random?: () => number
 }): CuriosityIntent {
-  const gaps = computeKnowledgeGaps({
-    companionSlug: opts.companionSlug,
-    knowledgeLines: opts.knowledgeLines,
-    affinity: opts.affinity,
-  })
+  const gaps =
+    opts.companionSlug === 'seraphine'
+      ? computeKnowledgeGaps({
+          companionSlug: opts.companionSlug,
+          knowledgeLines: opts.knowledgeLines,
+          affinity: opts.affinity,
+        })
+      : []
 
   const band = bondBand(opts.affinity)
   const depth = depthForBand(band)
@@ -175,10 +194,14 @@ export function assessCuriosityIntent(opts: {
     gaps,
   }
 
+  // Conversational curiosity is Seraphine-specific. Persistent knowledge remains generic.
+  if (opts.companionSlug !== 'seraphine') return empty
+
   // Hard suppress: repair, deep disclosure, heavy vulnerability this turn
   if (opts.isCorrection) return empty
   if ((opts.disclosureDepth ?? 1) >= 4) return empty
   if (opts.isVulnerable && (opts.userTextLength ?? 0) >= 80) return empty
+  if (recentlyMadeCuriosityMove(opts.recentCompanionText)) return empty
 
   // State: low energy / high stress → less probing
   const curiosityStat = opts.state?.curiosity ?? 55
@@ -201,8 +224,14 @@ export function assessCuriosityIntent(opts: {
     priority *= 0.45
   }
 
-  // Need a meaningful bar so it is not every turn
-  const active = priority >= 0.42 && gaps.length > 0
+  // Eligibility is not activation. Curiosity should surface occasionally, with
+  // a bounded chance that grows modestly with priority.
+  const eligible = priority >= 0.42 && gaps.length > 0
+  const occurrenceChance = Math.max(
+    MIN_OCCURRENCE_CHANCE,
+    Math.min(MAX_OCCURRENCE_CHANCE, priority * 0.32)
+  )
+  const active = eligible && (opts.random ?? Math.random)() < occurrenceChance
 
   if (!active) {
     return { ...empty, priority }

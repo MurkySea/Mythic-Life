@@ -220,9 +220,9 @@ async function partyAwareSeed(
   }
 }
 
-async function hasHeavyOutreachToday(companionSlug?: string): Promise<boolean> {
-  const supabase = await createClient()
+export async function hasHeavyOutreachToday(companionSlug?: string): Promise<boolean> {
   try {
+    const supabase = await createClient()
     let q = supabase
       .from('scheduled_outreach')
       .select('id')
@@ -240,8 +240,9 @@ async function hasHeavyOutreachToday(companionSlug?: string): Promise<boolean> {
       return true
     }
     return !!(data && data.length > 0)
-  } catch {
-    return false
+  } catch (error) {
+    console.error('check heavy outreach', error)
+    return true
   }
 }
 

@@ -1,12 +1,8 @@
 import type { CompanionDef } from '@/lib/companions'
-import { COMPANION_DEFS, relationshipStage } from '@/lib/companions'
+import { relationshipStage } from '@/lib/companions'
 import { characterProfilePrompt, getCharacterProfile } from '@/lib/characterStudio'
-import {
-  assessCuriosityIntent,
-  formatCuriosityBlock,
-  qualityGatePrompt,
-  runCharacterEngine,
-} from '@/lib/character-engine'
+import { qualityGatePrompt } from '@/lib/character-engine'
+import type { ConversationDirection } from '@/lib/character-engine'
 
 const USER_NAME = 'Mark'
 
@@ -233,11 +229,10 @@ export function buildCompanionUserPrompt(opts: {
   streak?: number
   mood: Mood
   depthMode?: boolean
-  affinity?: number
-  recentHistory?: string
-  knowledgeLines?: string[]
-  curiosityActive?: boolean
-  curiosityBlock?: string
+  engine?: {
+    direction: ConversationDirection
+    promptBlock: string
+  }
 }): string {
   const {
     displayName,
@@ -246,11 +241,7 @@ export function buildCompanionUserPrompt(opts: {
     streak = 0,
     mood,
     depthMode = false,
-    affinity = 1,
-    recentHistory = '',
-    knowledgeLines = [],
-    curiosityActive = false,
-    curiosityBlock = '',
+    engine,
   } = opts
 
   const text = (triggerText || '').trim()
@@ -258,45 +249,7 @@ export function buildCompanionUserPrompt(opts: {
   const quick = text.length <= 45 && !depthMode
 
   if (isConversation) {
-    const def = COMPANION_DEFS.find((candidate) => candidate.name === displayName)
-    const companionSlug = def?.slug || displayName.toLowerCase().replace(/\s+/g, '_')
-    const engineBase = runCharacterEngine({
-      companionSlug,
-      userText: text,
-      affinity,
-      hour: new Date().getHours(),
-      def,
-      recentHistory: cleanHistoryBlock(recentHistory),
-      knowledgeLines,
-    })
-
-    const autoCuriosity = assessCuriosityIntent({
-      companionSlug,
-      knowledgeLines,
-      affinity,
-      disclosureDepth: engineBase.direction.disclosure.depth,
-      isCorrection: engineBase.analysis.isCorrection,
-      isVulnerable: engineBase.analysis.isVulnerable,
-      userTextLength: text.length,
-    })
-    const effectiveCuriosityBlock =
-      curiosityActive && curiosityBlock
-        ? curiosityBlock
-        : autoCuriosity.active
-          ? formatCuriosityBlock(autoCuriosity)
-          : ''
-    const engine = autoCuriosity.active
-      ? runCharacterEngine({
-          companionSlug,
-          userText: text,
-          affinity,
-          hour: new Date().getHours(),
-          def,
-          recentHistory: cleanHistoryBlock(recentHistory),
-          knowledgeLines,
-          curiosity: autoCuriosity,
-        })
-      : engineBase
+    if (!engine) throw new Error('Conversation prompt requires one Character Engine result.')
 
     const instructions = [
       'Respond to the literal message first.',
@@ -316,7 +269,6 @@ export function buildCompanionUserPrompt(opts: {
 "${text}"
 
 ${engine.promptBlock}
-${effectiveCuriosityBlock ? `\nCURIOSITY ABOUT HIM\n${effectiveCuriosityBlock}\n` : ''}
 
 RESPONSE QUALITY GATE
 ${qualityGatePrompt(engine.direction)}

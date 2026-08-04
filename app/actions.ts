@@ -36,6 +36,7 @@ import {
 import {
   buildCompanionRewritePrompt,
   assessCuriosityIntent,
+  characterEnginePromptBlock,
   formatKnowledgeBlock,
   generateCompanionWithQualityLoop,
   loadCompanionKnowledge,
@@ -498,6 +499,41 @@ export async function generateCompanionResponse(
     depthMode,
   })
 
+  let conversationEngine: ReturnType<typeof runCharacterEngine> | undefined
+  if (isConversation) {
+    const engine = runCharacterEngine({
+      companionSlug,
+      userText: taskTitle,
+      affinity,
+      hour: localHourChicago(),
+      recentHistory: historyBlock,
+      def,
+      knowledgeLines,
+    })
+    const curiosityIntent = assessCuriosityIntent({
+      companionSlug,
+      knowledgeLines,
+      affinity,
+      state: engine.state,
+      disclosureDepth: engine.direction.disclosure.depth,
+      isCorrection: engine.analysis.isCorrection,
+      isVulnerable: engine.analysis.isVulnerable,
+      userTextLength: taskTitle.length,
+      recentCompanionText: lastCompanion,
+    })
+
+    conversationEngine = {
+      ...engine,
+      promptBlock: characterEnginePromptBlock({
+        analysis: engine.analysis,
+        decision: engine.decision,
+        direction: engine.direction,
+        state: engine.state,
+        curiosity: curiosityIntent.active ? curiosityIntent : undefined,
+      }),
+    }
+  }
+
   const userPrompt = buildCompanionUserPrompt({
     displayName,
     isConversation,
@@ -505,9 +541,7 @@ export async function generateCompanionResponse(
     streak,
     mood,
     depthMode,
-    affinity,
-    recentHistory: historyBlock,
-    knowledgeLines,
+    engine: conversationEngine,
   })
 
   const temperature = 0.88 + Math.random() * 0.12
@@ -556,37 +590,7 @@ export async function generateCompanionResponse(
     let message: string
 
     if (isConversation) {
-      const engineBase = runCharacterEngine({
-        companionSlug,
-        userText: taskTitle,
-        affinity,
-        hour: localHourChicago(),
-        recentHistory: historyBlock,
-        def,
-        knowledgeLines,
-      })
-
-      const curiosityIntent = assessCuriosityIntent({
-        companionSlug,
-        knowledgeLines,
-        affinity,
-        disclosureDepth: engineBase.direction.disclosure.depth,
-        isCorrection: engineBase.analysis.isCorrection,
-        isVulnerable: engineBase.analysis.isVulnerable,
-        userTextLength: taskTitle.length,
-      })
-      const engine = curiosityIntent.active
-        ? runCharacterEngine({
-            companionSlug,
-            userText: taskTitle,
-            affinity,
-            hour: localHourChicago(),
-            recentHistory: historyBlock,
-            def,
-            knowledgeLines,
-            curiosity: curiosityIntent,
-          })
-        : engineBase
+      const engine = conversationEngine!
       conversationDirection = engine.direction
 
       after(() =>
