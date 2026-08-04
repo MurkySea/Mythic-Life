@@ -1,0 +1,117 @@
+.shell {
+  margin-top: 0.78rem;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.42rem;
+  margin-bottom: 0.78rem;
+  padding: 0.35rem;
+  border: 1px solid rgba(94, 103, 118, 0.22);
+  border-radius: 0.98rem;
+  background: rgba(5, 8, 13, 0.7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+.tab {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 2.8rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.42rem;
+  padding: 0.45rem 0.35rem;
+  border: 1px solid transparent;
+  border-radius: 0.7rem;
+  color: #747c88;
+  background: transparent;
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  font-weight: 600;
+  letter-spacing: 0.085em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.tab:hover {
+  color: #c7af7b;
+  transform: translateY(-1px);
+}
+
+.tab:focus-visible {
+  outline: 2px solid rgba(112, 174, 255, 0.78);
+  outline-offset: 2px;
+}
+
+.active {
+  border-color: rgba(205, 157, 67, 0.38);
+  color: #e7c46e;
+  background:
+    radial-gradient(circle at 50% 0%, rgba(208, 160, 69, 0.14), transparent 54%),
+    linear-gradient(180deg, rgba(27, 35, 45, 0.94), rgba(8, 11, 16, 0.98));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.38rem;
+  height: 1.38rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  opacity: 0.72;
+}
+
+.panel {
+  animation: reveal 180ms ease-out;
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 23rem) {
+  .tabs {
+    gap: 0.28rem;
+    padding: 0.28rem;
+  }
+
+  .tab {
+    gap: 0.28rem;
+    font-size: 0.48rem;
+    letter-spacing: 0.06em;
+  }
+
+  .icon {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab,
+  .panel {
+    animation: none;
+    transition: none;
+  }
+}
