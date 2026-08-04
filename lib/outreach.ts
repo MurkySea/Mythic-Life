@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createHash } from 'node:crypto'
 import { getCompanionDef } from '@/lib/companions'
 import { pushIfStillUnread } from '@/lib/reads'
 import { loadPlayerState } from '@/lib/player-state'
@@ -11,6 +12,8 @@ import {
   type LifeSignalKind,
 } from '@/lib/engines/party-doctrine'
 import { hasMember } from '@/lib/engines/party'
+import { loadCompanionKnowledge } from '@/lib/character-engine/knowledge'
+import { computeKnowledgeGaps } from '@/lib/character-engine/curiosity'
 
 const TIMEZONE = 'America/Chicago'
 const DAILY_PUSH_CAP = 5
@@ -22,8 +25,38 @@ const WANDERING_CHANCE = 0.18
 const MISSING_YOU_CHANCE = 0.14
 const SHARE_MOMENT_CHANCE = 0.12
 const PARTY_UNIT_CHANCE = 0.4
+const CURIOSITY_INITIATION_BASE = 0.26
+const CURIOSITY_SILENCE_HOURS = 12
 const ANCHOR_PING_MIN = 5
 const ANCHOR_PING_MAX = 25
+
+/** Heavy emotional outreach — at most one of these per companion per day. */
+const HEAVY_OUTREACH_KINDS = ['missing_you', 'soft_love', 'curiosity'] as const
+
+export function heavyOutreachId(companionSlug: string, day: string): string {
+  const hex = createHash('sha256')
+    .update(`heavy-outreach:${companionSlug}:${day}`)
+    .digest('hex')
+  const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16)
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`
+}
+
+export function curiosityInitiationEligible(opts: {
+  companionSlug: string
+  hoursSilent: number
+  affinity: number
+  gapSeverity: number | null
+  hasHeavyOutreach: boolean
+}): boolean {
+  return (
+    opts.companionSlug === 'seraphine' &&
+    opts.hoursSilent >= CURIOSITY_SILENCE_HOURS &&
+    opts.affinity >= 4 &&
+    opts.gapSeverity !== null &&
+    opts.gapSeverity >= 0.4 &&
+    !opts.hasHeavyOutreach
+  )
+}
 
 export type OutreachKind =
   | 'task_reaction'
@@ -35,6 +68,7 @@ export type OutreachKind =
   | 'share_moment'
   | 'soft_love'
   | 'party_unit'
+  | 'curiosity'
 
 function localHour(): number {
   return parseInt(
@@ -186,6 +220,46 @@ async function partyAwareSeed(
   }
 }
 
+export async function hasHeavyOutreachToday(companionSlug?: string): Promise<boolean> {
+  try {
+    const supabase = await createClient()
+    let q = supabase
+      .from('scheduled_outreach')
+      .select('id')
+      .in('kind', [...HEAVY_OUTREACH_KINDS])
+      .gte('created_at', dayStartISO())
+      .limit(1)
+
+    if (companionSlug) {
+      q = q.eq('companion_slug', companionSlug)
+    }
+
+    const { data, error } = await q
+    if (error) {
+      console.error('check heavy outreach', error)
+      return true
+    }
+    return !!(data && data.length > 0)
+  } catch (error) {
+    console.error('check heavy outreach', error)
+    return true
+  }
+}
+
+async function loadCompanionAffinity(slug: string): Promise<number> {
+  const supabase = await createClient()
+  try {
+    const { data } = await supabase
+      .from('companion')
+      .select('affinity_score')
+      .eq('slug', slug)
+      .maybeSingle()
+    return data?.affinity_score ?? 1
+  } catch {
+    return 1
+  }
+}
+
 export async function maybeScheduleTaskReaction(opts: {
   taskTitle: string
   companionSlug: string
@@ -313,11 +387,16 @@ async function completionsToday(): Promise<number> {
 
 async function hoursSinceLastContact(companionSlug: string): Promise<number> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('messages')
     .select('created_at, companion_slug')
     .order('created_at', { ascending: false })
     .limit(40)
+
+  if (error) {
+    console.error('load last companion contact', error)
+    return 0
+  }
 
   const thread = (data || []).filter((m) => {
     if (companionSlug === 'seraphine') {
@@ -328,6 +407,114 @@ async function hoursSinceLastContact(companionSlug: string): Promise<number> {
 
   if (!thread.length) return 999
   return (Date.now() - new Date(thread[0].created_at).getTime()) / (1000 * 60 * 60)
+}
+
+/**
+ * Seraphine-first: reach out because something about him is still unfinished.
+ * Requires ≥12h silence, a real knowledge gap, forming+ bond, and no other
+ * heavy emotional outreach already today. Natural variety with missing_you.
+ */
+export async function maybeScheduleCuriosityInitiation(): Promise<boolean> {
+  if (isQuietHours()) return false
+
+  const companionSlug = 'seraphine'
+
+  // One heavy emotional outreach per companion per day
+  const hasHeavyOutreach = await hasHeavyOutreachToday(companionSlug)
+  if (hasHeavyOutreach) return false
+
+  const affinity = await loadCompanionAffinity(companionSlug)
+  // Forming band and above (matches curiosity gap model)
+  if (affinity < 4) return false
+
+  const hours = await hoursSinceLastContact(companionSlug)
+  if (hours < CURIOSITY_SILENCE_HOURS) return false
+
+  let knowledgeLines: string[] = []
+  try {
+    knowledgeLines = await loadCompanionKnowledge(companionSlug, 8, {
+      throwOnError: true,
+    })
+  } catch {
+    return false
+  }
+
+  const gaps = computeKnowledgeGaps({
+    companionSlug,
+    knowledgeLines,
+    affinity,
+  })
+  const top = gaps[0]
+  if (!top) return false
+  if (
+    !curiosityInitiationEligible({
+      companionSlug,
+      hoursSilent: hours,
+      affinity,
+      gapSeverity: top.severity,
+      hasHeavyOutreach,
+    })
+  ) {
+    return false
+  }
+
+  // Probability tilts with gap severity and closeness — not every quiet day
+  let chance = CURIOSITY_INITIATION_BASE
+  chance += top.severity * 0.28
+  if (affinity >= 10) chance += 0.12
+  else if (affinity >= 6) chance += 0.05
+  // Longer silence slightly more willing (caps so it does not become desperate)
+  if (hours >= 24) chance += 0.08
+  if (hours >= 36) chance += 0.05
+  chance = Math.min(0.72, chance)
+
+  if (Math.random() > chance) return false
+
+  // Optional knowledge line she can lean on without reciting a dossier
+  const knowledgeHint =
+    knowledgeLines.find((line) => {
+      const lower = line.toLowerCase()
+      return (
+        (top.kind === 'value' && /worthy|value|faith|important|measure/.test(lower)) ||
+        (top.kind === 'pattern' && /quiet|pressure|carry|alone|rest|postponed/.test(lower)) ||
+        (top.kind === 'fear' && /seen|chosen|weighs|tolerated/.test(lower)) ||
+        (top.kind === 'drive' && /build|legacy|outlast|homestead/.test(lower)) ||
+        (top.kind === 'preference' && /prefer|rather|favorite|love when/.test(lower)) ||
+        (top.kind === 'ordinary_life' && /fishing|piano|sleep|office|church/.test(lower))
+      )
+    }) || knowledgeLines[0] || null
+
+  const sendAfter = new Date(
+    Date.now() + (12 + Math.random() * 50) * 60 * 1000
+  ).toISOString()
+
+  const supabase = await createClient()
+  try {
+    const { error } = await supabase.from('scheduled_outreach').insert({
+      id: heavyOutreachId(companionSlug, localYmd()),
+      kind: 'curiosity',
+      companion_slug: companionSlug,
+      send_after: sendAfter,
+      bypass_cap: false,
+      payload: {
+        day: localYmd(),
+        gapKind: top.kind,
+        gapLabel: top.label,
+        gapSeverity: top.severity,
+        knowledgeHint,
+        hoursSilent: Math.round(hours),
+        affinity,
+      },
+    })
+    if (error) {
+      if (error.code !== '23505') console.error('schedule curiosity initiation', error)
+      return false
+    }
+    return true
+  } catch (e) {
+    console.error('schedule curiosity initiation', e)
+    return false
+  }
 }
 
 export async function maybeScheduleWanderingCheckIn(): Promise<boolean> {
@@ -375,22 +562,14 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
   if (isQuietHours()) return false
   if (Math.random() > MISSING_YOU_CHANCE) return false
 
-  const supabase = await createClient()
-
-  const { data: existing } = await supabase
-    .from('scheduled_outreach')
-    .select('id')
-    .in('kind', ['missing_you', 'soft_love'])
-    .gte('created_at', dayStartISO())
-    .limit(1)
-
-  if (existing && existing.length > 0) return false
-
   const pick = await pickUnlockedCompanion({
     minAffinity: 6,
     preferHighBond: true,
   })
   if (!pick) return false
+
+  // One heavy emotional outreach per companion per day (includes curiosity)
+  if (await hasHeavyOutreachToday(pick.slug)) return false
 
   const hours = await hoursSinceLastContact(pick.slug)
   if (hours < 4) return false
@@ -402,8 +581,10 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
     Date.now() + (10 + Math.random() * 50) * 60 * 1000
   ).toISOString()
 
+  const supabase = await createClient()
   try {
-    await supabase.from('scheduled_outreach').insert({
+    const { error } = await supabase.from('scheduled_outreach').insert({
+      id: heavyOutreachId(pick.slug, localYmd()),
       kind,
       companion_slug: pick.slug,
       send_after: sendAfter,
@@ -414,6 +595,10 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
         hoursSilent: Math.round(hours),
       },
     })
+    if (error) {
+      if (error.code !== '23505') console.error('schedule missing_you', error)
+      return false
+    }
     return true
   } catch (e) {
     console.error('schedule missing_you', e)
@@ -626,6 +811,18 @@ function seedForKind(
     ]
       .filter(Boolean)
       .join(' ')
+  }
+
+  if (kind === 'curiosity') {
+    const gapLabel = String(payload.gapLabel || 'something unfinished about him')
+    const knowledgeHint =
+      typeof payload.knowledgeHint === 'string' && payload.knowledgeHint.trim()
+        ? payload.knowledgeHint.trim()
+        : ''
+    const hintLine = knowledgeHint
+      ? ` You already hold this about him (do not recite it like a file — let it color what you say): "${knowledgeHint}".`
+      : ''
+    return `Something about him has been sitting with you — specifically around ${gapLabel}.${hintLine} You are not checking productivity and not guilt-tripping his absence. You reached out because you still want to understand him. Short. Specific. Human. One soft observation, a gentle return to a thread, or one grounded question is enough. Never interrogate. Never coach.`
   }
 
   if (kind === 'missing_you') {

@@ -61,6 +61,10 @@ export async function generateCompanionWithQualityLoop(opts: {
     direction: opts.direction,
   })
 
+  if (!fallbackQuality.passed) {
+    throw new Error(`Grounded companion fallback failed quality gate: ${fallbackQuality.failures.join('; ')}`)
+  }
+
   return {
     reply: fallback,
     attempts: maxAttempts,
@@ -87,7 +91,7 @@ function buildGroundedFallback(direction: ConversationDirection): string {
   const topic = direction.topic.toLowerCase()
 
   if (topic.includes('exhaustion') || topic.includes('sleep')) {
-    return "Your body sounds finished, but your mind clearly isn't. Is something specific keeping it moving, or are you stuck in that wired-tired place?"
+    return "Your body sounds finished, but your mind clearly isn't. Stay with me a minute—is something specific keeping it moving, or are you stuck in that wired-tired place?"
   }
 
   if (direction.disclosure.depth >= 4) {

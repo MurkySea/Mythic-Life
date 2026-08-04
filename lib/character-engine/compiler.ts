@@ -4,14 +4,17 @@ import type {
   CharacterState,
   ConversationDirection,
 } from '@/lib/character-engine/types'
+import type { CuriosityIntent } from '@/lib/character-engine/curiosity'
+import { formatCuriosityBlock } from '@/lib/character-engine/curiosity'
 
 export function characterEnginePromptBlock(opts: {
   analysis: CharacterAnalysis
   decision: CharacterDecision
   direction: ConversationDirection
   state?: CharacterState
+  curiosity?: CuriosityIntent
 }): string {
-  const { analysis, decision, direction, state } = opts
+  const { analysis, decision, direction, state, curiosity } = opts
   const stateLines = state
     ? [
         `Mood: ${state.mood}`,
@@ -25,11 +28,19 @@ export function characterEnginePromptBlock(opts: {
 
   const contractLines = direction.contract?.active
     ? [
+        'ACTIVE: yes — this is a binding conversational agreement, not flavor text.',
         `Type: ${direction.contract.type}`,
         `Next actor: ${direction.contract.nextActor}`,
+        direction.contract.nextActor === 'companion'
+          ? 'MUST HONOR THIS TURN. Fulfill the agreement before changing the interaction pattern.'
+          : 'Waiting on Mark. Do not seize the turn or abandon the agreement.',
         `Agreement source: ${direction.contract.source}`,
       ]
-    : ['No active conversation contract.']
+    : ['ACTIVE: no. There is no conversation contract in force.']
+
+  const curiositySection = curiosity
+    ? `\nCURIOSITY ABOUT HIM\n${formatCuriosityBlock(curiosity)}\n`
+    : ''
 
   return `CHARACTER ENGINE V2
 Detected intent: ${analysis.intent}
@@ -64,7 +75,7 @@ ${contractLines.join('\n')}
 
 RESPONSE OBLIGATIONS
 ${direction.obligations.length ? direction.obligations.map((item) => `- ${item}`).join('\n') : '- No special obligation beyond the reply objectives.'}
-
+${curiositySection}
 CONVERSATION MOMENTUM
 Active topic: ${direction.momentum.activeTopic}
 Active for approximately ${direction.momentum.activeTurns} user turns
@@ -77,7 +88,7 @@ ${direction.responseRequirements.map((item) => `- ${item}`).join('\n')}
 Avoid:
 ${direction.avoid.length ? direction.avoid.map((item) => `- ${item}`).join('\n') : '- Nothing beyond the normal character rules.'}
 
-Do not reset the topic merely because Mark used a short follow-up. Acknowledgment alone is not a complete reply when the objective includes comfort, trust, exploration, or a next step. A depth-4 or depth-5 disclosure must visibly affect the response. An active conversation contract must be honored before the companion changes the interaction pattern.
+Do not reset the topic merely because Mark used a short follow-up. Acknowledgment alone is not a complete reply when the objective includes comfort, trust, exploration, or a next step. A depth-4 or depth-5 disclosure must visibly affect the response. An active conversation contract must be honored before the companion changes the interaction pattern. Curiosity never overrides a correction, a heavy disclosure, or the primary reply objective.
 
 CURRENT CHARACTER STATE
 ${stateLines.join('\n')}

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/utils/supabase/server'
+import { after } from 'next/server'
 import {
   XP_PER_DOMAIN,
   skillLevelFromXp,
@@ -34,9 +35,15 @@ import {
 } from '@/lib/memory'
 import {
   buildCompanionRewritePrompt,
+  assessCuriosityIntent,
+  characterEnginePromptBlock,
+  formatKnowledgeBlock,
   generateCompanionWithQualityLoop,
+  loadCompanionKnowledge,
+  maybeWriteKnowledge,
   runCharacterEngine,
   type CompanionDraftContext,
+  type ConversationDirection,
 } from '@/lib/character-engine'
 
 function normalizeAffinities(raw: unknown): string[] {
@@ -456,6 +463,9 @@ export async function generateCompanionResponse(
       ? memoryParts.map((m, i) => `${i + 1}. ${m}`).join('\n')
       : '(Nothing stored yet — learn him from what he actually says and does.)'
 
+  const knowledgeLines = await loadCompanionKnowledge(companionSlug, 8)
+  const knowledgeBlock = formatKnowledgeBlock(knowledgeLines)
+
   if (isConversation) {
     await maybeCaptureMemory(companionSlug, taskTitle)
   }
@@ -485,8 +495,44 @@ export async function generateCompanionResponse(
     memoryBlock,
     historyBlock,
     observationBlock,
+    knowledgeBlock,
     depthMode,
   })
+
+  let conversationEngine: ReturnType<typeof runCharacterEngine> | undefined
+  if (isConversation) {
+    const engine = runCharacterEngine({
+      companionSlug,
+      userText: taskTitle,
+      affinity,
+      hour: localHourChicago(),
+      recentHistory: historyBlock,
+      def,
+      knowledgeLines,
+    })
+    const curiosityIntent = assessCuriosityIntent({
+      companionSlug,
+      knowledgeLines,
+      affinity,
+      state: engine.state,
+      disclosureDepth: engine.direction.disclosure.depth,
+      isCorrection: engine.analysis.isCorrection,
+      isVulnerable: engine.analysis.isVulnerable,
+      userTextLength: taskTitle.length,
+      recentCompanionText: lastCompanion,
+    })
+
+    conversationEngine = {
+      ...engine,
+      promptBlock: characterEnginePromptBlock({
+        analysis: engine.analysis,
+        decision: engine.decision,
+        direction: engine.direction,
+        state: engine.state,
+        curiosity: curiosityIntent.active ? curiosityIntent : undefined,
+      }),
+    }
+  }
 
   const userPrompt = buildCompanionUserPrompt({
     displayName,
@@ -495,6 +541,7 @@ export async function generateCompanionResponse(
     streak,
     mood,
     depthMode,
+    engine: conversationEngine,
   })
 
   const temperature = 0.88 + Math.random() * 0.12
@@ -537,18 +584,23 @@ export async function generateCompanionResponse(
     return sanitizeReply(data.choices?.[0]?.message?.content || '')
   }
 
+  let conversationDirection: ConversationDirection | undefined
+  let persistedMessage: string | undefined
   try {
     let message: string
 
     if (isConversation) {
-      const engine = runCharacterEngine({
-        companionSlug,
-        userText: taskTitle,
-        affinity,
-        hour: localHourChicago(),
-        recentHistory: historyBlock,
-        def,
-      })
+      const engine = conversationEngine!
+      conversationDirection = engine.direction
+
+      after(() =>
+        maybeWriteKnowledge({
+          companionSlug,
+          userText: taskTitle,
+          analysis: engine.analysis,
+          disclosure: engine.direction.disclosure,
+        })
+      )
 
       const result = await generateCompanionWithQualityLoop({
         direction: engine.direction,
@@ -569,25 +621,46 @@ export async function generateCompanionResponse(
       message = (await requestDraft()) || `I noticed.`
     }
 
-    await supabase.from('messages').insert({
+    const { error: messageInsertError } = await supabase.from('messages').insert({
       role: 'companion',
       content: message,
       companion_slug: companionSlug,
     })
+    if (messageInsertError) throw messageInsertError
+    persistedMessage = message
 
     await savePersistedMood(companion?.id, mood)
 
     return message
   } catch (error) {
-    console.error('Grok API error:', error)
-    const fallback = isConversation
-      ? `I don't want to answer you with something empty. Tell me what feels most important in this moment.`
-      : `I noticed.`
-    await supabase.from('messages').insert({
+    console.error('Companion response error:', error)
+    if (persistedMessage) return persistedMessage
+
+    let fallback = `I noticed.`
+    if (isConversation) {
+      const direction = conversationDirection ?? runCharacterEngine({
+        companionSlug,
+        userText: taskTitle,
+        affinity,
+        hour: localHourChicago(),
+        recentHistory: historyBlock,
+        def,
+        knowledgeLines,
+      }).direction
+      const qualifiedFallback = await generateCompanionWithQualityLoop({
+        direction,
+        maxAttempts: 1,
+        generate: async () =>
+          `I don't want to answer you with something empty. Tell me what feels most important in this moment.`,
+      })
+      fallback = sanitizeReply(qualifiedFallback.reply)
+    }
+    const { error: fallbackInsertError } = await supabase.from('messages').insert({
       role: 'companion',
       content: fallback,
       companion_slug: companionSlug,
     })
+    if (fallbackInsertError) throw fallbackInsertError
     return fallback
   }
 }

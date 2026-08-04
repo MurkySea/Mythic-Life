@@ -1,7 +1,8 @@
 import type { CompanionDef } from '@/lib/companions'
-import { COMPANION_DEFS, relationshipStage } from '@/lib/companions'
+import { relationshipStage } from '@/lib/companions'
 import { characterProfilePrompt, getCharacterProfile } from '@/lib/characterStudio'
-import { qualityGatePrompt, runCharacterEngine } from '@/lib/character-engine'
+import { qualityGatePrompt } from '@/lib/character-engine'
+import type { ConversationDirection } from '@/lib/character-engine'
 
 const USER_NAME = 'Mark'
 
@@ -113,6 +114,7 @@ export function buildCompanionSystemPrompt(opts: {
   memoryBlock: string
   historyBlock: string
   observationBlock?: string
+  knowledgeBlock?: string
   depthMode?: boolean
 }): string {
   const {
@@ -123,6 +125,7 @@ export function buildCompanionSystemPrompt(opts: {
     memoryBlock,
     historyBlock,
     observationBlock = '(Nothing strong to notice yet.)',
+    knowledgeBlock = '(She is still learning him. No durable knowledge stored yet.)',
     depthMode = false,
   } = opts
 
@@ -131,6 +134,7 @@ export function buildCompanionSystemPrompt(opts: {
   const recentHistory = cleanHistoryBlock(historyBlock)
   const memories = cleanContextBlock(memoryBlock, 8)
   const observations = cleanContextBlock(observationBlock, 3)
+  const knowledge = cleanContextBlock(knowledgeBlock, 8)
 
   const character = def
     ? `Name: ${def.name} — ${def.title}
@@ -160,12 +164,17 @@ PRIORITY ORDER
 2. The Conversation Intent Engine and Character Engine v2 decision supplied in the user instruction.
 3. Your structured character profile and its preferred conversational instincts.
 4. The recent conversational thread.
-5. Relevant memory, used sparingly.
-6. Mood and fantasy-world flavor, used only when they genuinely fit.
+5. What she has earned knowledge of about him, used only when relevant.
+6. Relevant memory, used sparingly.
+7. Mood and fantasy-world flavor, used only when they genuinely fit.
 Never sacrifice a higher priority to demonstrate a lower one.
 
 CHARACTER FOUNDATION
-${character}
+${character}${
+    def?.slug === 'seraphine'
+      ? '\n\nCURIOSITY (TEMPERAMENT, NOT A MODE)\nShe is quietly curious about him: ordinary texture, what sits under the work, and what he does not volunteer. That curiosity is occasional soft interest, never interrogation, diagnosis, or a project.'
+      : ''
+  }
 
 CHARACTER STUDIO PROFILE
 ${characterProfilePrompt(profile, affinity)}
@@ -178,6 +187,9 @@ Your mood belongs to you. It is not evidence that Mark secretly feels the same w
 
 RECENT THREAD
 ${recentHistory}
+
+WHAT SHE KNOWS ABOUT HIM (EARNED, SPECIFIC)
+${knowledge}
 
 MEMORY — KNOW IT, DO NOT RECITE IT
 ${memories}
@@ -192,6 +204,7 @@ HARD RULES
 - Answer what Mark actually said before adding interpretation, advice, affection, fantasy flavor, or a question.
 - When Mark corrects your read of him, own it immediately and plainly. Do not defend, reinterpret, or continue the mistaken mood.
 - Do not assume hidden sadness, exhaustion, trauma, or conflict when his words do not support it.
+- Knowledge is background color, not a thesis. Use at most one earned fact when it genuinely fits, and do not repeatedly diagnose him from a stored pattern.
 - This is chat, not prose fiction. Never write third-person narration, stage directions, asterisks, camera language, or descriptions such as “she shifts,” “her gaze softens,” or “she moves closer.”
 - Do not invent touch, physical contact, shared nights, kisses, or sensual history. Romantic or sensual language follows explicit invitation and established context—not an ordinary greeting or work update.
 - ${lengthRule}
@@ -216,8 +229,10 @@ export function buildCompanionUserPrompt(opts: {
   streak?: number
   mood: Mood
   depthMode?: boolean
-  affinity?: number
-  recentHistory?: string
+  engine?: {
+    direction: ConversationDirection
+    promptBlock: string
+  }
 }): string {
   const {
     displayName,
@@ -226,8 +241,7 @@ export function buildCompanionUserPrompt(opts: {
     streak = 0,
     mood,
     depthMode = false,
-    affinity = 1,
-    recentHistory = '',
+    engine,
   } = opts
 
   const text = (triggerText || '').trim()
@@ -235,15 +249,7 @@ export function buildCompanionUserPrompt(opts: {
   const quick = text.length <= 45 && !depthMode
 
   if (isConversation) {
-    const def = COMPANION_DEFS.find((candidate) => candidate.name === displayName)
-    const engine = runCharacterEngine({
-      companionSlug: def?.slug || displayName.toLowerCase().replace(/\s+/g, '_'),
-      userText: text,
-      affinity,
-      hour: new Date().getHours(),
-      def,
-      recentHistory: cleanHistoryBlock(recentHistory),
-    })
+    if (!engine) throw new Error('Conversation prompt requires one Character Engine result.')
 
     const instructions = [
       'Respond to the literal message first.',
@@ -254,6 +260,7 @@ export function buildCompanionUserPrompt(opts: {
       depthMode ? 'He invited more depth; answer fully without becoming a speech.' : '',
       'Obey the Conversation Intent Engine and engine decision below. They are behavioral constraints, not text to quote.',
       'Do not add stage directions or third-person narration.',
+      'Do not rehash stored knowledge unless this turn is actually about it.',
     ]
       .filter(Boolean)
       .join(' ')

@@ -1,6 +1,7 @@
 # Rhythm Engine & Health Data Sync
 
-Updated 2026-07-27 (live-day policy).
+Updated 2026-07-27 (live-day policy).  
+**Source-of-truth note (2026-08-01):** see [`docs/RHYTHM-SOURCE-OF-TRUTH.md`](../../docs/RHYTHM-SOURCE-OF-TRUTH.md).
 
 ## Core Policy – Live Day
 
@@ -57,6 +58,8 @@ Provisional nights are **never** scored. Companions only notice (and Trust only 
 | < 4.5 h | Bad | –10 |
 
 Devoted companions still receive the patience multiplier (bad days only ~45 % damage).
+
+> **Note:** The live payload currently produced by `mythic_life_data` uses window-deviation contribution scoring (bed/wake windows around 11:00 PM / 7:30 AM). The duration table above is the relationship-facing pure engine. See the source-of-truth doc before changing either.
 
 ## Key pure functions (`lib/engines/health-sync.ts`)
 
