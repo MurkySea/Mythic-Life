@@ -80,7 +80,7 @@ export function scoreMemoryCandidate(opts: {
   let confidence = opts.analysis.confidence * 100
 
   if (explicitRememberRequest) {
-    importance += 18
+    importance = Math.max(82, importance + 18)
     confidence += 12
   }
   if (sourceText.length >= 80) importance += 4

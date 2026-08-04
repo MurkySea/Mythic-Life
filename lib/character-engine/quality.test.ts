@@ -65,6 +65,7 @@ describe('companion response quality gate', () => {
       direction: exhaustionDirection('Yeah, I’m just running on fumes'),
     })
 
+    expect(result.failures).toEqual([])
     expect(result.passed).toBe(true)
     expect(result.score).toBe(100)
   })
@@ -167,12 +168,13 @@ describe('companion response quality gate', () => {
     })
     const grounded = evaluateCompanionReply({
       reply:
-        'Growing up without affection is not a light answer. What part of that still follows you most?',
+        "Growing up without affection is not a light answer. I'm with you in it. What part of that still follows you most?",
       direction,
     })
 
     expect(hollow.passed).toBe(false)
     expect(hollow.failures.join(' ')).toMatch(/specific meaning|contract/)
+    expect(grounded.failures).toEqual([])
     expect(grounded.passed).toBe(true)
   })
 })

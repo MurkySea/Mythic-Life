@@ -41,7 +41,7 @@ describe('conversation director', () => {
     expect(direction.mode).toBe('problem_solving')
     expect(direction.clarificationNeeded).toBe(false)
     expect(direction.objectives).toEqual(expect.arrayContaining(['acknowledge', 'offer_next_step']))
-    expect(direction.goal).toContain('one small')
+    expect(direction.goal).toContain('one useful')
   })
 
   it('does not invent emotional weight for an ordinary standalone question', () => {

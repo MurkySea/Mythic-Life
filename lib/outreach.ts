@@ -1,4 +1,5 @@
 import { createClient } from '@/utils/supabase/server'
+import { createHash } from 'node:crypto'
 import { getCompanionDef } from '@/lib/companions'
 import { pushIfStillUnread } from '@/lib/reads'
 import { loadPlayerState } from '@/lib/player-state'
@@ -31,6 +32,31 @@ const ANCHOR_PING_MAX = 25
 
 /** Heavy emotional outreach — at most one of these per companion per day. */
 const HEAVY_OUTREACH_KINDS = ['missing_you', 'soft_love', 'curiosity'] as const
+
+export function heavyOutreachId(companionSlug: string, day: string): string {
+  const hex = createHash('sha256')
+    .update(`heavy-outreach:${companionSlug}:${day}`)
+    .digest('hex')
+  const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16)
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`
+}
+
+export function curiosityInitiationEligible(opts: {
+  companionSlug: string
+  hoursSilent: number
+  affinity: number
+  gapSeverity: number | null
+  hasHeavyOutreach: boolean
+}): boolean {
+  return (
+    opts.companionSlug === 'seraphine' &&
+    opts.hoursSilent >= CURIOSITY_SILENCE_HOURS &&
+    opts.affinity >= 4 &&
+    opts.gapSeverity !== null &&
+    opts.gapSeverity >= 0.4 &&
+    !opts.hasHeavyOutreach
+  )
+}
 
 export type OutreachKind =
   | 'task_reaction'
@@ -208,7 +234,11 @@ async function hasHeavyOutreachToday(companionSlug?: string): Promise<boolean> {
       q = q.eq('companion_slug', companionSlug)
     }
 
-    const { data } = await q
+    const { data, error } = await q
+    if (error) {
+      console.error('check heavy outreach', error)
+      return true
+    }
     return !!(data && data.length > 0)
   } catch {
     return false
@@ -356,11 +386,16 @@ async function completionsToday(): Promise<number> {
 
 async function hoursSinceLastContact(companionSlug: string): Promise<number> {
   const supabase = await createClient()
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('messages')
     .select('created_at, companion_slug')
     .order('created_at', { ascending: false })
     .limit(40)
+
+  if (error) {
+    console.error('load last companion contact', error)
+    return 0
+  }
 
   const thread = (data || []).filter((m) => {
     if (companionSlug === 'seraphine') {
@@ -384,7 +419,8 @@ export async function maybeScheduleCuriosityInitiation(): Promise<boolean> {
   const companionSlug = 'seraphine'
 
   // One heavy emotional outreach per companion per day
-  if (await hasHeavyOutreachToday(companionSlug)) return false
+  const hasHeavyOutreach = await hasHeavyOutreachToday(companionSlug)
+  if (hasHeavyOutreach) return false
 
   const affinity = await loadCompanionAffinity(companionSlug)
   // Forming band and above (matches curiosity gap model)
@@ -395,9 +431,11 @@ export async function maybeScheduleCuriosityInitiation(): Promise<boolean> {
 
   let knowledgeLines: string[] = []
   try {
-    knowledgeLines = await loadCompanionKnowledge(companionSlug, 8)
+    knowledgeLines = await loadCompanionKnowledge(companionSlug, 8, {
+      throwOnError: true,
+    })
   } catch {
-    knowledgeLines = []
+    return false
   }
 
   const gaps = computeKnowledgeGaps({
@@ -406,7 +444,18 @@ export async function maybeScheduleCuriosityInitiation(): Promise<boolean> {
     affinity,
   })
   const top = gaps[0]
-  if (!top || top.severity < 0.4) return false
+  if (!top) return false
+  if (
+    !curiosityInitiationEligible({
+      companionSlug,
+      hoursSilent: hours,
+      affinity,
+      gapSeverity: top.severity,
+      hasHeavyOutreach,
+    })
+  ) {
+    return false
+  }
 
   // Probability tilts with gap severity and closeness — not every quiet day
   let chance = CURIOSITY_INITIATION_BASE
@@ -440,7 +489,8 @@ export async function maybeScheduleCuriosityInitiation(): Promise<boolean> {
 
   const supabase = await createClient()
   try {
-    await supabase.from('scheduled_outreach').insert({
+    const { error } = await supabase.from('scheduled_outreach').insert({
+      id: heavyOutreachId(companionSlug, localYmd()),
       kind: 'curiosity',
       companion_slug: companionSlug,
       send_after: sendAfter,
@@ -455,6 +505,10 @@ export async function maybeScheduleCuriosityInitiation(): Promise<boolean> {
         affinity,
       },
     })
+    if (error) {
+      if (error.code !== '23505') console.error('schedule curiosity initiation', error)
+      return false
+    }
     return true
   } catch (e) {
     console.error('schedule curiosity initiation', e)
@@ -528,7 +582,8 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
 
   const supabase = await createClient()
   try {
-    await supabase.from('scheduled_outreach').insert({
+    const { error } = await supabase.from('scheduled_outreach').insert({
+      id: heavyOutreachId(pick.slug, localYmd()),
       kind,
       companion_slug: pick.slug,
       send_after: sendAfter,
@@ -539,6 +594,10 @@ export async function maybeScheduleMissingYou(): Promise<boolean> {
         hoursSilent: Math.round(hours),
       },
     })
+    if (error) {
+      if (error.code !== '23505') console.error('schedule missing_you', error)
+      return false
+    }
     return true
   } catch (e) {
     console.error('schedule missing_you', e)

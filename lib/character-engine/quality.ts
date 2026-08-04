@@ -22,7 +22,7 @@ const PRESENCE_MOVE =
 const FORWARD_MOVE =
   /\?|\b(?:stay|tell me|want to|you could|try|start with|let me|come|sit|rest|breathe|drink|eat|quiet|company|here with you|with me|we can|take your time|no rush|do not have to|don'?t have to)\b/i
 const SPECIFIC_STRAIN =
-  /\b(?:exhaust|deplet|fumes|drain|tired|rough|heavy|overwhelm|hurt|afraid|alone|work|day)\b/i
+  /\b(?:exhaust\w*|deplet\w*|fumes|drain\w*|tired|wired[ -]?tired|restless|finished|rough|heavy|overwhelm\w*|hurt|afraid|alone|work|day)\b/i
 const REFLECTIVE_ANCHOR =
   /\b(?:without|never|always|growing up|raised|affection|chosen|tolerated|earned|had to|couldn'?t|shouldn'?t|that kind of|what that does|what that taught|that teaches|love deficient|deficient)\b/i
 

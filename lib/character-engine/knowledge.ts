@@ -212,7 +212,7 @@ async function recentlyHasSimilar(
   const key = content.slice(0, 40).toLowerCase()
 
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('companion_memories')
       .select('content')
       .eq('companion_slug', companionSlug)
@@ -220,12 +220,15 @@ async function recentlyHasSimilar(
       .gte('created_at', since)
       .limit(40)
 
+    if (error) throw error
+
     return (data || []).some((row) => {
       const parsed = parseKnowledgeContent(row.content || '')
       return parsed.text.toLowerCase().includes(key) || key.includes(parsed.text.slice(0, 40).toLowerCase())
     })
-  } catch {
-    return false
+  } catch (e) {
+    console.error('recentlyHasSimilar failed', e)
+    return true
   }
 }
 
@@ -249,11 +252,12 @@ export async function maybeWriteKnowledge(opts: {
 
   const supabase = await createClient()
   try {
-    await supabase.from('companion_memories').insert({
+    const { error } = await supabase.from('companion_memories').insert({
       companion_slug: opts.companionSlug,
       content: encodeKnowledge(candidate),
       source: 'knowledge',
     })
+    if (error) throw error
     return candidate
   } catch (e) {
     console.error('maybeWriteKnowledge failed', e)
@@ -267,18 +271,21 @@ export async function maybeWriteKnowledge(opts: {
  */
 export async function loadCompanionKnowledge(
   companionSlug: string,
-  limit = 8
+  limit = 8,
+  options: { throwOnError?: boolean } = {}
 ): Promise<string[]> {
   const supabase = await createClient()
 
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('companion_memories')
       .select('content, created_at, source')
       .eq('companion_slug', companionSlug)
       .eq('source', 'knowledge')
       .order('created_at', { ascending: false })
       .limit(40)
+
+    if (error) throw error
 
     if (!data || data.length === 0) return []
 
@@ -314,6 +321,7 @@ export async function loadCompanionKnowledge(
     return selected
   } catch (e) {
     console.error('loadCompanionKnowledge failed', e)
+    if (options.throwOnError) throw e
     return []
   }
 }
