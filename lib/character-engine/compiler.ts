@@ -6,6 +6,8 @@ import type {
 } from '@/lib/character-engine/types'
 import type { CuriosityIntent } from '@/lib/character-engine/curiosity'
 import { formatCuriosityBlock } from '@/lib/character-engine/curiosity'
+import type { AttentionIntent } from '@/lib/character-engine/attention'
+import { formatAttentionBlock } from '@/lib/character-engine/attention'
 
 export function characterEnginePromptBlock(opts: {
   analysis: CharacterAnalysis
@@ -13,8 +15,9 @@ export function characterEnginePromptBlock(opts: {
   direction: ConversationDirection
   state?: CharacterState
   curiosity?: CuriosityIntent
+  attention?: AttentionIntent
 }): string {
-  const { analysis, decision, direction, state, curiosity } = opts
+  const { analysis, decision, direction, state, curiosity, attention } = opts
   const stateLines = state
     ? [
         `Mood: ${state.mood}`,
@@ -40,6 +43,9 @@ export function characterEnginePromptBlock(opts: {
 
   const curiositySection = curiosity
     ? `\nCURIOSITY ABOUT HIM\n${formatCuriosityBlock(curiosity)}\n`
+    : ''
+  const attentionSection = attention?.active
+    ? `\nEVIDENCE OF ATTENTION\n${formatAttentionBlock(attention)}\n`
     : ''
 
   return `CHARACTER ENGINE V2
@@ -76,6 +82,7 @@ ${contractLines.join('\n')}
 RESPONSE OBLIGATIONS
 ${direction.obligations.length ? direction.obligations.map((item) => `- ${item}`).join('\n') : '- No special obligation beyond the reply objectives.'}
 ${curiositySection}
+${attentionSection}
 CONVERSATION MOMENTUM
 Active topic: ${direction.momentum.activeTopic}
 Active for approximately ${direction.momentum.activeTurns} user turns

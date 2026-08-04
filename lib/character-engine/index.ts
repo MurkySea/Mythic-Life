@@ -48,6 +48,7 @@ export function runCharacterEngine(opts: CharacterEngineContext & {
 }
 
 export * from '@/lib/character-engine/analysis'
+export * from '@/lib/character-engine/attention'
 export * from '@/lib/character-engine/compiler'
 export * from '@/lib/character-engine/curiosity'
 export * from '@/lib/character-engine/decision'

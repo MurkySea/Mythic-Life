@@ -35,6 +35,7 @@ import {
 } from '@/lib/memory'
 import {
   buildCompanionRewritePrompt,
+  assessEvidenceOfAttention,
   assessCuriosityIntent,
   characterEnginePromptBlock,
   formatKnowledgeBlock,
@@ -521,6 +522,17 @@ export async function generateCompanionResponse(
       userTextLength: taskTitle.length,
       recentCompanionText: lastCompanion,
     })
+    const attentionIntent = assessEvidenceOfAttention({
+      companionSlug,
+      currentUserMessage: taskTitle,
+      recentHistory: historyBlock,
+      knowledgeLines,
+      analysis: engine.analysis,
+      direction: engine.direction,
+      affinity,
+      state: engine.state,
+      curiosityActive: curiosityIntent.active,
+    })
 
     conversationEngine = {
       ...engine,
@@ -530,6 +542,7 @@ export async function generateCompanionResponse(
         direction: engine.direction,
         state: engine.state,
         curiosity: curiosityIntent.active ? curiosityIntent : undefined,
+        attention: attentionIntent.active ? attentionIntent : undefined,
       }),
     }
   }
