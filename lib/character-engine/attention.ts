@@ -43,7 +43,8 @@ const STOP_WORDS = new Set([
 ])
 
 const CONCEPTS: Array<{ id: string; forms: RegExp[] }> = [
-  { id: 'client', forms: [/\bclients?\b/i, /\bclient work\b/i] },
+  { id: 'onboarding', forms: [/\bonboarding\b/i] },
+  { id: 'retirement', forms: [/\bretirement\b/i] },
   { id: 'homestead', forms: [/\bhomestead\b/i, /\bacreage\b/i] },
   { id: 'piano', forms: [/\bpiano\b/i, /\bmusic practice\b/i, /\bpractic(?:e|ing) music\b/i] },
   { id: 'fishing', forms: [/\bfish(?:ing)?\b/i] },
@@ -193,13 +194,22 @@ export function assessEvidenceOfAttention(opts: {
     evidence: string
     evidenceType: AttentionEvidenceType
     relevance: number
+    recency: number
   }> = []
 
-  for (const evidence of priorUserTurns(opts.recentTurns, opts.currentUserMessage)) {
+  for (const [recency, evidence] of priorUserTurns(
+    opts.recentTurns,
+    opts.currentUserMessage
+  ).entries()) {
     if (isSensitiveEvidence(evidence)) continue
     const relevance = relevanceBetween(opts.currentUserMessage, evidence)
     if (relevance >= MIN_RELEVANCE) {
-      candidates.push({ evidence, evidenceType: 'unfinished_thread', relevance: relevance + 0.08 })
+      candidates.push({
+        evidence,
+        evidenceType: 'unfinished_thread',
+        relevance: relevance + 0.08,
+        recency,
+      })
     }
   }
 
@@ -219,11 +229,14 @@ export function assessEvidenceOfAttention(opts: {
         evidence,
         evidenceType,
         relevance,
+        recency: -1,
       })
     }
   }
 
-  candidates.sort((a, b) => b.relevance - a.relevance)
+  candidates.sort(
+    (a, b) => b.relevance - a.relevance || b.recency - a.recency
+  )
   const selected = candidates[0]
   if (!selected) return inactive
 

@@ -94,7 +94,7 @@ describe('Seraphine evidence of attention', () => {
   })
 
   it.each([
-    ['A client called today.', 'Client work matters to him.'],
+    ['The client onboarding shipped.', 'Client onboarding matters to him.'],
     ['I played piano tonight.', 'He prefers music practice when he needs room to think.'],
     ['I am tired and need sleep.', 'He prefers rest before pushing through exhaustion.'],
     ['Lauren and I had dinner.', 'His wife Lauren matters deeply to him.'],
@@ -107,6 +107,64 @@ describe('Seraphine evidence of attention', () => {
     )
 
     expect(intent.active).toBe(true)
+  })
+
+  it.each([
+    [
+      'A client canceled our meeting today.',
+      'I helped a client prepare for retirement.',
+    ],
+    ['A client called me this afternoon.', 'Client work matters to him.'],
+  ])('keeps generic client-only overlap inactive: %s', (message, evidence) => {
+    const intent = assessEvidenceOfAttention(
+      contextFor(message, {
+        recentTurns: [{ role: 'companion', content: 'I am listening.' }],
+        knowledgeLines: [evidence],
+      })
+    )
+
+    expect(intent.active).toBe(false)
+  })
+
+  it.each([
+    [
+      'The client onboarding build finally shipped.',
+      'I was rebuilding the client onboarding flow.',
+    ],
+    [
+      'The retirement client signed the paperwork.',
+      'I was helping that retirement client finish the plan.',
+    ],
+  ])('activates client evidence with specific shared context: %s', (message, evidence) => {
+    const intent = assessEvidenceOfAttention(
+      contextFor(message, {
+        recentTurns: [
+          { role: 'user', content: evidence },
+          { role: 'companion', content: 'I remember you working through it.' },
+        ],
+      })
+    )
+
+    expect(intent.active).toBe(true)
+    expect(intent.evidence).toBe(evidence)
+  })
+
+  it('prefers the most recent prior-user evidence when relevance scores tie', () => {
+    const older = 'I mapped the client onboarding flow.'
+    const newer = 'I simplified the client onboarding flow.'
+    const intent = assessEvidenceOfAttention(
+      contextFor('The client onboarding flow changed today.', {
+        recentTurns: [
+          { role: 'user', content: older },
+          { role: 'companion', content: 'You were taking it one piece at a time.' },
+          { role: 'user', content: newer },
+          { role: 'companion', content: 'That sounds cleaner.' },
+        ],
+      })
+    )
+
+    expect(intent.active).toBe(true)
+    expect(intent.evidence).toBe(newer)
   })
 
   it('does not diagnose a current turn from a stored pattern', () => {
