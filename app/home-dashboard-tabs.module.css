@@ -79,6 +79,10 @@
   animation: reveal 180ms ease-out;
 }
 
+.panel[hidden] {
+  display: none;
+}
+
 @keyframes reveal {
   from {
     opacity: 0;
@@ -97,8 +101,8 @@
   }
 
   .tab {
-    gap: 0.28rem;
-    font-size: 0.48rem;
+    gap: 0.24rem;
+    font-size: 0.52rem;
     letter-spacing: 0.06em;
   }
 
