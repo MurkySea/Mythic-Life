@@ -27,6 +27,11 @@ export type AttentionIntent = {
   recommendedMove: AttentionMove | null
 }
 
+export type AttentionRecentTurn = {
+  role: 'user' | 'companion'
+  content: string
+}
+
 const MIN_RELEVANCE = 0.58
 const MIN_OCCURRENCE_CHANCE = 0.12
 const MAX_OCCURRENCE_CHANCE = 0.28
@@ -37,18 +42,20 @@ const STOP_WORDS = new Set([
   'very', 'want', 'were', 'what', 'when', 'with', 'would', 'your',
 ])
 
-const CONCEPTS: RegExp[] = [
-  /\b(?:faith|god|church|prayer|worship|bible)\b/i,
-  /\b(?:build|building|business|homestead|legacy|system|client)\b/i,
-  /\b(?:rest|sleep|tired|break|recover|recharge)\b/i,
-  /\b(?:win|winning|success|worthy|character|become)\b/i,
-  /\b(?:family|wife|lauren|marriage|home)\b/i,
-  /\b(?:music|piano|fishing|favorite|prefer)\b/i,
-  /\b(?:learn|study|read|knowledge|book)\b/i,
+const CONCEPTS: Array<{ id: string; forms: RegExp[] }> = [
+  { id: 'client', forms: [/\bclients?\b/i, /\bclient work\b/i] },
+  { id: 'homestead', forms: [/\bhomestead\b/i, /\bacreage\b/i] },
+  { id: 'piano', forms: [/\bpiano\b/i, /\bmusic practice\b/i, /\bpractic(?:e|ing) music\b/i] },
+  { id: 'fishing', forms: [/\bfish(?:ing)?\b/i] },
+  { id: 'sleep_rest', forms: [/\bsleep\b/i, /\btired\b/i, /\brest(?:ed|ing)?\b/i] },
+  { id: 'spouse', forms: [/\bwif(?:e|ey)\b/i, /\blauren\b/i, /\bmy marriage\b/i] },
+  { id: 'book_reading', forms: [/\bbooks?\b/i, /\bread(?:ing)?\b/i] },
+  { id: 'study', forms: [/\bstud(?:y|ied|ying)\b/i] },
+  { id: 'faith', forms: [/\bfaith\b/i, /\bprayer\b/i, /\bchurch\b/i] },
+  { id: 'winning', forms: [/\bwin(?:ning)?\b/i, /\bworthy of winning\b/i] },
 ]
 
-const STICKY_PATTERN =
-  /\b(?:go(?:es)? quiet|withdraw|pressure alone|chosen|tolerated|trauma|abandon|nobody sees|receiving care)\b/i
+const RECENT_COMPANION_WINDOW = 4
 
 function normalize(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
@@ -68,33 +75,48 @@ function relevanceBetween(current: string, evidence: string): number {
   const evidenceTokens = tokens(evidence)
   const overlap = [...currentTokens].filter((token) => evidenceTokens.has(token)).length
   const lexical = overlap / Math.max(2, Math.min(currentTokens.size, evidenceTokens.size))
+  const currentConcepts = new Set(
+    CONCEPTS.filter((concept) => concept.forms.some((form) => form.test(current))).map(
+      (concept) => concept.id
+    )
+  )
   const conceptMatch = CONCEPTS.some(
-    (concept) => concept.test(current) && concept.test(evidence)
+    (concept) =>
+      currentConcepts.has(concept.id) &&
+      concept.forms.some((form) => form.test(evidence))
   )
 
   return Math.min(1, Math.max(lexical, conceptMatch ? 0.72 + overlap * 0.05 : 0))
 }
 
-function latestCompanionReply(history: string): string {
-  return normalize(history)
-    ? history
-        .split('\n')
-        .map((line) => line.trim())
-        .filter((line) => line && !/^(?:mark|user)\s*:/i.test(line))
-        .map((line) => line.replace(/^[^:]+:\s*/, ''))
-        .at(-1) ?? ''
-    : ''
+function recentCompanionReplies(turns: AttentionRecentTurn[]): string[] {
+  return turns
+    .filter((turn) => turn.role === 'companion')
+    .slice(-RECENT_COMPANION_WINDOW)
+    .map((turn) => normalize(turn.content))
 }
 
-function priorUserTurns(history: string, current: string): string[] {
+function priorUserTurns(turns: AttentionRecentTurn[], current: string): string[] {
   const normalizedCurrent = normalize(current).toLowerCase()
-  return history
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => /^(?:mark|user)\s*:/i.test(line))
-    .map((line) => normalize(line.replace(/^(?:mark|user)\s*:\s*/i, '')))
+  return turns
+    .filter((turn) => turn.role === 'user')
+    .map((turn) => normalize(turn.content))
     .filter((line) => line && line.toLowerCase() !== normalizedCurrent)
     .slice(-8)
+}
+
+function isSensitiveEvidence(text: string): boolean {
+  const value = normalize(text).toLowerCase()
+  return [
+    /\btrauma(?:tic)?\b|\bchildhood\b.{0,30}\b(?:abuse|abused|violence|hurt)\b|\babus(?:e|ed)\b.{0,30}\b(?:child|young)\b/,
+    /\bsexual\b.{0,20}\babus(?:e|ed)\b|\bmolest(?:ed|ation)?\b|\b(?:sexual )?assault(?:ed)?\b|\brap(?:e|ed)\b/,
+    /\b(?:chosen|choose him)\b.{0,30}\b(?:tolerated|wanted|loved)\b|\b(?:tolerated|settled for)\b.{0,30}\bchosen\b/,
+    /\b(?:useful|valuable|worth(?:y)?)\b.{0,45}\b(?:help|helping|carry|doing|serve)\b|\b(?:help|helping|carry|doing|serve)\b.{0,45}\b(?:useful|valuable|worth(?:y)?)\b|\bneeded only\b/,
+    /\babandon(?:ed|ment)?\b|\b(?:fear|afraid|scared)\b.{0,30}\b(?:people )?leav(?:e|ing)\b|\beveryone leaves\b/,
+    /\b(?:carry|carrying|handle|handling)\b.{0,35}\b(?:pressure|everything|it)\b.{0,20}\balone\b|\bpressure\b.{0,35}\balone\b/,
+    /\bnot (?:feel )?(?:wanted|loved)\b|\bunwanted\b|\bunlovable\b|\bwithout (?:love|affection)\b/,
+    /\b(?:hard|difficult|struggle|struggles|cannot|can't)\b.{0,35}\b(?:receive|receiving|accept)\b.{0,25}\b(?:love|care|affection)\b|\breceiving (?:love|care)\b.{0,25}\b(?:hard|difficult)\b/,
+  ].some((pattern) => pattern.test(value))
 }
 
 function knowledgeType(line: string, current: string): AttentionEvidenceType {
@@ -104,6 +126,7 @@ function knowledgeType(line: string, current: string): AttentionEvidenceType {
   if (/\b(?:important|matters|faith|value|worthy|success)\b/i.test(line)) {
     return 'remembered_value'
   }
+  if (/\b(?:wife|lauren|marriage)\b/i.test(line)) return 'remembered_value'
   if (/\b(?:always|never|tends|defaults|pattern|carries|every detail)\b/i.test(line)) {
     return 'recognized_pattern'
   }
@@ -140,7 +163,7 @@ function explicitRequestOrQuestion(text: string, analysis: CharacterAnalysis): b
 export function assessEvidenceOfAttention(opts: {
   companionSlug: string
   currentUserMessage: string
-  recentHistory: string
+  recentTurns: AttentionRecentTurn[]
   knowledgeLines: string[]
   analysis: CharacterAnalysis
   direction: ConversationDirection
@@ -160,22 +183,20 @@ export function assessEvidenceOfAttention(opts: {
 
   if (opts.companionSlug !== 'seraphine') return inactive
   if (opts.analysis.isCorrection) return inactive
-  if (opts.direction.disclosure.depth >= 4 && opts.direction.disclosure.requiresPause) {
-    return inactive
-  }
+  if (opts.direction.disclosure.depth >= 4) return inactive
   if (opts.direction.contract?.active) return inactive
   if (opts.curiosityActive) return inactive
   if (explicitRequestOrQuestion(opts.currentUserMessage, opts.analysis)) return inactive
 
-  const latestReply = latestCompanionReply(opts.recentHistory)
+  const recentReplies = recentCompanionReplies(opts.recentTurns)
   const candidates: Array<{
     evidence: string
     evidenceType: AttentionEvidenceType
     relevance: number
   }> = []
 
-  for (const evidence of priorUserTurns(opts.recentHistory, opts.currentUserMessage)) {
-    if (STICKY_PATTERN.test(evidence)) continue
+  for (const evidence of priorUserTurns(opts.recentTurns, opts.currentUserMessage)) {
+    if (isSensitiveEvidence(evidence)) continue
     const relevance = relevanceBetween(opts.currentUserMessage, evidence)
     if (relevance >= MIN_RELEVANCE) {
       candidates.push({ evidence, evidenceType: 'unfinished_thread', relevance: relevance + 0.08 })
@@ -184,7 +205,7 @@ export function assessEvidenceOfAttention(opts: {
 
   for (const rawLine of opts.knowledgeLines) {
     const evidence = normalize(rawLine)
-    if (!evidence || STICKY_PATTERN.test(evidence)) continue
+    if (!evidence || isSensitiveEvidence(evidence)) continue
     const relevance = relevanceBetween(opts.currentUserMessage, evidence)
     if (relevance >= MIN_RELEVANCE) {
       const evidenceType = knowledgeType(evidence, opts.currentUserMessage)
@@ -206,8 +227,14 @@ export function assessEvidenceOfAttention(opts: {
   const selected = candidates[0]
   if (!selected) return inactive
 
-  // Do not repeat an idea Seraphine just used, even if it remains relevant.
-  if (relevanceBetween(latestReply, selected.evidence) >= MIN_RELEVANCE) return inactive
+  // Do not repeat an idea Seraphine used in her recent reply window.
+  if (
+    recentReplies.some(
+      (reply) => relevanceBetween(reply, selected.evidence) >= MIN_RELEVANCE
+    )
+  ) {
+    return inactive
+  }
 
   const relevance = Math.min(1, selected.relevance)
   const affinityLift = Math.min(0.04, Math.max(0, opts.affinity - 4) * 0.005)

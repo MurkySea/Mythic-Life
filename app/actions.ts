@@ -525,7 +525,10 @@ export async function generateCompanionResponse(
     const attentionIntent = assessEvidenceOfAttention({
       companionSlug,
       currentUserMessage: taskTitle,
-      recentHistory: historyBlock,
+      recentTurns: thread.map((message) => ({
+        role: message.role === 'user' ? 'user' : 'companion',
+        content: message.content,
+      })),
       knowledgeLines,
       analysis: engine.analysis,
       direction: engine.direction,
