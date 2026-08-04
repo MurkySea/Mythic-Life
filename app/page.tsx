@@ -118,7 +118,7 @@ export default async function HubPage() {
               {moduleGroups.map((group) => <div className={styles.directoryGroup} key={group.label}>
                 <h2>{group.label}</h2>
                 <div className={styles.moduleGrid}>
-                  {group.modules.map((module) => { const content = <div className={styles.moduleContent}><div className={styles.iconHalo}><MythicIcon name={module.icon} size={20} /></div><span><p>{module.label}</p><small>{module.sub}</small>{module.developer && <em>Developer tool</em>}</span></div>; return module.disabled ? <div key={module.label} className={`${styles.moduleCard} ${styles.disabled}`} aria-disabled="true">{content}</div> : <Link key={module.label} href={module.href} className={styles.moduleCard}>{content}</Link> })}
+                  {group.modules.map((module) => { const content = <div className={styles.moduleContent}><div className={styles.iconHalo}><MythicIcon name={module.icon} size={20} /></div><div className={styles.moduleText}><p>{module.label}</p><small>{module.sub}</small>{module.developer && <em>Developer tool</em>}</div></div>; return module.disabled ? <div key={module.label} className={`${styles.moduleCard} ${styles.disabled}`} aria-disabled="true">{content}</div> : <Link key={module.label} href={module.href} className={styles.moduleCard}>{content}</Link> })}
                 </div>
               </div>)}
             </section>

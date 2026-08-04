@@ -596,6 +596,7 @@
   letter-spacing: 0.045em;
   text-transform: uppercase;
 }
+.moduleText { min-width: 0; }
 .moduleContent small { margin-top: 0.24rem; color: #777f8b; font-size: 0.49rem; line-height: 1.25; }
 .moduleContent small,
 .moduleContent em { display: block; }
