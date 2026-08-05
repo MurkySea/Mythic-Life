@@ -148,7 +148,7 @@ export default async function TaskGeneratorPage({
 
       <p className="text-sm text-zinc-500 leading-relaxed px-0.5">
         Complexity lives here. Every task is written to the Master List. Check
-        "Add to Today" (on by default) if you also want it on the Today surface.
+        &ldquo;Add to Today&rdquo; (on by default) if you also want it on the Today surface.
       </p>
 
       <form action={addTask} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-4 space-y-4">

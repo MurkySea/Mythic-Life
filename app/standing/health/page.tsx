@@ -49,7 +49,7 @@ function ladderContribution(tier: DailyTier | string | undefined): number {
  * Handles midnight wrap for bedtime.
  */
 function minutesPastLateEdge(actualMin: number, lateEdge: number): number {
-  let delta = (actualMin - lateEdge + 1440) % 1440
+  const delta = (actualMin - lateEdge + 1440) % 1440
   if (delta > 720) return 0 // actually earlier on the clock
   return delta
 }

@@ -60,7 +60,10 @@ export default function CampfireComposer({
   const router = useRouter()
   const [draft, setDraft] = useState('')
   const [waitingReply, setWaitingReply] = useState(false)
-  const [speechSupported, setSpeechSupported] = useState(false)
+  const [speechSupported] = useState(() =>
+    typeof window !== 'undefined' &&
+    Boolean((window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition)
+  )
   const [isListening, setIsListening] = useState(false)
   const [voiceError, setVoiceError] = useState<string | null>(null)
   const [, startTransition] = useTransition()
@@ -70,9 +73,6 @@ export default function CampfireComposer({
   const tone = companionTone(companionSlug)
 
   useEffect(() => {
-    const speechWindow = window as SpeechWindow
-    setSpeechSupported(Boolean(speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition))
-
     return () => {
       if (pollRef.current) clearInterval(pollRef.current)
       recognitionRef.current?.stop()

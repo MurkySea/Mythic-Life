@@ -12,12 +12,19 @@ import { createClient } from '@/utils/supabase/server'
 export async function markConversationRead(companionSlug: string): Promise<boolean> {
   const supabase = await createClient()
   try {
+    const { data: auth, error: authError } = await supabase.auth.getUser()
+    if (authError || !auth.user) {
+      console.error('markConversationRead auth error', authError)
+      return false
+    }
+
     const { error } = await supabase.from('conversation_reads').upsert(
       {
+        user_id: auth.user.id,
         companion_slug: companionSlug,
         last_read_at: new Date().toISOString(),
       },
-      { onConflict: 'companion_slug' }
+      { onConflict: 'user_id,companion_slug' }
     )
     if (error) {
       console.error('markConversationRead upsert error', companionSlug, error)

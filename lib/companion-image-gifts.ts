@@ -214,9 +214,12 @@ async function authorCompanionImageIntent({
       })
 
       const rawBody = await response.text()
-      let data: Record<string, any> = {}
+      let data: {
+        choices?: Array<{ message?: { content?: string } }>
+        error?: { message?: string }
+      } = {}
       try {
-        data = JSON.parse(rawBody) as Record<string, any>
+        data = JSON.parse(rawBody) as typeof data
       } catch {
         console.error('companion image intent returned non-JSON response', response.status)
       }
@@ -226,7 +229,7 @@ async function authorCompanionImageIntent({
           'companion image intent generation failed',
           model,
           response.status,
-          data?.error?.message || rawBody.slice(0, 300)
+          data.error?.message || rawBody.slice(0, 300)
         )
         continue
       }
@@ -300,9 +303,12 @@ async function generateImageFromPrompt(prompt: string): Promise<GeneratedImage |
       })
 
       const rawBody = await response.text()
-      let data: Record<string, any> = {}
+      let data: {
+        data?: Array<{ url?: string; file_output?: { public_url?: string } }>
+        error?: { message?: string }
+      } = {}
       try {
-        data = JSON.parse(rawBody) as Record<string, any>
+        data = JSON.parse(rawBody) as typeof data
       } catch {
         console.error('companion image API returned non-JSON response', model, response.status)
       }

@@ -1,10 +1,7 @@
 import type { CSSProperties } from 'react'
 import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
-import { revalidatePath } from 'next/cache'
-import { after } from 'next/server'
 import Link from 'next/link'
 import { ensureRecurringTasks } from './actions'
-import { maybeCompanionCheckIn } from './check-in-actions'
 import { claimDailyMuster } from './muster-actions'
 import { readFeedback } from '@/lib/feedback'
 import FeedbackBanners from '@/components/FeedbackBanners'
@@ -31,8 +28,6 @@ export default async function HubPage() {
   if (!hasSupabaseEnv()) return <main className={styles.home}><section className={styles.hero}><p className={styles.eyebrow}>Mythic Life</p><h1 className={styles.name}>Configuration needed</h1></section></main>
 
   await Promise.all([ensureRecurringTasks(), activateApprovedCampfireTasks()])
-  after(async () => { try { await maybeCompanionCheckIn(); revalidatePath('/messages') } catch (e) { console.error('check-in failed', e) } })
-
   const feedback = await readFeedback()
   const [standingUi, standingRow, activeGoals] = await Promise.all([fetchLatestStanding(), loadStanding(), listGoals({ status: 'active' })])
   const supabase = await createClient()

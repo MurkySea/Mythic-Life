@@ -231,7 +231,7 @@ export function getResponseEffect(
     },
   }
 
-  let effect = { ...table[choice] }
+  const effect = { ...table[choice] }
 
   // Intensity amplifies the emotional stakes
   if (intensity === 'urgent') {
@@ -302,7 +302,7 @@ export function getInteractionEffect(
     },
   }
 
-  let effect = { ...table[type] }
+  const effect = { ...table[type] }
 
   // Romantic and vulnerable hits land harder when already close
   if ((type === 'romantic' || type === 'vulnerable') && stage === 'Devoted') {

@@ -328,8 +328,13 @@ export function pickPrimarySleepSession(sessions: RawSession[]): RawSession | nu
   return scored[0].s
 }
 
-export function extractSleep(metrics: any[]): ExtractedSleep | null {
-  const sleepMetric = metrics.find((m: any) => m.name === 'sleep_analysis')
+type HealthMetric = {
+  name?: string
+  data?: Array<RawSession & { qty?: number }>
+}
+
+export function extractSleep(metrics: HealthMetric[]): ExtractedSleep | null {
+  const sleepMetric = metrics.find((metric) => metric.name === 'sleep_analysis')
   if (!sleepMetric?.data?.length) return null
 
   const sessions = sleepMetric.data as RawSession[]
@@ -354,8 +359,8 @@ export function extractSleep(metrics: any[]): ExtractedSleep | null {
   }
 }
 
-export function extractNumber(metrics: any[], name: string): number | null {
-  const metric = metrics.find((m: any) => m.name === name)
+export function extractNumber(metrics: HealthMetric[], name: string): number | null {
+  const metric = metrics.find((entry) => entry.name === name)
   if (!metric?.data?.length) return null
   const last = metric.data[metric.data.length - 1]
   return typeof last.qty === 'number' ? last.qty : null
@@ -429,8 +434,13 @@ export interface RhythmExportResult {
   message: string
 }
 
-export function processHealthExportPayload(body: any): RhythmExportResult | null {
-  const metrics = body?.data?.metrics || []
+export function processHealthExportPayload(body: unknown): RhythmExportResult | null {
+  const metrics =
+    typeof body === 'object' && body && 'data' in body &&
+    typeof body.data === 'object' && body.data && 'metrics' in body.data &&
+    Array.isArray(body.data.metrics)
+      ? body.data.metrics as HealthMetric[]
+      : []
   const sleep = extractSleep(metrics)
   if (!sleep?.bedtime || !sleep?.wakeTime) return null
 

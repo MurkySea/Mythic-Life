@@ -8,7 +8,7 @@ import { GATE_COOKIE, isValidGateToken, passwordConfigured } from '@/lib/gate'
  * 1. Optional SITE_PASSWORD gate.
  * 2. Supabase owner authentication for every private app route.
  */
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   if (

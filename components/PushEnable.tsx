@@ -16,24 +16,19 @@ function urlBase64ToUint8Array(base64String: string) {
 type Status = 'loading' | 'unsupported' | 'need-keys' | 'off' | 'on' | 'denied' | 'error'
 
 export default function PushEnable() {
-  const [status, setStatus] = useState<Status>('loading')
-  const [message, setMessage] = useState('')
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
+  const [status, setStatus] = useState<Status>(() => {
+    if (typeof window === 'undefined') return 'loading'
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported'
+    if (!publicKey) return 'need-keys'
+    if (Notification.permission === 'denied') return 'denied'
+    return 'loading'
+  })
+  const [message, setMessage] = useState('')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-      setStatus('unsupported')
-      return
-    }
-    if (!publicKey) {
-      setStatus('need-keys')
-      return
-    }
-    if (Notification.permission === 'denied') {
-      setStatus('denied')
-      return
-    }
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !publicKey || Notification.permission === 'denied') return
 
     navigator.serviceWorker
       .register('/sw.js')
