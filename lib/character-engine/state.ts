@@ -3,6 +3,7 @@ import type {
   CharacterRelationship,
   CharacterState,
 } from '@/lib/character-engine/types'
+import { initializeDailyState, localDateFor, rollDailyBoundary } from '@/lib/character-engine/living'
 
 const clamp = (value: number, min = 0, max = 100) => Math.max(min, Math.min(max, value))
 
@@ -17,15 +18,32 @@ function defaultRelationship(): CharacterRelationship {
     romance: 0,
     conflict: 0,
     sharedHistory: 0,
+    emotionalSafety: 20,
+    vulnerability: 10,
+    familiarity: 10,
+    protectiveness: 15,
+    independence: 75,
+    dependency: 5,
+    conflictStrain: 0,
+    repairStatus: 'clear',
   }
 }
 
 export function createDefaultCharacterState(
   companionSlug: string,
-  now = new Date()
+  now = new Date(),
+  timeZone = 'America/Chicago'
 ): CharacterState {
+  const daily = initializeDailyState({ companionSlug, now, timeZone })
+  const innerLife = companionSlug === 'seraphine'
+    ? [
+        { id: 'herb-garden', kind: 'project' as const, label: 'learning which herbs survive her impatient gardening', status: 'active' as const, salience: 62, updatedAt: now.toISOString() },
+        { id: 'book-notes', kind: 'interest' as const, label: 'finishing a difficult book and forming an opinion about its ending', status: 'active' as const, salience: 54, updatedAt: now.toISOString() },
+        { id: 'plain-truth', kind: 'goal' as const, label: 'practicing saying what she means without hiding behind beautiful language', status: 'active' as const, salience: 68, updatedAt: now.toISOString() },
+      ]
+    : [{ id: 'personal-craft', kind: 'project' as const, label: 'developing a craft rooted in their own values', status: 'active' as const, salience: 50, updatedAt: now.toISOString() }]
   return {
-    version: 1,
+    version: 2,
     companionSlug,
     mood: 'warm',
     energy: 72,
@@ -36,6 +54,21 @@ export function createDefaultCharacterState(
     unresolvedThoughts: [],
     recentEvents: [],
     relationship: defaultRelationship(),
+    evolvingIdentity: {
+      confidence: 50, assertiveness: 42, initiative: 45, playfulness: 35,
+      humorComfort: 32, emotionalOpenness: 38, resilience: 55, independence: 72,
+      optimism: 58, willingnessToDisagree: 42, willingnessToAskForHelp: 28,
+      affectionComfort: 35,
+    },
+    innerLife,
+    daily: { ...daily, activeInterestIds: innerLife.map((item) => item.id).slice(0, 3) },
+    scene: {
+      id: `${companionSlug}:${localDateFor(now, timeZone)}`,
+      startedAt: now.toISOString(), localDate: localDateFor(now, timeZone),
+      topicIds: [], unresolvedObligations: [], status: 'active',
+    },
+    recentMotifs: [],
+    reflections: [],
     updatedAt: now.toISOString(),
   }
 }
@@ -53,9 +86,11 @@ export function moodFromState(state: CharacterState): CharacterMood {
 
 export function advanceCharacterState(
   current: CharacterState,
-  opts: { now?: Date; elapsedHours?: number } = {}
+  opts: { now?: Date; elapsedHours?: number; timeZone?: string } = {}
 ): CharacterState {
   const now = opts.now ?? new Date()
+  const boundary = rollDailyBoundary(current, now, opts.timeZone)
+  current = boundary.state
   const elapsedHours = Math.max(0, opts.elapsedHours ?? 24)
   const recovery = Math.min(18, elapsedHours * 0.55)
   const thoughtDecay = Math.min(0.18, elapsedHours / 240)
@@ -76,6 +111,7 @@ export function advanceCharacterState(
     relationship: {
       ...current.relationship,
       conflict: clamp(current.relationship.conflict - Math.min(8, elapsedHours * 0.1)),
+      conflictStrain: clamp(current.relationship.conflictStrain - Math.min(6, elapsedHours * 0.08)),
     },
     updatedAt: now.toISOString(),
   }
@@ -107,12 +143,16 @@ export function applyConversationOutcome(
     relationship.trust = clamp(relationship.trust + 1.2)
     relationship.comfort = clamp(relationship.comfort + 1)
     relationship.admiration = clamp(relationship.admiration + 0.6)
+    relationship.emotionalSafety = clamp(relationship.emotionalSafety + 0.8)
+    relationship.familiarity = clamp(relationship.familiarity + 0.5)
     stress = clamp(stress - 2)
   }
 
   if (outcome.vulnerable) {
     relationship.trust = clamp(relationship.trust + 1.5)
     relationship.comfort = clamp(relationship.comfort + 1.2)
+    relationship.vulnerability = clamp(relationship.vulnerability + 0.8)
+    relationship.emotionalSafety = clamp(relationship.emotionalSafety + 1)
     energy = clamp(energy - 1)
   }
 
@@ -128,12 +168,15 @@ export function applyConversationOutcome(
   if (outcome.conflict) {
     relationship.conflict = clamp(relationship.conflict + 8)
     relationship.comfort = clamp(relationship.comfort - 2)
+    relationship.conflictStrain = clamp(relationship.conflictStrain + 8)
+    relationship.repairStatus = 'needed'
     stress = clamp(stress + 6)
   }
 
   if (outcome.correction) {
     confidence = clamp(confidence - 2)
     relationship.respect = clamp(relationship.respect + 0.8)
+    relationship.repairStatus = 'in_progress'
   }
 
   const next: CharacterState = {
@@ -142,6 +185,14 @@ export function applyConversationOutcome(
     stress,
     confidence,
     relationship,
+    evolvingIdentity: {
+      ...current.evolvingIdentity,
+      confidence: clamp(current.evolvingIdentity.confidence + (outcome.positive ? 0.15 : outcome.conflict ? -0.12 : 0)),
+      resilience: clamp(current.evolvingIdentity.resilience + (outcome.correction ? 0.08 : 0)),
+      playfulness: clamp(current.evolvingIdentity.playfulness + (outcome.playful ? 0.18 : 0)),
+      emotionalOpenness: clamp(current.evolvingIdentity.emotionalOpenness + (outcome.vulnerable ? 0.12 : 0)),
+      willingnessToDisagree: clamp(current.evolvingIdentity.willingnessToDisagree + (outcome.correction ? 0.06 : 0)),
+    },
     recentEvents: outcome.event
       ? [...current.recentEvents, outcome.event].slice(-8)
       : current.recentEvents,

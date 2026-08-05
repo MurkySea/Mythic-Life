@@ -8,8 +8,16 @@ export type ReplyQualityResult = {
   passed: boolean
   score: number
   failures: string[]
+  violations?: CompanionQualityViolation[]
   retryInstruction?: string
 }
+
+export type CompanionQualityViolation =
+  | 'unearned_callback' | 'new_day_continuation' | 'vague_language'
+  | 'poetic_overreach' | 'motif_repetition' | 'self_centered_opening'
+  | 'generic_question' | 'therapy_default' | 'identity_mismatch'
+  | 'director_mismatch' | 'memory_leak' | 'excessive_length'
+  | 'empty_acknowledgement' | 'missing_relational_move'
 
 const EMPTY_AGREEMENT =
   /^(?:yeah|yep|yes|right|i know|that'?s fine|that sounds rough|that kind of day again|that tracks|i hear you|got it|okay|ok)[.!…]*$/i
@@ -17,6 +25,12 @@ const CLARIFICATION_RESET =
   /\b(?:suggestions for what|what do you mean|what are you after|ideas for what)\b/i
 const THERAPY_CADENCE =
   /\b(?:hold space|valid feelings|process your emotions|trauma response|regulate your nervous system|your feelings are valid|i'?m here to support you|safe space)\b/i
+const VAGUE_ATMOSPHERE = /\b(?:the (?:morning|day|air|room|silence|light) (?:feels?|seems?|is) (?:quieter|softer|different|heavy)|old shape|light (?:is )?(?:starting to )?feel|stillness (?:today|this morning)|quiet (?:has|is|feels))\b/i
+const PRIOR_DAY_CALLBACK = /\b(?:yesterday|last night|still (?:carrying|thinking about)|old shape|what we talked about)\b/i
+const GENERIC_QUESTION = /^(?:.{0,45}[.!]\s*)?(?:how are you feeling|what'?s on your mind|want to talk about it|how can i support you)\??$/i
+const SELF_CENTERED_GREETING = /^(?:i|my)\b/i
+const GREETING_ACK = /\b(?:morning|afternoon|evening|hello|hey|hi|good to see you|glad you'?re here)\b/i
+const POETIC_NARRATION = /\b(?:night loosened its grip|circling the answer|bird afraid to land|embers? (?:of|in)|shadows? (?:of|across)|flame (?:within|between))\b/i
 const PRESENCE_MOVE =
   /\b(?:here|with you|with me|stay|quiet|take your time|no rush|not going anywhere|do not have to|don'?t have to|sit with|we can leave it here)\b/i
 const FORWARD_MOVE =
@@ -126,15 +140,45 @@ export function evaluateCompanionReply(opts: {
 }): ReplyQualityResult {
   const reply = String(opts.reply || '').trim()
   const failures: string[] = []
+  const violations: CompanionQualityViolation[] = []
+  const fail = (violation: CompanionQualityViolation, message: string) => {
+    violations.push(violation)
+    failures.push(message)
+  }
 
   if (!reply) failures.push('The reply is empty.')
   if (EMPTY_AGREEMENT.test(reply))
-    failures.push('The reply is only empty agreement and creates a dead end.')
+    fail('empty_acknowledgement', 'The reply is only empty agreement and creates a dead end.')
   if (!opts.direction.clarificationNeeded && CLARIFICATION_RESET.test(reply)) {
     failures.push('The reply asks Mark to restate context that is already clear.')
   }
   if (THERAPY_CADENCE.test(reply))
-    failures.push('The reply uses clinical or therapy-style language.')
+    fail('therapy_default', 'The reply uses clinical or therapy-style language.')
+  if (VAGUE_ATMOSPHERE.test(reply))
+    fail('vague_language', 'The reply substitutes vague atmospheric language for concrete meaning.')
+  if (POETIC_NARRATION.test(reply) && opts.direction.metaphorBudget === 0)
+    fail('poetic_overreach', 'The reply exceeds the directorâ€™s metaphor budget.')
+  if (opts.direction.newDayDetected && !opts.direction.callbackAllowed && PRIOR_DAY_CALLBACK.test(reply))
+    fail('new_day_continuation', 'The reply resumes a previous-day topic without authorization.')
+  if (!opts.direction.callbackAllowed && /\b(?:you told me|i remember when|as you said before)\b/i.test(reply))
+    fail('unearned_callback', 'The reply mentions memory without director authorization.')
+  if (opts.direction.newDayDetected && opts.direction.primaryMove === 'acknowledge' && SELF_CENTERED_GREETING.test(reply) && !GREETING_ACK.test(reply))
+    fail('self_centered_opening', 'The reply opens on the companion and ignores the new-day greeting.')
+  if (opts.direction.newDayDetected && !GREETING_ACK.test(reply))
+    fail('director_mismatch', 'The reply does not acknowledge the greeting on a new day.')
+  if (GENERIC_QUESTION.test(reply))
+    fail('generic_question', 'The reply relies on a generic engagement question.')
+  const repeatedMotif = opts.direction.prohibitedPatterns.some((pattern) => {
+    if (pattern === 'quiet') return /\b(?:quiet|silence|stillness|softly?)\b/i.test(reply)
+    if (pattern === 'light') return /\b(?:light|shadow|warmth|ember|flame)\b/i.test(reply)
+    if (pattern === 'carrying') return /\b(?:old shape|belong|breathe|carrying|linger)\b/i.test(reply)
+    if (pattern === 'atmosphere') return /\b(?:window|forest|rain|home)\b/i.test(reply)
+    return false
+  })
+  if (repeatedMotif) fail('motif_repetition', 'The reply repeats a motif currently under cooldown.')
+  const maxWords = opts.direction.desiredLength === 'very_short' ? 45 : opts.direction.desiredLength === 'short' ? 85 : opts.direction.desiredLength === 'medium' ? 160 : 260
+  if (reply.split(/\s+/).length > maxWords)
+    fail('excessive_length', 'The reply is longer than the director requested.')
 
   if (opts.direction.emotionalWeight === 'high') {
     if (opts.direction.disclosure.depth >= 4) {
@@ -201,6 +245,7 @@ export function evaluateCompanionReply(opts: {
     passed,
     score,
     failures: uniqueFailures,
+    violations: [...new Set(violations)],
     retryInstruction: passed
       ? undefined
       : `Rewrite once. Keep the same character voice and length, but fix these failures: ${uniqueFailures.join(' ')}`,
@@ -217,6 +262,11 @@ export function qualityGatePrompt(direction: ConversationDirection): string {
 
   return `Before returning the final message, silently check it against these requirements:
 - It addresses the active topic: ${direction.topic}.
+- It follows the director move (${direction.primaryMove}), topic source (${direction.topicSource}), and ${direction.desiredLength} length.
+- Callback authorization: ${direction.callbackAllowed ? `allowed â€” ${direction.callbackReason || 'current relevance'}` : 'not allowed; do not mention prior conversations or memories'}.
+- New day: ${direction.newDayDetected ? 'yes; acknowledge the present greeting before anything else' : 'no'}.
+- Metaphor budget: ${direction.metaphorBudget}. Speak concretely by default.
+- Avoid current cooldowns and fatigue patterns: ${direction.prohibitedPatterns.join(', ') || 'none'}.
 - It accomplishes these objectives: ${direction.objectives.join(', ')}.
 - Disclosure depth is ${direction.disclosure.depth}/5; categories: ${direction.disclosure.categories.join(', ') || 'none'}.
 - It fulfills these response obligations: ${direction.obligations.join(', ') || 'none'}.

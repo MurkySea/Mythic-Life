@@ -6,7 +6,10 @@ import type {
   DisclosureAssessment,
   ReplyObjective,
   ResponseObligation,
+  CharacterState,
+  CompanionMemory,
 } from '@/lib/character-engine/types'
+import { explicitlyRequestsCallback, isGenericGreeting, selectInnerLifeInitiative } from '@/lib/character-engine/living'
 
 type DirectorTurn = {
   role: 'user' | 'companion'
@@ -197,13 +200,20 @@ export function directConversation(opts: {
   userText: string
   recentHistory?: string
   analysis: CharacterAnalysis
+  state?: CharacterState
+  newDayDetected?: boolean
+  relevantMemories?: CompanionMemory[]
 }): ConversationDirection {
   const turns = parseHistory(opts.recentHistory || '')
   const latest = clean(opts.userText)
   const previousUserTurns = turns.filter((turn) => turn.role === 'user')
   const latestPreviousUser = previousUserTurns.at(-1)?.content || ''
   const earlierPreviousUser = previousUserTurns.at(-2)?.content || ''
-  const continuation = isBriefContinuation(latest)
+  const explicitCallback = explicitlyRequestsCallback(latest)
+  const openLoop = opts.relevantMemories?.find((memory) => memory.type === 'open_loop' && memory.unresolved)
+  const relevantMemory = opts.relevantMemories?.[0]
+  const callbackAllowed = explicitCallback || Boolean(openLoop) || Boolean(relevantMemory)
+  const continuation = !opts.newDayDetected && isBriefContinuation(latest)
 
   const carriedContext = continuation
     ? [earlierPreviousUser, latestPreviousUser, latest].filter(Boolean).join(' ')
@@ -211,7 +221,10 @@ export function directConversation(opts: {
 
   const contextText = carriedContext || latest
   const topicSource = continuation && latestPreviousUser ? `${earlierPreviousUser} ${latestPreviousUser}` : latest
-  const topic = detectTopic(topicSource)
+  const initiative = opts.state ? selectInnerLifeInitiative(opts.state, latest) : undefined
+  const greeting = isGenericGreeting(latest)
+  const selectedTopic = greeting && !callbackAllowed ? initiative : undefined
+  const topic = selectedTopic || (openLoop ? openLoop.summary : detectTopic(topicSource))
   const mode = modeFor(opts.analysis, contextText)
   const disclosure = assessDisclosure(latest)
   const contract = detectContract(turns, latest)
@@ -259,8 +272,22 @@ export function directConversation(opts: {
 
   const activeTurns = Math.max(1, Math.min(6, previousUserTurns.length + 1))
 
+  const primaryMove = opts.analysis.isCorrection ? 'acknowledge'
+    : opts.analysis.isExplicitAdviceRequest ? 'answer'
+      : disclosure.depth >= 4 ? 'support'
+        : greeting && selectedTopic ? 'share'
+          : greeting ? 'acknowledge'
+            : opts.analysis.asksQuestion ? 'answer'
+              : mode === 'play' ? 'tease'
+                : emotionallyLoaded ? 'support' : 'acknowledge'
+  const desiredLength = greeting || latest.length <= 45 ? 'very_short'
+    : disclosure.depth >= 4 || opts.analysis.isExplicitAdviceRequest ? 'medium' : 'short'
+  const topicSourceKind = openLoop ? 'open_loop'
+    : selectedTopic ? 'inner_life'
+      : relevantMemory ? 'memory' : 'user_message'
+
   return {
-    version: 3,
+    version: 4,
     mode,
     topic,
     continuity: continuation ? 'continuation' : 'new_turn',
@@ -305,5 +332,21 @@ export function directConversation(opts: {
       'Stay concise and in character.',
     ].filter(Boolean),
     avoid,
+    responseObligation: goal,
+    primaryMove,
+    topicSource: topicSourceKind,
+    selectedTopic,
+    callbackAllowed,
+    callbackReason: explicitCallback ? 'Mark explicitly referenced prior context.' : openLoop ? 'A genuine unresolved obligation remains.' : relevantMemory ? 'A memory is directly relevant to Mark\'s current topic.' : undefined,
+    desiredLength,
+    metaphorBudget: disclosure.depth >= 4 && (opts.state?.daily.poeticLanguageBudget ?? 0) > 0 ? 1 : 0,
+    prohibitedPatterns: [
+      ...(opts.state?.daily.priorDayTopicCooldowns ?? []),
+      ...(opts.state?.recentMotifs ?? []),
+      !callbackAllowed ? 'callbacks to previous-day topics' : '',
+      greeting ? 'self-centered emotional monologue before acknowledging the greeting' : '',
+    ].filter(Boolean),
+    newDayDetected: Boolean(opts.newDayDetected),
+    sceneStatus: opts.state?.scene.status ?? 'active',
   }
 }

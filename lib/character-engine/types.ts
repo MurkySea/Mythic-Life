@@ -94,7 +94,7 @@ export type ResponseObligation =
   | 'fulfill_conversation_contract'
 
 export type ConversationDirection = {
-  version: 3
+  version: 4
   mode: ConversationMode
   topic: string
   continuity: 'new_turn' | 'continuation'
@@ -109,6 +109,17 @@ export type ConversationDirection = {
   clarificationNeeded: boolean
   responseRequirements: string[]
   avoid: string[]
+  responseObligation: string
+  primaryMove: 'answer' | 'acknowledge' | 'ask' | 'share' | 'tease' | 'support' | 'challenge' | 'reassure' | 'invite' | 'remain_brief'
+  topicSource: 'user_message' | 'current_scene' | 'inner_life' | 'relationship' | 'memory' | 'open_loop'
+  selectedTopic?: string
+  callbackAllowed: boolean
+  callbackReason?: string
+  desiredLength: 'very_short' | 'short' | 'medium' | 'long'
+  metaphorBudget: 0 | 1 | 2
+  prohibitedPatterns: string[]
+  newDayDetected: boolean
+  sceneStatus: SceneStatus
 }
 
 export type CharacterRelationship = {
@@ -121,6 +132,80 @@ export type CharacterRelationship = {
   romance: number
   conflict: number
   sharedHistory: number
+  emotionalSafety: number
+  vulnerability: number
+  familiarity: number
+  protectiveness: number
+  independence: number
+  dependency: number
+  conflictStrain: number
+  repairStatus: 'clear' | 'needed' | 'in_progress'
+}
+
+export type EvolvingIdentity = {
+  confidence: number
+  assertiveness: number
+  initiative: number
+  playfulness: number
+  humorComfort: number
+  emotionalOpenness: number
+  resilience: number
+  independence: number
+  optimism: number
+  willingnessToDisagree: number
+  willingnessToAskForHelp: number
+  affectionComfort: number
+}
+
+export type InnerLifeItem = {
+  id: string
+  kind: 'interest' | 'project' | 'question' | 'goal' | 'discovery' | 'opinion' | 'preference'
+  label: string
+  status: 'active' | 'paused' | 'completed'
+  salience: number
+  updatedAt: string
+}
+
+export type DailyInteractionIntent =
+  | 'curiosity' | 'playfulness' | 'support' | 'companionship' | 'shared_activity'
+  | 'reflection' | 'challenge' | 'celebration' | 'romance' | 'restraint'
+
+export type CompanionDailyState = {
+  localDate: string
+  mood: { valence: number; energy: number; stress: number; loneliness: number; curiosity: number; confidence: number }
+  primaryIntent: DailyInteractionIntent
+  secondaryIntent?: DailyInteractionIntent
+  activeThoughts: string[]
+  activeInterestIds: string[]
+  personalGoalFocus?: string
+  socialEnergy: number
+  conversationalAppetite: number
+  poeticLanguageBudget: number
+  priorDayTopicCooldowns: string[]
+  initializedAt: string
+}
+
+export type SceneStatus = 'active' | 'paused' | 'resolved' | 'abandoned' | 'archived'
+
+export type CompanionScene = {
+  id: string
+  startedAt: string
+  localDate: string
+  topicIds: string[]
+  emotionalPurpose?: string
+  unresolvedObligations: string[]
+  status: SceneStatus
+  closedAt?: string
+}
+
+export type DailyReflection = {
+  date: string
+  meaningfulEvents: Array<{ summary: string; significance: number }>
+  relationshipEffects: Partial<Record<keyof CharacterRelationship, number | string>>
+  identityEffects: Partial<Record<keyof EvolvingIdentity, number>>
+  unresolvedLoops: string[]
+  topicsToAvoidAutoContinuing: string[]
+  createdAt: string
 }
 
 export type CharacterGoal = {
@@ -140,7 +225,7 @@ export type CharacterThought = {
 }
 
 export type CharacterState = {
-  version: 1
+  version: 2
   companionSlug: string
   mood: CharacterMood
   energy: number
@@ -151,7 +236,33 @@ export type CharacterState = {
   unresolvedThoughts: CharacterThought[]
   recentEvents: string[]
   relationship: CharacterRelationship
+  evolvingIdentity: EvolvingIdentity
+  innerLife: InnerLifeItem[]
+  daily: CompanionDailyState
+  scene: CompanionScene
+  recentMotifs: string[]
+  reflections: DailyReflection[]
   updatedAt: string
+}
+
+export type CompanionMemoryType = 'factual' | 'episodic' | 'relational' | 'growth' | 'open_loop' | 'sensitive'
+
+export type CompanionMemory = {
+  id: string
+  type: CompanionMemoryType
+  summary: string
+  createdAt: string
+  lastRelevantAt?: string
+  salience: number
+  emotionalWeight: number
+  sensitivity: number
+  unresolved: boolean
+  people: string[]
+  topics: string[]
+  sourceInteractionId?: string
+  retrievalCount: number
+  lastRetrievedAt?: string
+  cooldownUntil?: string
 }
 
 export type CharacterAnalysis = {
@@ -183,4 +294,8 @@ export type CharacterEngineContext = {
   hour: number
   state?: CharacterState
   recentHistory?: string
+  now?: Date
+  timeZone?: string
+  memories?: CompanionMemory[]
+  random?: () => number
 }
