@@ -203,11 +203,11 @@ function parseKnowledgeContent(raw: string): { text: string; importance: number 
 
 /** Skip near-duplicates written in the last few days. */
 async function recentlyHasSimilar(
+  supabase: Awaited<ReturnType<typeof createClient>>,
   companionSlug: string,
   content: string,
   withinHours = 72
 ): Promise<boolean> {
-  const supabase = await createClient()
   const since = new Date(Date.now() - withinHours * 60 * 60 * 1000).toISOString()
   const key = content.slice(0, 40).toLowerCase()
 
@@ -246,13 +246,28 @@ export async function maybeWriteKnowledge(opts: {
   if (!candidate) return null
   if (candidate.confidence < 0.6) return null
 
-  if (await recentlyHasSimilar(opts.companionSlug, candidate.content)) {
+  const supabase = await createClient()
+  const { data: auth, error: authError } = await supabase.auth.getUser()
+  if (authError || !auth.user) {
+    console.error('maybeWriteKnowledge auth failed', authError)
     return null
   }
 
-  const supabase = await createClient()
+  if (await recentlyHasSimilar(supabase, opts.companionSlug, candidate.content)) {
+    return null
+  }
+
   try {
+    const { data: companion, error: companionError } = await supabase
+      .from('companion')
+      .select('id')
+      .eq('slug', opts.companionSlug)
+      .maybeSingle()
+    if (companionError) throw companionError
+
     const { error } = await supabase.from('companion_memories').insert({
+      user_id: auth.user.id,
+      companion_id: companion?.id ?? null,
       companion_slug: opts.companionSlug,
       content: encodeKnowledge(candidate),
       source: 'knowledge',

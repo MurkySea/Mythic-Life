@@ -256,7 +256,7 @@ export type HitResult = 'hit' | 'near' | 'miss'
 function minutesLate(actual: number, deadline: number): number {
   // How many minutes past the deadline? 0 if at or before.
   // Handles midnight wrap.
-  let delta = (actual - deadline + 1440) % 1440
+  const delta = (actual - deadline + 1440) % 1440
   // If delta is large (> 12h), actual is actually earlier on the clock
   if (delta > 720) return 0 // treated as earlier → not late
   return delta

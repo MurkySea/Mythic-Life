@@ -69,10 +69,12 @@ export default function ChatThread({
   const tone = companionTone(companionSlug)
   const visibleMessages = messages.filter((message) => message.role !== 'system')
   const lastVisible = visibleMessages[visibleMessages.length - 1]
+  const lastVisibleId = lastVisible?.id
+  const lastVisibleRole = lastVisible?.role
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
-  }, [visibleMessages.length, lastVisible?.id])
+  }, [visibleMessages.length, lastVisibleId])
 
   useEffect(() => {
     let cancelled = false
@@ -105,13 +107,13 @@ export default function ChatThread({
   }, [companionSlug])
 
   useEffect(() => {
-    if (!lastVisible || lastVisible.role !== 'companion') return
+    if (!lastVisibleId || lastVisibleRole !== 'companion') return
     fetch('/api/read', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ companion_slug: companionSlug }),
     }).catch(() => {})
-  }, [visibleMessages.length, lastVisible?.id, lastVisible?.role, companionSlug])
+  }, [lastVisibleId, lastVisibleRole, companionSlug])
 
   if (visibleMessages.length === 0) {
     return (
