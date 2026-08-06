@@ -45,6 +45,12 @@ import {
   runCharacterEngine,
   type CompanionDraftContext,
   type ConversationDirection,
+  hydrateCharacterState,
+  applyConversationOutcome,
+  legacyMemory,
+  localDateFor,
+  type CharacterState,
+  type CompanionMemory,
 } from '@/lib/character-engine'
 
 function normalizeAffinities(raw: unknown): string[] {
@@ -96,6 +102,117 @@ function localHourChicago(): number {
     }).format(new Date()),
     10
   )
+}
+
+async function loadLiveCharacterState(opts: {
+  companionSlug: string
+  companionId?: string
+  now: Date
+}): Promise<{ state: CharacterState; rowId?: string; userId?: string }> {
+  const supabase = await createClient()
+  const { data: auth } = await supabase.auth.getUser()
+  const userId = auth.user?.id
+  if (!userId || !opts.companionId) {
+    return { state: hydrateCharacterState({ companionSlug: opts.companionSlug, now: opts.now }) }
+  }
+  try {
+    const { data, error } = await supabase
+      .from('companion_character_state')
+      .select('id, companion_slug, state, updated_at')
+      .eq('user_id', userId)
+      .eq('companion_id', opts.companionId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    if (error) throw error
+    return {
+      state: hydrateCharacterState({ companionSlug: opts.companionSlug, row: data, now: opts.now }),
+      rowId: data?.id,
+      userId,
+    }
+  } catch (error) {
+    console.error('load companion character state failed', error)
+    return { state: hydrateCharacterState({ companionSlug: opts.companionSlug, now: opts.now }), userId }
+  }
+}
+
+async function saveLiveCharacterState(opts: {
+  state: CharacterState
+  companionId?: string
+  rowId?: string
+  userId?: string
+}): Promise<void> {
+  if (!opts.companionId || !opts.userId) return
+  const supabase = await createClient()
+  const payload = {
+    user_id: opts.userId,
+    companion_id: opts.companionId,
+    companion_slug: opts.state.companionSlug,
+    state: opts.state,
+    version: opts.state.version,
+    updated_at: opts.state.updatedAt,
+  }
+  try {
+    const result = opts.rowId
+      ? await supabase.from('companion_character_state').update(payload).eq('id', opts.rowId)
+      : await supabase.from('companion_character_state').insert(payload)
+    if (result.error) throw result.error
+  } catch (error) {
+    console.error('save companion character state failed', error)
+  }
+}
+
+async function loadStructuredCompanionMemories(companionSlug: string, now: Date): Promise<CompanionMemory[]> {
+  const supabase = await createClient()
+  try {
+    const { data, error } = await supabase
+      .from('companion_memories')
+      .select('id, kind, summary, content, created_at, importance_score, confidence_score, tags, expires_at, last_recalled_at, recall_count')
+      .eq('companion_slug', companionSlug)
+      .or(`expires_at.is.null,expires_at.gt.${now.toISOString()}`)
+      .order('importance_score', { ascending: false })
+      .limit(40)
+    if (error) throw error
+    return (data || []).map((row, index) => {
+      const summary = String(row.summary || row.content || '').trim()
+      const adapted = legacyMemory(summary, index, new Date(row.created_at || now))
+      const kind = ['factual', 'episodic', 'relational', 'growth', 'open_loop', 'sensitive'].includes(row.kind)
+        ? row.kind as CompanionMemory['type']
+        : adapted.type
+      const recalledAt = row.last_recalled_at ? new Date(row.last_recalled_at) : null
+      const recallCount = Math.max(0, Number(row.recall_count || 0))
+      return {
+        ...adapted,
+        id: String(row.id || adapted.id),
+        type: kind,
+        salience: Math.max(0, Math.min(1, Number(row.importance_score ?? 55) / 100)),
+        emotionalWeight: Math.max(0, Math.min(1, Number(row.confidence_score ?? 45) / 100)),
+        topics: Array.isArray(row.tags) ? row.tags.map(String).slice(0, 8) : adapted.topics,
+        unresolved: kind === 'open_loop' ? true : adapted.unresolved,
+        retrievalCount: recallCount,
+        lastRetrievedAt: recalledAt?.toISOString(),
+        cooldownUntil: recalledAt && recallCount > 0
+          ? new Date(recalledAt.getTime() + Math.min(7, recallCount) * 12 * 3_600_000).toISOString()
+          : undefined,
+      }
+    }).filter((memory) => memory.summary)
+  } catch (error) {
+    console.error('load structured companion memories failed', error)
+    return []
+  }
+}
+
+async function markMemoriesRetrieved(memories: CompanionMemory[], now: Date): Promise<void> {
+  const persistedMemories = memories.filter((memory) => !memory.id.startsWith('scene-open-loop-'))
+  if (!persistedMemories.length) return
+  const supabase = await createClient()
+  await Promise.all(persistedMemories.map(async (memory) => {
+    const { error } = await supabase.from('companion_memories').update({
+      last_recalled_at: now.toISOString(),
+      recall_count: memory.retrievalCount + 1,
+    }).eq('id', memory.id)
+    if (error) console.error('mark companion memory retrieved failed', { id: memory.id, error })
+  }))
 }
 
 export async function updateTaskStreak(taskId: string) {
@@ -409,6 +526,7 @@ export async function generateCompanionResponse(
   }
 
   const supabase = await createClient()
+  const now = new Date()
   const def = getCompanionDef(companionSlug)
 
   const { data: companion } = await supabase
@@ -422,7 +540,7 @@ export async function generateCompanionResponse(
 
   const { data: recent } = await supabase
     .from('messages')
-    .select('role, content, companion_slug')
+    .select('role, content, companion_slug, created_at')
     .order('created_at', { ascending: false })
     .limit(24)
 
@@ -435,9 +553,15 @@ export async function generateCompanionResponse(
     })
     .reverse()
 
+  const today = localDateFor(now, 'America/Chicago')
+  const currentDayThread = thread.filter((message) => {
+    const createdAt = new Date(message.created_at || 0)
+    return Number.isFinite(createdAt.getTime()) && localDateFor(createdAt, 'America/Chicago') === today
+  })
+
   const historyBlock =
-    thread.length > 0
-      ? thread
+    currentDayThread.length > 0
+      ? currentDayThread
           .map((m) => {
             const who = m.role === 'user' ? USER_NAME : displayName
             return `${who}: ${m.content}`
@@ -449,20 +573,10 @@ export async function generateCompanionResponse(
   const lastCompanion = [...thread].reverse().find((m) => m.role === 'companion')?.content
 
   const memoryLines = await loadBestMemories(companionSlug, 14)
+  const structuredMemories = await loadStructuredCompanionMemories(companionSlug, now)
   const absenceNote = await maybeRecordAbsence(companionSlug)
   const privateFocus = companionPrivateFocus(companionSlug)
   const curiosity = curiosityWhenThin(memoryLines.length)
-
-  const memoryParts: string[] = []
-  if (memoryLines.length > 0) memoryParts.push(...memoryLines)
-  if (absenceNote) memoryParts.push(`(Private) ${absenceNote}`)
-  if (curiosity) memoryParts.push(`(Curiosity) ${curiosity}`)
-  memoryParts.push(`(Her private focus) ${privateFocus}`)
-
-  const memoryBlock =
-    memoryParts.length > 0
-      ? memoryParts.map((m, i) => `${i + 1}. ${m}`).join('\n')
-      : '(Nothing stored yet — learn him from what he actually says and does.)'
 
   const knowledgeLines = await loadCompanionKnowledge(companionSlug, 8)
   const knowledgeBlock = formatKnowledgeBlock(knowledgeLines)
@@ -488,19 +602,12 @@ export async function generateCompanionResponse(
   const maxTokens = replyTokenBudget(taskTitle, affinity)
   const depthMode = maxTokens >= 220
 
-  const systemRules = buildCompanionSystemPrompt({
-    def,
-    displayName,
-    affinity,
-    mood,
-    memoryBlock,
-    historyBlock,
-    observationBlock,
-    knowledgeBlock,
-    depthMode,
-  })
-
   let conversationEngine: ReturnType<typeof runCharacterEngine> | undefined
+  const persistedState = await loadLiveCharacterState({
+    companionSlug,
+    companionId: companion?.id,
+    now,
+  })
   if (isConversation) {
     const engine = runCharacterEngine({
       companionSlug,
@@ -510,6 +617,12 @@ export async function generateCompanionResponse(
       recentHistory: historyBlock,
       def,
       knowledgeLines,
+      state: persistedState.state,
+      now,
+      timeZone: 'America/Chicago',
+      memories: structuredMemories.length
+        ? structuredMemories
+        : memoryLines.map((line, index) => legacyMemory(line, index, now)),
     })
     const curiosityIntent = assessCuriosityIntent({
       companionSlug,
@@ -549,6 +662,28 @@ export async function generateCompanionResponse(
       }),
     }
   }
+
+  const memoryParts: string[] = []
+  if (isConversation) {
+    memoryParts.push(...(conversationEngine?.relevantMemories.map((memory) => memory.summary) ?? []))
+  } else {
+    memoryParts.push(...memoryLines.slice(0, 3))
+    if (absenceNote) memoryParts.push(`(Private) ${absenceNote}`)
+    if (curiosity) memoryParts.push(`(Curiosity) ${curiosity}`)
+    memoryParts.push(`(Her private focus) ${privateFocus}`)
+  }
+  const memoryBlock = memoryParts.length
+    ? `${memoryParts.map((memory, index) => `${index + 1}. ${memory}`).join('\n')}\n\nSelected relevant context only. Use it naturally; frame it as a callback only when the director authorizes a callback.`
+    : '(No memory selected for this turn. Do not introduce a callback.)'
+
+  const effectiveKnowledgeBlock = isConversation
+    ? '(No broad knowledge dump. Use only the director-selected memory or explicit curiosity/attention target.)'
+    : knowledgeBlock
+
+  const systemRules = buildCompanionSystemPrompt({
+    def, displayName, affinity, mood, memoryBlock, historyBlock,
+    observationBlock, knowledgeBlock: effectiveKnowledgeBlock, depthMode,
+  })
 
   const userPrompt = buildCompanionUserPrompt({
     displayName,
@@ -602,6 +737,7 @@ export async function generateCompanionResponse(
 
   let conversationDirection: ConversationDirection | undefined
   let persistedMessage: string | undefined
+  let nextCharacterState: CharacterState | undefined
   try {
     let message: string
 
@@ -625,6 +761,25 @@ export async function generateCompanionResponse(
       })
 
       message = sanitizeReply(result.reply)
+      const advanced = applyConversationOutcome(engine.state, {
+        positive: true,
+        correction: engine.analysis.isCorrection,
+        vulnerable: engine.analysis.isVulnerable,
+        playful: engine.analysis.intent === 'humor',
+        romantic: engine.analysis.isExplicitFlirtation,
+        event: `Conversation about ${engine.direction.topic}`,
+      }, now)
+      nextCharacterState = {
+        ...advanced,
+        scene: {
+          ...advanced.scene,
+          status: 'active',
+          topicIds: [...new Set([...advanced.scene.topicIds, engine.direction.topic])].slice(-6),
+          unresolvedObligations: engine.direction.callbackAllowed && engine.direction.topicSource === 'open_loop'
+            ? advanced.scene.unresolvedObligations
+            : [],
+        },
+      }
 
       if (result.attempts > 1) {
         console.info('Companion reply rewritten by quality loop', {
@@ -633,6 +788,11 @@ export async function generateCompanionResponse(
           score: result.quality.score,
         })
       }
+      console.info('Companion pipeline decision', {
+        ...engine.observability,
+        qualityViolations: result.quality.violations ?? [],
+        rewriteAttempted: result.attempts > 1,
+      })
     } else {
       message = (await requestDraft()) || `I noticed.`
     }
@@ -644,6 +804,18 @@ export async function generateCompanionResponse(
     })
     if (messageInsertError) throw messageInsertError
     persistedMessage = message
+
+    if (nextCharacterState) {
+      after(() => saveLiveCharacterState({
+        state: nextCharacterState!,
+        companionId: companion?.id,
+        rowId: persistedState.rowId,
+        userId: persistedState.userId,
+      }))
+    }
+    if (conversationEngine?.relevantMemories.length) {
+      after(() => markMemoriesRetrieved(conversationEngine!.relevantMemories, now))
+    }
 
     await savePersistedMood(companion?.id, mood)
 

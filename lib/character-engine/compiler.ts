@@ -8,6 +8,7 @@ import type { CuriosityIntent } from '@/lib/character-engine/curiosity'
 import { formatCuriosityBlock } from '@/lib/character-engine/curiosity'
 import type { AttentionIntent } from '@/lib/character-engine/attention'
 import { formatAttentionBlock } from '@/lib/character-engine/attention'
+import { coreIdentityFor, formatCoreIdentity } from '@/lib/character-engine/identity'
 
 export function characterEnginePromptBlock(opts: {
   analysis: CharacterAnalysis
@@ -18,6 +19,7 @@ export function characterEnginePromptBlock(opts: {
   attention?: AttentionIntent
 }): string {
   const { analysis, decision, direction, state, curiosity, attention } = opts
+  const identity = coreIdentityFor(state?.companionSlug ?? 'unknown')
   const stateLines = state
     ? [
         `Mood: ${state.mood}`,
@@ -49,6 +51,9 @@ export function characterEnginePromptBlock(opts: {
     : ''
 
   return `CHARACTER ENGINE V2
+CORE BEHAVIORAL IDENTITY
+${formatCoreIdentity(identity)}
+
 Detected intent: ${analysis.intent}
 Likely need: ${analysis.need}
 Analysis confidence: ${analysis.confidence.toFixed(2)}
@@ -69,6 +74,13 @@ Conversation goal: ${direction.goal}
 Primary reply objectives, in order:
 ${direction.objectives.map((objective, index) => `${index + 1}. ${objective}`).join('\n')}
 Clarification genuinely required: ${direction.clarificationNeeded ? 'yes' : 'no'}
+Primary move: ${direction.primaryMove}
+Topic source: ${direction.topicSource}
+Selected topic: ${direction.selectedTopic || 'the user message'}
+Callback authorized: ${direction.callbackAllowed ? `yes â€” ${direction.callbackReason || 'relevant current context'}` : 'no'}
+Desired length: ${direction.desiredLength}
+Metaphor budget: ${direction.metaphorBudget}
+New day detected: ${direction.newDayDetected ? 'yes' : 'no'}
 
 DISCLOSURE WEIGHT
 Depth: ${direction.disclosure.depth}/5
@@ -99,6 +111,15 @@ Do not reset the topic merely because Mark used a short follow-up. Acknowledgmen
 
 CURRENT CHARACTER STATE
 ${stateLines.join('\n')}
+
+DAILY LIFE
+${state ? `Local date: ${state.daily.localDate}\nPrimary intent: ${state.daily.primaryIntent}\nSecondary intent: ${state.daily.secondaryIntent || 'none'}\nSocial energy: ${state.daily.socialEnergy}/100\nConversational appetite: ${state.daily.conversationalAppetite}/100\nActive inner-life threads: ${state.innerLife.filter((item) => item.status === 'active').map((item) => item.label).slice(0, 3).join('; ') || 'none'}\nPrior-day topic cooldowns: ${state.daily.priorDayTopicCooldowns.join('; ') || 'none'}\nRecent motif penalties: ${state.recentMotifs.join('; ') || 'none'}` : 'No persistent daily state supplied.'}
+
+VOICE CONTRACT
+Speak concretely by default. Metaphor is optional and may not exceed the stated budget. Do not use vague atmosphere as a substitute for meaning. Personality comes from values, choices, observations, humor, boundaries, and reactionsâ€”not repeated vocabulary. A new day is a new chapter unless the director authorizes a callback.
+
+PROHIBITED THIS TURN
+${direction.prohibitedPatterns.map((item) => `- ${item}`).join('\n') || '- none beyond the normal rules'}
 
 Treat these as behavioral constraints, not dialogue to quote. The director understands the conversation and sets the obligations; the character engine selects the response strategy; you write the natural message.`
 }
