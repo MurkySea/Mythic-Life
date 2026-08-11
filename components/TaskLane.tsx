@@ -38,17 +38,19 @@ export default function TaskLane({
   tasks,
   empty,
   accent = 'zinc',
+  completed = false,
 }: {
   label: string
   hint?: string
   tasks: TaskRow[]
   empty?: string
   accent?: 'gold' | 'violet' | 'zinc'
+  completed?: boolean
 }) {
-  const sigil = accent === 'gold' ? '!' : accent === 'violet' ? '◇' : '↻'
+  const sigil = completed ? '✓' : accent === 'gold' ? '!' : accent === 'violet' ? '◇' : '↻'
 
   return (
-    <section className={styles.lane}>
+    <section className={`${styles.lane} ${completed ? styles.completedLane : ''}`}>
       <MythicSectionHeader title={label} hint={hint} sigil={sigil} />
 
       {tasks.length > 0 ? (
@@ -58,11 +60,15 @@ export default function TaskLane({
             const tags = taskTags(task)
 
             return (
-              <article key={task.id} className={`${styles.row} ${styles[accent]}`}>
-                <form action={completeTask} className={styles.complete}>
-                  <input type="hidden" name="id" value={task.id} />
-                  <PendingCircleButton title={`Complete ${task.title}`} />
-                </form>
+              <article key={task.id} className={`${styles.row} ${styles[accent]} ${completed ? styles.completedRow : ''}`}>
+                {completed ? (
+                  <span className={styles.completedMark} aria-label="Completed">✓</span>
+                ) : (
+                  <form action={completeTask} className={styles.complete}>
+                    <input type="hidden" name="id" value={task.id} />
+                    <PendingCircleButton title={`Complete ${task.title}`} />
+                  </form>
+                )}
 
                 <Link href={`/tasks/${task.id}/edit`} className={styles.copy} aria-label={`Edit ${task.title}`}>
                   <div className={styles.titleRow}>
@@ -79,7 +85,7 @@ export default function TaskLane({
                   </div>
                 </Link>
 
-                <TaskActions taskId={task.id} title={task.title} />
+                {!completed && <TaskActions taskId={task.id} title={task.title} />}
               </article>
             )
           })}
