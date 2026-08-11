@@ -15,7 +15,7 @@
   gap: 0.75rem;
   min-height: 4.2rem;
   padding: 0.72rem 0.78rem;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid rgba(95, 103, 118, 0.27);
   border-radius: 0.92rem;
   background:
@@ -26,11 +26,16 @@
     0 9px 22px rgba(0, 0, 0, 0.28);
 }
 
+.row:has([aria-expanded='true']) {
+  z-index: 50;
+}
+
 .row::before {
   content: '';
   position: absolute;
   inset: 5px;
   border: 1px solid rgba(212, 168, 83, 0.055);
+  border-radius: 0.68rem;
   pointer-events: none;
 }
 
