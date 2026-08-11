@@ -3,6 +3,7 @@ import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { ensureRecurringTasks } from './actions'
 import { activateApprovedCampfireTasks } from '@/lib/campfire-actions'
 import { MythicIcon, type MythicIconName } from '@/components/MythicIcons'
+import TaskActions from '@/components/TaskActions'
 import { listGoals, PILLAR_LABELS } from '@/lib/engines/goals-store'
 import type { GoalPillar } from '@/lib/engines/goals'
 import { splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
@@ -80,7 +81,15 @@ export default async function HubPage() {
           <section className={styles.focusPanel}>
             <div className={styles.focusHeader}><div><p className={styles.cardKicker}>Today</p><h2>{focusOpen === 0 ? 'Nothing is demanding your attention.' : `${focusOpen} open task${focusOpen === 1 ? '' : 's'}`}</h2><p>{focusDone > 0 ? `${focusDone} completed today.` : 'Pick the next thing and move.'}</p></div><Link href="/task-generator" className={styles.quickAdd}>+ Task</Link></div>
             <div className={styles.simpleList}>
-              {topTasks.length === 0 ? <p className={styles.emptyText}>Your task list is clear.</p> : topTasks.map((task) => <Link href="/today" key={task.id} className={styles.simpleRow}><span className={styles.rowIcon}><MythicIcon name={task.must_do ? 'primaryQuest' : 'quest'} size={16} /></span><span><strong>{task.title}</strong><small>{task.must_do ? 'Must do' : 'Routine'}</small></span><span className={styles.rowChevron}>›</span></Link>)}
+              {topTasks.length === 0 ? <p className={styles.emptyText}>Your task list is clear.</p> : topTasks.map((task) => (
+                <div key={task.id} className={styles.simpleRow}>
+                  <Link href={`/tasks/${task.id}/edit`} className="flex min-w-0 flex-1 items-center gap-3">
+                    <span className={styles.rowIcon}><MythicIcon name={task.must_do ? 'primaryQuest' : 'quest'} size={16} /></span>
+                    <span className="min-w-0 flex-1"><strong>{task.title}</strong><small>{task.must_do ? 'Must do' : 'Routine'}</small></span>
+                  </Link>
+                  <TaskActions taskId={task.id} title={task.title} />
+                </div>
+              ))}
             </div>
             <Link href="/today" className={styles.primaryAction}>Open all tasks</Link>
           </section>
