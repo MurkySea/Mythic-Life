@@ -1,44 +1,47 @@
 'use client'
 
-import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { MythicIcon, type MythicIconName } from '@/components/MythicIcons'
 import styles from './home-dashboard-tabs.module.css'
 
-type HomeView = 'command' | 'journey' | 'grimoire'
+type HomeView = 'tasks' | 'habits' | 'goals'
 
 type HomeDashboardTabsProps = {
-  command: ReactNode
-  journey: ReactNode
-  grimoire: ReactNode
+  tasks: ReactNode
+  habits: ReactNode
+  goals: ReactNode
 }
 
-const VIEWS: Array<{
-  id: HomeView
-  label: string
-  icon: MythicIconName
-}> = [
-  { id: 'command', label: 'Command', icon: 'quest' },
-  { id: 'journey', label: 'Journey', icon: 'standing' },
-  { id: 'grimoire', label: 'Grimoire', icon: 'skills' },
+const VIEWS: Array<{ id: HomeView; label: string; icon: MythicIconName }> = [
+  { id: 'tasks', label: 'Tasks', icon: 'quest' },
+  { id: 'habits', label: 'Habits', icon: 'training' },
+  { id: 'goals', label: 'Goals', icon: 'goals' },
 ]
 
-export default function HomeDashboardTabs({
-  command,
-  journey,
-  grimoire,
-}: HomeDashboardTabsProps) {
-  const [active, setActive] = useState<HomeView>('command')
-  const panels: Record<HomeView, ReactNode> = { command, journey, grimoire }
-  const tabRefs = useRef<Record<HomeView, HTMLButtonElement | null>>({
-    command: null,
-    journey: null,
-    grimoire: null,
-  })
+const STORAGE_KEY = 'mythic-home-view'
+
+function isHomeView(value: string | null): value is HomeView {
+  return value === 'tasks' || value === 'habits' || value === 'goals'
+}
+
+export default function HomeDashboardTabs({ tasks, habits, goals }: HomeDashboardTabsProps) {
+  const [active, setActive] = useState<HomeView>('tasks')
+  const panels: Record<HomeView, ReactNode> = { tasks, habits, goals }
+  const tabRefs = useRef<Record<HomeView, HTMLButtonElement | null>>({ tasks: null, habits: null, goals: null })
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(STORAGE_KEY)
+    if (isHomeView(saved)) setActive(saved)
+  }, [])
+
+  function select(view: HomeView) {
+    setActive(view)
+    window.localStorage.setItem(STORAGE_KEY, view)
+  }
 
   function moveFocus(event: KeyboardEvent<HTMLButtonElement>, current: HomeView) {
     const index = VIEWS.findIndex((view) => view.id === current)
     let nextIndex = index
-
     if (event.key === 'ArrowRight') nextIndex = (index + 1) % VIEWS.length
     else if (event.key === 'ArrowLeft') nextIndex = (index - 1 + VIEWS.length) % VIEWS.length
     else if (event.key === 'Home') nextIndex = 0
@@ -47,18 +50,13 @@ export default function HomeDashboardTabs({
 
     event.preventDefault()
     const next = VIEWS[nextIndex].id
-    setActive(next)
+    select(next)
     tabRefs.current[next]?.focus()
   }
 
   return (
-    <section className={styles.shell} aria-label="Command center views">
-      <nav
-        className={styles.tabs}
-        role="tablist"
-        aria-label="Home views"
-        aria-orientation="horizontal"
-      >
+    <section className={styles.shell} aria-label="Daily action views">
+      <nav className={styles.tabs} role="tablist" aria-label="Tasks, habits, and goals">
         {VIEWS.map((view) => (
           <button
             key={view.id}
@@ -68,30 +66,19 @@ export default function HomeDashboardTabs({
             aria-selected={active === view.id}
             aria-controls={`home-panel-${view.id}`}
             tabIndex={active === view.id ? 0 : -1}
-            ref={(node) => {
-              tabRefs.current[view.id] = node
-            }}
+            ref={(node) => { tabRefs.current[view.id] = node }}
             className={`${styles.tab} ${active === view.id ? styles.active : ''}`}
-            onClick={() => setActive(view.id)}
+            onClick={() => select(view.id)}
             onKeyDown={(event) => moveFocus(event, view.id)}
           >
-            <span className={styles.icon} aria-hidden>
-              <MythicIcon name={view.icon} size={13} />
-            </span>
+            <span className={styles.icon} aria-hidden><MythicIcon name={view.icon} size={14} /></span>
             {view.label}
           </button>
         ))}
       </nav>
 
       {VIEWS.map((view) => (
-        <div
-          key={view.id}
-          id={`home-panel-${view.id}`}
-          role="tabpanel"
-          aria-labelledby={`home-tab-${view.id}`}
-          hidden={active !== view.id}
-          className={styles.panel}
-        >
+        <div key={view.id} id={`home-panel-${view.id}`} role="tabpanel" aria-labelledby={`home-tab-${view.id}`} hidden={active !== view.id} className={styles.panel}>
           {panels[view.id]}
         </div>
       ))}
