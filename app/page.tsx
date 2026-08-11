@@ -51,7 +51,10 @@ export default async function HubPage() {
     label: string
     modules: Array<{ href: string; label: string; sub: string; icon: MythicIconName; disabled?: boolean; developer?: boolean }>
   }> = [
-    { label: 'Growth', modules: [{ href: '/skills', label: 'Skills', sub: 'Practice and progress', icon: 'skills' }] },
+    { label: 'Growth', modules: [
+      { href: '/skills', label: 'Skills', sub: 'Practice and progress', icon: 'skills' },
+      { href: '/habits', label: 'Habits', sub: 'Train what you repeat', icon: 'training' },
+    ] },
     { label: 'Companions', modules: [
       { href: '/companions', label: 'Party', sub: 'Your allies', icon: 'party' },
       { href: '/messages', label: 'Messages', sub: 'Conversations', icon: 'messages' },
