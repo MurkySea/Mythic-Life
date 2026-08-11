@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Geist, Geist_Mono, Cinzel } from 'next/font/google'
 import './globals.css'
 import './world.css'
+import './utility-density.css'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
