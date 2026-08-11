@@ -136,6 +136,22 @@
   margin-top: 1.05rem;
 }
 
+.adventureGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.adventureCard { min-height: 10rem; }
+.adventureCategory { color: var(--gold); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; }
+.adventureTitle { margin-top: 0.5rem; font-family: var(--font-serif); font-size: 1.05rem; }
+.adventureReason { margin-top: 0.5rem; color: var(--text-muted); font-size: 0.82rem; line-height: 1.45; }
+.adventureMeta { display: flex; gap: 0.75rem; margin-top: 0.8rem; color: var(--text-faint); font-size: 0.72rem; }
+
+@media (max-width: 760px) {
+  .adventureGrid { grid-template-columns: 1fr; }
+}
+
 .primaryWrap {
   display: grid;
   gap: 0.58rem;

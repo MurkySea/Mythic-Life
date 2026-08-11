@@ -18,6 +18,8 @@ import { setFeedback } from '@/lib/feedback'
 import { runStandingForCompletedTask } from '@/lib/engines/apply-task'
 import { rollQuestLoot } from '@/lib/engines/loot'
 import { applyLootDrop } from '@/lib/engines/apply-loot'
+import { recordBehavioralCompletion } from '@/lib/behavior/completion-service'
+import type { ActivityKind } from '@/lib/behavior/types'
 
 /**
  * Secure, idempotent task completion.
@@ -43,7 +45,7 @@ export async function completeTask(formData: FormData): Promise<void> {
   const { data: task, error: fetchError } = await supabase
     .from('tasks')
     .select(
-      'id, title, domains, domain, is_completed, recurrence, streak_count, last_streak_date'
+      'id, title, domains, domain, is_completed, recurrence, streak_count, last_streak_date, activity_kind, effort_minutes'
     )
     .eq('id', id)
     .maybeSingle()
@@ -77,6 +79,14 @@ export async function completeTask(formData: FormData): Promise<void> {
   const title = task.title || 'Quest'
   const domains = parseDomains(task.domains, task.domain)
 
+  const completedAt = new Date()
+  const behavioralCompletion = await recordBehavioralCompletion({
+    taskId: id,
+    activityKind: (task.activity_kind || (task.recurrence === 'daily' || task.recurrence === 'weekly' ? 'ritual' : 'quest')) as ActivityKind,
+    effortMinutes: Number(task.effort_minutes) || 30,
+    completedAt,
+  })
+
   const { streak } = await updateTaskStreak(id)
   const { newlyUnlocked, skillGains } = await awardSkillXp(domains)
   const slug = await pickReactingCompanion(domains)
@@ -107,6 +117,10 @@ export async function completeTask(formData: FormData): Promise<void> {
     streak,
     loot: loot.kind === 'nothing' ? null : loot,
   })
+
+  if (behavioralCompletion?.worldEvent) {
+    console.info('world event discovered', behavioralCompletion.worldEvent)
+  }
 
   revalidatePath('/')
   revalidatePath('/standing')

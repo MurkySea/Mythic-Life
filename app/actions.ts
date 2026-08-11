@@ -46,6 +46,7 @@ import {
   type CompanionDraftContext,
   type ConversationDirection,
 } from '@/lib/character-engine'
+import { companionSignalGuidance, detectBehavioralSignals } from '@/lib/behavior/signals'
 
 function normalizeAffinities(raw: unknown): string[] {
   if (Array.isArray(raw)) return raw.map(String)
@@ -297,16 +298,15 @@ async function buildObservationBlock(companionSlug: string): Promise<string> {
   const lines: string[] = []
 
   try {
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
     const { data: recentTasks } = await supabase
       .from('tasks')
-      .select('title, is_completed, completed_at, streak_count, domains, domain')
-      .gte('completed_at', weekAgo)
-      .eq('is_completed', true)
-      .order('completed_at', { ascending: false })
-      .limit(40)
+      .select('id, title, is_completed, completed_at, created_at, streak_count, domains, domain, recurrence, activity_kind, priority_score, effort_minutes')
+      .order('created_at', { ascending: false })
+      .limit(80)
 
-    const completed = recentTasks || []
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const completed = (recentTasks || []).filter((task) =>
+      task.is_completed && task.completed_at && new Date(task.completed_at).getTime() >= weekAgo)
     if (completed.length >= 8) {
       lines.push('He has been consistently showing up this week — more than usual.')
     } else if (completed.length >= 4) {
@@ -339,6 +339,20 @@ async function buildObservationBlock(companionSlug: string): Promise<string> {
       } else if (top === 'relations') {
         lines.push('He has been putting energy into people and relationships.')
       }
+    }
+
+    const behavioralSignals = detectBehavioralSignals((recentTasks || []).map((task) => ({
+      id: task.id,
+      title: task.title,
+      activityKind: task.activity_kind || (task.recurrence === 'daily' || task.recurrence === 'weekly' ? 'ritual' : 'quest'),
+      domainKeys: parseDomains(task.domains, task.domain),
+      priority: Number(task.priority_score) || 5,
+      effortMinutes: Number(task.effort_minutes) || 30,
+      createdAt: task.created_at || new Date().toISOString(),
+      completedAt: task.completed_at,
+    })))
+    if (behavioralSignals.length > 0) {
+      lines.push(`Behavioral observations for this companion to interpret in character:\n${companionSignalGuidance(behavioralSignals)}`)
     }
 
     const { data: lastMsgs } = await supabase

@@ -19,6 +19,14 @@ export type TaskRow = {
   must_do?: boolean | null
   domains?: string | null
   domain?: string | null
+  activity_kind?: 'ritual' | 'quest' | null
+  priority_score?: number | null
+  effort_minutes?: number | null
+  progress_current?: number | null
+  progress_target?: number | null
+  created_at?: string | null
+  due_at?: string | null
+  completed_at?: string | null
 }
 
 export const MUST_DO_CAP = 5

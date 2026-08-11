@@ -15,6 +15,8 @@ import { MythicIcon } from '@/components/MythicIcons'
 import { activateApprovedCampfireTasks } from '@/lib/campfire-actions'
 import { MUST_DO_CAP, splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
 import styles from './today.module.css'
+import { selectAdventureChoices } from '@/lib/behavior/adventure'
+import type { BehavioralTask, MomentumBand } from '@/lib/behavior/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +42,10 @@ export default async function TodayPage() {
 
   await Promise.all([ensureRecurringTasks(), activateApprovedCampfireTasks()])
   const supabase = await createClient()
-  const { data: allTasks } = await supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(200)
+  const [{ data: allTasks }, { data: momentumRow }] = await Promise.all([
+    supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(200),
+    supabase.from('momentum_states').select('band, score').eq('scope_type', 'global').eq('scope_key', 'global').maybeSingle(),
+  ])
   const rows = (allTasks || []) as TaskRow[]
   const { routine, mustDos, master } = splitTaskLanes(rows)
   const focusOpen = routine.length + mustDos.length
@@ -51,6 +56,25 @@ export default async function TodayPage() {
   const urgentOrders = primaryQuest === mustDos[0] ? mustDos.slice(1) : mustDos
   const remainingRoutine = primaryQuest === routine[0] ? routine.slice(1) : routine
   const primaryDomains = primaryQuest ? taskDomains(primaryQuest) : []
+  const momentumBand = (momentumRow?.band || 'Dormant') as MomentumBand
+  const adventureChoices = selectAdventureChoices({
+    momentum: momentumBand,
+    tasks: rows.map((task): BehavioralTask => ({
+      id: task.id,
+      title: task.title,
+      activityKind: task.activity_kind || (task.recurrence === 'daily' || task.recurrence === 'weekly' ? 'ritual' : 'quest'),
+      domainKeys: taskDomains(task),
+      priority: Number(task.priority_score) || (task.must_do ? 9 : task.is_today ? 7 : 5),
+      effortMinutes: Number(task.effort_minutes) || 30,
+      createdAt: task.created_at || new Date().toISOString(),
+      dueAt: task.due_at,
+      completedAt: task.completed_at,
+      progressCurrent: Number(task.progress_current) || 0,
+      progressTarget: Number(task.progress_target) || 1,
+      isToday: Boolean(task.is_today),
+      mustDo: Boolean(task.must_do),
+    })),
+  })
 
   return (
     <MythicPage>
@@ -75,6 +99,22 @@ export default async function TodayPage() {
       </nav>
 
       <div className={styles.board}>
+        <section>
+          <MythicSectionHeader title="Give Me an Adventure" hint={`${momentumBand} momentum`} sigil={<MythicIcon name="quest" size={17} />} />
+          {adventureChoices.length > 0 ? (
+            <div className={styles.adventureGrid}>
+              {adventureChoices.map((choice) => (
+                <MythicPanel key={choice.category} tone={choice.category === 'Dungeon' ? 'gold' : 'violet'} className={styles.adventureCard}>
+                  <p className={styles.adventureCategory}>{choice.category}</p>
+                  <h2 className={styles.adventureTitle}>{choice.task.title}</h2>
+                  <p className={styles.adventureReason}>{choice.reason}</p>
+                  <div className={styles.adventureMeta}><span>{choice.task.effortMinutes} min</span><span>Priority {choice.task.priority}</span></div>
+                </MythicPanel>
+              ))}
+            </div>
+          ) : <MythicEmptyState title="No worthy paths are waiting." body="The board is clear. Rest, explore, or forge a new quest deliberately." mark={<MythicIcon name="quest" size={28} />} />}
+        </section>
+
         <section className={styles.primaryWrap}>
           <MythicSectionHeader title="Primary Quest" hint={primaryQuest ? 'Highest priority' : 'Unassigned'} sigil={<MythicIcon name="primaryQuest" size={17} />} />
           {primaryQuest ? (
@@ -95,7 +135,7 @@ export default async function TodayPage() {
 
         <TaskLane label="Urgent Orders" hint={`${mustDos.length}/${MUST_DO_CAP}`} tasks={urgentOrders} empty="Pull up to five intentional one-time tasks onto Today from the Master List." accent="gold" />
         {master.length > 0 && <><TaskLane label="Master List" hint={`${master.length} open`} tasks={master.slice(0, 12)} empty="The wider campaign ledger is clear." accent="violet" />{master.length > 12 && <Link href="/mother-list" className={styles.moreLink}>Open the full ledger of {master.length} quests →</Link>}</>}
-        <TaskLane label="Repeatable Contracts" hint={routine.length ? `${routine.length}` : undefined} tasks={remainingRoutine} empty="No recurring tasks are scheduled for today." accent="zinc" />
+        <TaskLane label="Rituals" hint={routine.length ? `${routine.length}` : undefined} tasks={remainingRoutine} empty="No rituals are ready in the current rhythm." accent="zinc" />
 
         <section>
           <MythicSectionHeader title="Calendar" hint="Coming soon" sigil={<MythicIcon name="calendar" size={17} />} />
