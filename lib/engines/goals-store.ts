@@ -160,6 +160,46 @@ export async function insertGoal(input: {
   }
 }
 
+export async function updateGoal(id: string, input: {
+  title: string
+  pillar: GoalPillar
+  weight: number
+  horizon: GoalHorizon
+  target: number
+  notes?: string
+}): Promise<Goal | null> {
+  const current = await getGoal(id)
+  if (!current) return null
+
+  try {
+    const supabase = await createClient()
+    const target = Math.max(current.progress, input.target)
+    const { data, error } = await supabase
+      .from('goals')
+      .update({
+        title: input.title.trim(),
+        pillar: input.pillar,
+        weight: input.weight,
+        horizon: input.horizon,
+        target,
+        notes: input.notes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select('*')
+      .single()
+
+    if (error || !data) {
+      console.error('updateGoal', error)
+      return null
+    }
+    return rowToGoal(data as GoalRow)
+  } catch (e) {
+    console.error('updateGoal failed', e)
+    return null
+  }
+}
+
 export async function bumpGoalProgress(
   id: string,
   amount = 1
@@ -186,7 +226,6 @@ export async function bumpGoalProgress(
 
     if (justCompleted) {
       const rewards = getCompletionRewards(next)
-      // Feed tokens / XP / gold into player standing
       const standing = await loadStanding()
       await saveStanding({
         consistency_tokens: Number(

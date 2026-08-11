@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import {
   insertGoal,
+  updateGoal,
   bumpGoalProgress,
   abandonGoal,
   pauseGoal,
@@ -30,39 +31,44 @@ function revalidateGoals() {
   revalidatePath('/standing')
 }
 
-export async function createGoalAction(formData: FormData) {
+function parseGoalFields(formData: FormData) {
   const title = String(formData.get('title') || '').trim()
   const pillar = String(formData.get('pillar') || 'self') as GoalPillar
   const horizon = String(formData.get('horizon') || 'weekly') as GoalHorizon
   const weight = Math.max(1, Math.min(5, parseInt(String(formData.get('weight') || '3'), 10) || 3))
   const target = Math.max(1, parseInt(String(formData.get('target') || '1'), 10) || 1)
   const notes = String(formData.get('notes') || '').trim() || undefined
+  return { title, pillar, horizon, weight, target, notes }
+}
 
-  if (!title) {
-    redirect('/goals/new?err=title')
-  }
-  if (!PILLARS.includes(pillar)) {
-    redirect('/goals/new?err=pillar')
-  }
-  if (!HORIZONS.includes(horizon)) {
-    redirect('/goals/new?err=horizon')
-  }
+export async function createGoalAction(formData: FormData) {
+  const fields = parseGoalFields(formData)
 
-  const goal = await insertGoal({
-    title,
-    pillar,
-    weight,
-    horizon,
-    target,
-    notes,
-  })
+  if (!fields.title) redirect('/goals/new?err=title')
+  if (!PILLARS.includes(fields.pillar)) redirect('/goals/new?err=pillar')
+  if (!HORIZONS.includes(fields.horizon)) redirect('/goals/new?err=horizon')
 
-  if (!goal) {
-    redirect('/goals/new?err=save')
-  }
+  const goal = await insertGoal(fields)
+  if (!goal) redirect('/goals/new?err=save')
 
   revalidateGoals()
   redirect('/goals?created=1')
+}
+
+export async function updateGoalAction(formData: FormData) {
+  const id = String(formData.get('id') || '').trim()
+  if (!id) redirect('/goals')
+
+  const fields = parseGoalFields(formData)
+  if (!fields.title) redirect(`/goals/${id}/edit?err=title`)
+  if (!PILLARS.includes(fields.pillar)) redirect(`/goals/${id}/edit?err=pillar`)
+  if (!HORIZONS.includes(fields.horizon)) redirect(`/goals/${id}/edit?err=horizon`)
+
+  const goal = await updateGoal(id, fields)
+  if (!goal) redirect(`/goals/${id}/edit?err=save`)
+
+  revalidateGoals()
+  redirect('/goals?updated=1')
 }
 
 export async function progressGoalAction(formData: FormData) {
@@ -79,7 +85,6 @@ export async function progressGoalAction(formData: FormData) {
       companionSlug: 'seraphine',
       unlocked: [],
       streak: 0,
-      // extra fields ignored by banner if unknown — note still useful in console
     }).catch(() => {})
   }
 

@@ -1,8 +1,8 @@
-/* Utility-density pass for the two primary action surfaces.
+/* Utility-density pass for the primary action surfaces.
    Keep the fantasy in the atmosphere; make the foreground fast to scan and tap. */
 
 @media (max-width: 640px) {
-  /* HABITS: compress the chrome above the actual practices. */
+  /* HABITS */
   [class*="habits_page"] { padding-top: 0.55rem !important; }
   [class*="habits_header"] { padding-bottom: 0.42rem !important; }
   [class*="habits_backLink"] { min-height: 2rem !important; margin-bottom: 0.25rem !important; }
@@ -38,7 +38,7 @@
   [class*="habits_impulseCopy"] > p:last-of-type { margin-top: 0.18rem !important; font-size: 0.52rem !important; }
   [class*="habits_impulseStats"] { margin-top: 0.3rem !important; }
 
-  /* TASKS: reduce dashboard chrome and keep the list visually dominant. */
+  /* TASKS */
   [class*="today_summarySeal"] { min-width: 2.6rem !important; min-height: 2.6rem !important; }
   [class*="today_commandPanel"] { padding: 0.68rem !important; }
   [class*="today_commandText"] { margin-top: 0.18rem !important; font-size: 0.7rem !important; }
@@ -55,7 +55,6 @@
   [class*="today_rewardRail"] { gap: 0.25rem !important; margin-top: 0.48rem !important; padding-top: 0.45rem !important; }
   [class*="today_reward"] { padding: 0.32rem 0.25rem !important; }
   [class*="today_rewardLabel"] { display: none !important; }
-
   [class*="task-lane_lane"] { gap: 0.38rem !important; }
   [class*="task-lane_list"] { gap: 0.36rem !important; }
   [class*="task-lane_row"] { min-height: 3.6rem !important; gap: 0.58rem !important; padding: 0.55rem 0.62rem !important; border-radius: 0.78rem !important; box-shadow: inset 0 1px 0 rgba(255,255,255,0.02), 0 6px 14px rgba(0,0,0,0.22) !important; }
@@ -65,7 +64,30 @@
   [class*="task-lane_tag"] { font-size: 0.4rem !important; }
   [class*="task-lane_streak"] { font-size: 0.44rem !important; }
 
-  /* Atmosphere remains visible, but it should never compete with the work. */
+  /* GOALS: strategy should scan like a work surface, not a poster. */
+  [class*="goals_page"] { padding-top: 0.65rem !important; }
+  [class*="goals_header"] { margin-bottom: 0.55rem !important; }
+  [class*="goals_title"] { font-size: 1.4rem !important; }
+  [class*="goals_overview"] { padding: 0.7rem !important; }
+  [class*="goals_overviewTitle"] { font-size: 0.76rem !important; }
+  [class*="goals_overviewBody"] { margin-top: 0.22rem !important; font-size: 0.57rem !important; }
+  [class*="goals_compass"] { width: 2.45rem !important; height: 2.45rem !important; }
+  [class*="goals_stats"] { margin-top: 0.52rem !important; gap: 0.3rem !important; }
+  [class*="goals_stat"] { padding: 0.42rem 0.35rem !important; }
+  [class*="goals_section"] { margin-top: 0.72rem !important; }
+  [class*="goals_sectionHeader"] { margin-bottom: 0.4rem !important; }
+  [class*="goals_campaigns"] { gap: 0.48rem !important; }
+  [class*="goals_card"] { padding: 0.65rem !important; gap: 0.55rem !important; }
+  [class*="goals_node"] { width: 2.45rem !important; height: 2.45rem !important; }
+  [class*="goals_goalTitle"] { font-size: 0.72rem !important; }
+  [class*="goals_notes"] { margin-top: 0.25rem !important; font-size: 0.58rem !important; }
+  [class*="goals_progressBlock"] { margin-top: 0.42rem !important; }
+  [class*="goals_actions"] { margin-top: 0.48rem !important; gap: 0.3rem !important; }
+  [class*="goals_primaryAction"],
+  [class*="goals_secondaryAction"],
+  [class*="goals_dangerAction"],
+  [class*="goals_resumeAction"] { min-height: 2.2rem !important; padding: 0.38rem 0.55rem !important; }
+
   .world-aurora { opacity: 0.6; filter: blur(44px); }
   .world-grid { opacity: 0.18; }
 }

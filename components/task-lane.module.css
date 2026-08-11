@@ -124,3 +124,38 @@
   font-size: 0.5rem;
   font-weight: 650;
 }
+
+.completedLane {
+  margin-top: 0.2rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(91, 105, 120, 0.18);
+  opacity: 0.78;
+}
+
+.completedRow {
+  min-height: 3.5rem;
+  border-color: rgba(79, 126, 99, 0.22);
+  background: linear-gradient(90deg, rgba(13, 22, 18, 0.84), rgba(7, 10, 13, 0.88));
+  box-shadow: none;
+}
+
+.completedRow .title {
+  color: #9aa9a0;
+  text-decoration: line-through;
+  text-decoration-color: rgba(120, 160, 136, 0.35);
+}
+
+.completedMark {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(82, 145, 108, 0.34);
+  border-radius: 50%;
+  color: #87bf9d;
+  background: rgba(26, 67, 43, 0.22);
+  font-size: 0.72rem;
+}

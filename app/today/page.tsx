@@ -44,8 +44,9 @@ export default async function TodayPage() {
   const { data: allTasks } = await supabase.from('tasks').select('*').order('created_at', { ascending: false }).limit(200)
   const rows = (allTasks || []) as TaskRow[]
   const { routine, mustDos, master } = splitTaskLanes(rows)
+  const completedToday = rows.filter((task) => task.is_completed && isTodayFocus(task))
   const focusOpen = routine.length + mustDos.length
-  const focusDone = rows.filter((task) => task.is_completed && isTodayFocus(task)).length
+  const focusDone = completedToday.length
   const focusTotal = focusOpen + focusDone
   const focusPct = focusTotal > 0 ? Math.round((focusDone / focusTotal) * 100) : 0
   const primaryQuest = mustDos[0] || routine[0] || null
@@ -98,17 +99,18 @@ export default async function TodayPage() {
         </section>
 
         <TaskLane label="Urgent Orders" hint={`${mustDos.length}/${MUST_DO_CAP}`} tasks={urgentOrders} empty="Pull up to five intentional one-time tasks onto Today from the Master List." accent="gold" />
-        {master.length > 0 && <><TaskLane label="Master List" hint={`${master.length} open`} tasks={master.slice(0, 12)} empty="The wider campaign ledger is clear." accent="violet" />{master.length > 12 && <Link href="/mother-list" className={styles.moreLink}>Open the full ledger of {master.length} quests →</Link>}</>}
         <TaskLane label="Repeatable Contracts" hint={routine.length ? `${routine.length}` : undefined} tasks={remainingRoutine} empty="No recurring tasks are scheduled for today." accent="zinc" />
+        {master.length > 0 && <><TaskLane label="Master List" hint={`${master.length} open`} tasks={master.slice(0, 12)} empty="The wider campaign ledger is clear." accent="violet" />{master.length > 12 && <Link href="/mother-list" className={styles.moreLink}>Open the full ledger of {master.length} quests →</Link>}</>}
 
-        <section>
-          <MythicSectionHeader title="Calendar" hint="Coming soon" sigil={<MythicIcon name="calendar" size={17} />} />
-          <MythicPanel tone="blue" className={styles.calendarPanel}>
-            <div className={styles.calendarSeal} aria-hidden><MythicIcon name="calendar" size={24} /></div>
-            <p className={styles.calendarTitle}>The calendar chamber is still sealed.</p>
-            <p className={styles.calendarBody}>Appointments and events will appear here once a calendar connection is added.</p>
-          </MythicPanel>
-        </section>
+        {completedToday.length > 0 && (
+          <TaskLane
+            label="Completed"
+            hint={`${completedToday.length} done today`}
+            tasks={completedToday}
+            accent="zinc"
+            completed
+          />
+        )}
       </div>
     </MythicPage>
   )
