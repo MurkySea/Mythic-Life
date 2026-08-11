@@ -1,6 +1,8 @@
+import Link from 'next/link'
 import { completeTask } from '@/app/complete-task'
 import { PendingCircleButton } from '@/components/PendingSubmit'
 import { MythicEmptyState, MythicSectionHeader } from '@/components/MythicSurface'
+import TaskActions from '@/components/TaskActions'
 import type { TaskRow } from '@/lib/task-lanes'
 import styles from './task-lane.module.css'
 
@@ -62,22 +64,22 @@ export default function TaskLane({
                   <PendingCircleButton title={`Complete ${task.title}`} />
                 </form>
 
-                <div className={styles.copy}>
+                <Link href={`/tasks/${task.id}/edit`} className={styles.copy} aria-label={`Edit ${task.title}`}>
                   <div className={styles.titleRow}>
                     <p className={styles.title}>{task.title}</p>
                     {timeLabel && <span className={styles.time}>{timeLabel}</span>}
                   </div>
                   <div className={styles.meta}>
                     {tags.map((tag) => (
-                      <span key={tag} className={styles.tag}>
-                        {tag}
-                      </span>
+                      <span key={tag} className={styles.tag}>{tag}</span>
                     ))}
                     {(task.streak_count || 0) >= 2 && (
                       <span className={styles.streak}>{task.streak_count} day streak</span>
                     )}
                   </div>
-                </div>
+                </Link>
+
+                <TaskActions taskId={task.id} title={task.title} />
               </article>
             )
           })}

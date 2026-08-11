@@ -3,6 +3,7 @@ import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
 import { ensureRecurringTasks } from '@/app/actions'
 import { completeTask } from '@/app/complete-task'
 import TaskLane from '@/components/TaskLane'
+import TaskActions from '@/components/TaskActions'
 import { PendingCircleButton } from '@/components/PendingSubmit'
 import {
   MythicEmptyState,
@@ -80,8 +81,11 @@ export default async function TodayPage() {
           {primaryQuest ? (
             <MythicPanel tone="gold" emphasis className={styles.primaryCard}>
               <div className={styles.primaryHeader}>
-                <div><p className={styles.primaryKicker}>Claim the day</p><h2 className={styles.primaryTitle}>{primaryQuest.title}</h2>{primaryQuest.notes && <p className={styles.primaryNotes}>{primaryQuest.notes}</p>}</div>
-                <form action={completeTask} className={styles.primaryComplete}><input type="hidden" name="id" value={primaryQuest.id} /><PendingCircleButton title={`Complete ${primaryQuest.title}`} /></form>
+                <Link href={`/tasks/${primaryQuest.id}/edit`} className="min-w-0 flex-1"><p className={styles.primaryKicker}>Claim the day</p><h2 className={styles.primaryTitle}>{primaryQuest.title}</h2>{primaryQuest.notes && <p className={styles.primaryNotes}>{primaryQuest.notes}</p>}</Link>
+                <div className="flex items-center gap-2">
+                  <form action={completeTask} className={styles.primaryComplete}><input type="hidden" name="id" value={primaryQuest.id} /><PendingCircleButton title={`Complete ${primaryQuest.title}`} /></form>
+                  <TaskActions taskId={primaryQuest.id} title={primaryQuest.title} />
+                </div>
               </div>
               {primaryDomains.length > 0 && <div className={styles.domainRow}>{primaryDomains.map((domain) => <span key={domain} className={styles.domainTag}>{domain}</span>)}</div>}
               <div className={styles.rewardRail} aria-label="Completion rewards">
