@@ -35,8 +35,17 @@ export default function HabitOutcomePanel({ habits, logs, today }: Props) {
     () => new Map(logs.filter((log) => log.logged_date === today).map((log) => [log.habit_id, log as OutcomeAwareLog])),
     [logs, today]
   )
+  const missedCount = useMemo(
+    () => habits.filter((habit) => resolveOutcome(logsByHabit.get(habit.id) || null) === 'missed').length,
+    [habits, logsByHabit]
+  )
+  const openCount = useMemo(
+    () => habits.filter((habit) => resolveOutcome(logsByHabit.get(habit.id) || null) === null).length,
+    [habits, logsByHabit]
+  )
 
   function changeOutcome(habit: HabitRow, outcome: 'missed' | 'unlogged') {
+    if (isPending) return
     setPendingHabitId(habit.id)
     setNotice(null)
     startTransition(async () => {
@@ -49,7 +58,7 @@ export default function HabitOutcomePanel({ habits, logs, today }: Props) {
       setNotice({
         tone: 'success',
         text: outcome === 'missed'
-          ? `${habit.title} marked missed. Showing up honestly still counts.`
+          ? `${habit.title} marked missed. Honest tracking is still showing up.`
           : `${habit.title} returned to open for today.`,
       })
       router.refresh()
@@ -59,49 +68,60 @@ export default function HabitOutcomePanel({ habits, logs, today }: Props) {
   if (habits.length === 0) return null
 
   return (
-    <section className={styles.panel} aria-labelledby="habit-outcomes-title">
-      <div className={styles.header}>
-        <div>
-          <p>Today&apos;s status</p>
-          <h2 id="habit-outcomes-title">Resolve the day honestly</h2>
-        </div>
-        <span>Open ≠ missed</span>
-      </div>
-      <p className={styles.explainer}>
-        A habit stays open until you decide the outcome. Marking it missed records a real setback instead of making an unlogged day look the same.
-      </p>
+    <details className={styles.tray}>
+      <summary className={styles.summary}>
+        <span className={styles.summaryIcon} aria-hidden><MythicIcon name="training" size={18} /></span>
+        <span className={styles.summaryCopy}>
+          <strong>Today&apos;s outcomes</strong>
+          <small>{missedCount > 0 ? `${missedCount} missed · ${openCount} open` : `${openCount} open`}</small>
+        </span>
+        <span className={styles.chevron} aria-hidden>⌃</span>
+      </summary>
 
-      {notice && (
-        <div className={`${styles.notice} ${notice.tone === 'error' ? styles.noticeError : ''}`} role={notice.tone === 'error' ? 'alert' : 'status'}>
-          <MythicIcon name={notice.tone === 'error' ? 'notifications' : 'spark'} size={16} />
-          <span>{notice.text}</span>
+      <section className={styles.panel} aria-labelledby="habit-outcomes-title">
+        <div className={styles.header}>
+          <div>
+            <p>Today&apos;s status</p>
+            <h2 id="habit-outcomes-title">Resolve the day honestly</h2>
+          </div>
+          <span>Open ≠ missed</span>
         </div>
-      )}
+        <p className={styles.explainer}>
+          A habit stays open until you decide the outcome. A miss is recorded separately from simply not logging the day.
+        </p>
 
-      <div className={styles.list}>
-        {habits.map((habit) => {
-          const outcome = resolveOutcome(logsByHabit.get(habit.id) || null)
-          const pending = isPending && pendingHabitId === habit.id
-          return (
-            <article key={habit.id} className={`${styles.row} ${outcome === 'missed' ? styles.missed : outcome === 'completed' ? styles.completed : ''}`}>
-              <span className={styles.icon} aria-hidden><MythicIcon name="training" size={17} /></span>
-              <div className={styles.copy}>
-                <strong>{habit.title}</strong>
-                <span>{outcome === 'completed' ? 'Accomplished' : outcome === 'missed' ? 'Missed' : 'Open'}</span>
-              </div>
-              {outcome === 'missed' ? (
-                <button type="button" disabled={pending} onClick={() => changeOutcome(habit, 'unlogged')}>
-                  {pending ? 'Saving…' : 'Clear miss'}
-                </button>
-              ) : (
-                <button type="button" className={styles.missButton} disabled={pending} onClick={() => changeOutcome(habit, 'missed')}>
-                  {pending ? 'Saving…' : 'Mark missed'}
-                </button>
-              )}
-            </article>
-          )
-        })}
-      </div>
-    </section>
+        {notice && (
+          <div className={`${styles.notice} ${notice.tone === 'error' ? styles.noticeError : ''}`} role={notice.tone === 'error' ? 'alert' : 'status'}>
+            <MythicIcon name={notice.tone === 'error' ? 'notifications' : 'spark'} size={16} />
+            <span>{notice.text}</span>
+          </div>
+        )}
+
+        <div className={styles.list}>
+          {habits.map((habit) => {
+            const outcome = resolveOutcome(logsByHabit.get(habit.id) || null)
+            const pending = isPending && pendingHabitId === habit.id
+            return (
+              <article key={habit.id} className={`${styles.row} ${outcome === 'missed' ? styles.missed : outcome === 'completed' ? styles.completed : ''}`}>
+                <span className={styles.icon} aria-hidden><MythicIcon name="training" size={17} /></span>
+                <div className={styles.copy}>
+                  <strong>{habit.title}</strong>
+                  <span>{outcome === 'completed' ? 'Accomplished' : outcome === 'missed' ? 'Missed' : 'Open'}</span>
+                </div>
+                {outcome === 'missed' ? (
+                  <button type="button" disabled={isPending} onClick={() => changeOutcome(habit, 'unlogged')}>
+                    {pending ? 'Saving…' : 'Clear miss'}
+                  </button>
+                ) : (
+                  <button type="button" className={styles.missButton} disabled={isPending} onClick={() => changeOutcome(habit, 'missed')}>
+                    {pending ? 'Saving…' : 'Mark missed'}
+                  </button>
+                )}
+              </article>
+            )
+          })}
+        </div>
+      </section>
+    </details>
   )
 }
