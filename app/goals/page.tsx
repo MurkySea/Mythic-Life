@@ -76,11 +76,12 @@ function GoalCard({ goal }: { goal: Goal }) {
           <div className={styles.actions}>
             <form action={progressGoalAction}>
               <input type="hidden" name="id" value={goal.id} />
-              <button type="submit" className={styles.primaryAction}>Advance campaign</button>
+              <button type="submit" className={styles.primaryAction}>Advance</button>
             </form>
+            <Link href={`/goals/${goal.id}/edit`} className={styles.secondaryAction}>Edit</Link>
             <form action={pauseGoalAction}>
               <input type="hidden" name="id" value={goal.id} />
-              <button type="submit" className={styles.secondaryAction}>Hold position</button>
+              <button type="submit" className={styles.secondaryAction}>Pause</button>
             </form>
             <form action={abandonGoalAction}>
               <input type="hidden" name="id" value={goal.id} />
@@ -93,8 +94,9 @@ function GoalCard({ goal }: { goal: Goal }) {
           <div className={styles.actions}>
             <form action={resumeGoalAction}>
               <input type="hidden" name="id" value={goal.id} />
-              <button type="submit" className={styles.resumeAction}>Resume march</button>
+              <button type="submit" className={styles.resumeAction}>Resume</button>
             </form>
+            <Link href={`/goals/${goal.id}/edit`} className={styles.secondaryAction}>Edit</Link>
             <form action={abandonGoalAction}>
               <input type="hidden" name="id" value={goal.id} />
               <button type="submit" className={styles.dangerAction}>Abandon</button>
@@ -138,7 +140,7 @@ function SectionHeader({
 export default async function GoalsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ created?: string }>
+  searchParams: Promise<{ created?: string; updated?: string }>
 }) {
   const params = await searchParams
   const [active, paused, done, abandoned] = await Promise.all([
@@ -149,9 +151,6 @@ export default async function GoalsPage({
   ])
 
   const history = [...done, ...abandoned].slice(0, 12)
-  const averageAdvance = active.length
-    ? Math.round(active.reduce((sum, goal) => sum + progressPct(goal), 0) / active.length)
-    : 0
 
   return (
     <main className={styles.page}>
@@ -169,72 +168,51 @@ export default async function GoalsPage({
         </Link>
       </header>
 
-      {params.created === '1' && (
-        <div className={styles.success}>Campaign marked on the atlas. Advance it when real work lands.</div>
+      {(params.created === '1' || params.updated === '1') && (
+        <div className={styles.success}>{params.updated === '1' ? 'Campaign updated.' : 'Campaign marked on the atlas.'}</div>
       )}
 
       <section className={styles.overview} aria-label="Campaign overview">
         <div className={styles.overviewTop}>
           <div>
             <p className={styles.overviewKicker}>The long game</p>
-            <h2 className={styles.overviewTitle}>Daily quests win moments. Campaigns decide where your life is going.</h2>
-            <p className={styles.overviewBody}>
-              Weight what matters, move it through real action, and leave room to pause deliberately instead of drifting into neglect.
-            </p>
+            <h2 className={styles.overviewTitle}>{active.length} active campaign{active.length === 1 ? '' : 's'}</h2>
+            <p className={styles.overviewBody}>Keep the directions that matter visible, measurable, and easy to adjust.</p>
           </div>
-          <div className={styles.compass} aria-hidden>
-            <MythicIcon name="map" size={25} />
-          </div>
+          <div className={styles.compass} aria-hidden><MythicIcon name="map" size={25} /></div>
         </div>
         <div className={styles.stats}>
-          <div className={styles.stat}>
-            <p className={styles.statValue}>{active.length}</p>
-            <p className={styles.statLabel}>Active</p>
-          </div>
-          <div className={styles.stat}>
-            <p className={styles.statValue}>{averageAdvance}%</p>
-            <p className={styles.statLabel}>Advance</p>
-          </div>
-          <div className={styles.stat}>
-            <p className={styles.statValue}>{done.length}</p>
-            <p className={styles.statLabel}>Won</p>
-          </div>
+          <div className={styles.stat}><p className={styles.statValue}>{active.length}</p><p className={styles.statLabel}>Active</p></div>
+          <div className={styles.stat}><p className={styles.statValue}>{paused.length}</p><p className={styles.statLabel}>Paused</p></div>
+          <div className={styles.stat}><p className={styles.statValue}>{done.length}</p><p className={styles.statLabel}>Won</p></div>
         </div>
       </section>
 
       <section className={styles.section}>
-        <SectionHeader title="Active Campaigns" hint={`${active.length} marching`} icon="goals" />
+        <SectionHeader title="Active Campaigns" hint={`${active.length} active`} icon="goals" />
         {active.length === 0 ? (
           <div className={styles.empty}>
-            <div className={styles.emptyMark} aria-hidden>
-              <MythicIcon name="map" size={24} />
-            </div>
-            <p className={styles.emptyTitle}>The atlas has no active campaign.</p>
-            <p className={styles.emptyBody}>Name one direction worthy of sustained effort.</p>
-            <Link href="/goals/new" className={styles.emptyLink}>Plot the first campaign →</Link>
+            <div className={styles.emptyMark} aria-hidden><MythicIcon name="map" size={24} /></div>
+            <p className={styles.emptyTitle}>No active goals.</p>
+            <p className={styles.emptyBody}>Choose one direction worth sustained effort.</p>
+            <Link href="/goals/new" className={styles.emptyLink}>Create a goal →</Link>
           </div>
         ) : (
-          <div className={styles.campaigns}>
-            {active.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
-          </div>
+          <div className={styles.campaigns}>{active.map((goal) => <GoalCard key={goal.id} goal={goal} />)}</div>
         )}
       </section>
 
       {paused.length > 0 && (
         <section className={styles.section}>
-          <SectionHeader title="Held Territory" hint={`${paused.length} paused`} icon="plan" />
-          <div className={styles.campaigns}>
-            {paused.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
-          </div>
+          <SectionHeader title="Paused" hint={`${paused.length}`} icon="plan" />
+          <div className={styles.campaigns}>{paused.map((goal) => <GoalCard key={goal.id} goal={goal} />)}</div>
         </section>
       )}
 
       {history.length > 0 && (
         <section className={styles.section}>
-          <SectionHeader title="Campaign Chronicle" hint={`${history.length} recorded`} icon="achievement" />
-          <div className={styles.campaigns}>
-            {history.map((goal) => <GoalCard key={goal.id} goal={goal} />)}
-          </div>
+          <SectionHeader title="History" hint={`${history.length}`} icon="achievement" />
+          <div className={styles.campaigns}>{history.map((goal) => <GoalCard key={goal.id} goal={goal} />)}</div>
         </section>
       )}
     </main>
