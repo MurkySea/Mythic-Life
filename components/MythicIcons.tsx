@@ -40,6 +40,7 @@ export function IconFlame(props: IconProps) { return <Svg {...props}><path {...s
 export function IconSpark(props: IconProps) { return <Svg {...props}><path {...stroke} d="M12 3l1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3zM18.5 16l.6 2.4 2.4.6-2.4.6-.6 2.4-.6-2.4-2.4-.6 2.4-.6.6-2.4z" /></Svg> }
 export function IconPlusRune(props: IconProps) { return <Svg {...props}><circle {...stroke} cx="12" cy="12" r="8" /><path {...stroke} d="M12 8v8M8 12h8" /></Svg> }
 export function IconPath(props: IconProps) { return <Svg {...props}><path {...stroke} d="M5 19c0-3 2-4 5-5s5-2 5-5c0-2-1-3-3-4M4 5h5M15 19h5" /><circle {...stroke} cx="4" cy="5" r="1.5" /><circle {...stroke} cx="20" cy="19" r="1.5" /></Svg> }
+export function IconTraining(props: IconProps) { return <Svg {...props}><path {...stroke} d="M7 7.5A7 7 0 0 1 19 10M17 6l2 4-4 1" /><path {...stroke} d="M17 16.5A7 7 0 0 1 5 14M7 18l-2-4 4-1" /><path {...stroke} d="M12 8.5l1 2 2.2.3-1.6 1.5.4 2.2-2-1-2 1 .4-2.2-1.6-1.5 2.2-.3 1-2z" /></Svg> }
 
 export const MYTHIC_ICONS = {
   quest: IconScroll, skills: IconSword, party: IconPartyBanner, messages: IconLetter,
@@ -47,7 +48,7 @@ export const MYTHIC_ICONS = {
   map: IconMap, calendar: IconCalendar, rewards: IconChest, gallery: IconGallery,
   notifications: IconBell, currency: IconCoins, relationship: IconHeartKnot,
   streak: IconFlame, achievement: IconCrown, add: IconPlusRune, plan: IconPath,
-  primaryQuest: IconCrossedSwords, spark: IconSpark,
+  primaryQuest: IconCrossedSwords, spark: IconSpark, training: IconTraining,
 } as const
 
 export type MythicIconName = keyof typeof MYTHIC_ICONS
