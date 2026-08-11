@@ -69,3 +69,28 @@
   .world-aurora { opacity: 0.6; filter: blur(44px); }
   .world-grid { opacity: 0.18; }
 }
+
+/* Today is an action queue: finished practices fall below the work still waiting. */
+[class*="habits_habitList"] > [class*="habits_habitComplete"] {
+  order: 2;
+  opacity: 0.68;
+}
+
+[class*="habits_habitList"]:has(> [class*="habits_habitComplete"])::after {
+  content: 'Completed';
+  order: 1;
+  display: block;
+  margin: 0.35rem 0 0.08rem;
+  padding: 0.48rem 0.15rem 0.15rem;
+  border-top: 1px solid rgba(205, 158, 73, 0.16);
+  color: rgba(210, 177, 111, 0.7);
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+[class*="habits_habitList"] > [class*="habits_habitComplete"] [class*="habits_progressTrack"] {
+  opacity: 0.55;
+}
