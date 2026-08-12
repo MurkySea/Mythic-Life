@@ -1,10 +1,17 @@
 begin;
 
 alter table public.habits
-  add column intent text not null default 'build'
-  check (intent in ('build', 'avoid'));
+  add column if not exists intent text not null default 'build';
 
-create or replace function public.set_habit_outcome(
+alter table public.habits
+  drop constraint if exists habits_intent_check;
+
+alter table public.habits
+  add constraint habits_intent_check check (intent in ('build', 'avoid'));
+
+drop function if exists public.set_habit_outcome(uuid, date, text);
+
+create function public.set_habit_outcome(
   p_habit_id uuid,
   p_logged_date date,
   p_outcome text
