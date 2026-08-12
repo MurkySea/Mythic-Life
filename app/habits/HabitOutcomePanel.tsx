@@ -4,7 +4,6 @@ import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { MythicIcon } from '@/components/MythicIcons'
 import type { HabitLogRow, HabitRow } from '@/lib/habits'
-import { setHabitIntentAction } from './intent-actions'
 import { setHabitOutcomeAction } from './outcome-actions'
 import styles from './habit-outcome-panel.module.css'
 
@@ -38,7 +37,7 @@ function resolveIntent(habit: IntentAwareHabit): HabitIntent {
 
 export default function HabitOutcomePanel({ habits, logs, today }: Props) {
   const router = useRouter()
-  const [pendingKey, setPendingKey] = useState('')
+  const [pendingHabitId, setPendingHabitId] = useState('')
   const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
   const [isPending, startTransition] = useTransition()
   const logsByHabit = useMemo(
@@ -56,11 +55,11 @@ export default function HabitOutcomePanel({ habits, logs, today }: Props) {
 
   function changeOutcome(habit: HabitRow, outcome: 'completed' | 'missed' | 'unlogged') {
     if (isPending) return
-    setPendingKey(`outcome-${habit.id}`)
+    setPendingHabitId(habit.id)
     setNotice(null)
     startTransition(async () => {
       const result = await setHabitOutcomeAction(habit.id, outcome)
-      setPendingKey('')
+      setPendingHabitId('')
       if (!result.ok) {
         setNotice({ tone: 'error', text: result.error })
         return
@@ -74,27 +73,6 @@ export default function HabitOutcomePanel({ habits, logs, today }: Props) {
           : outcome === 'missed'
             ? `${habit.title} marked missed. Honest tracking is still showing up.`
             : `${habit.title} returned to open for today.`,
-      })
-      router.refresh()
-    })
-  }
-
-  function changeIntent(habit: IntentAwareHabit, intent: HabitIntent) {
-    if (isPending) return
-    setPendingKey(`intent-${habit.id}`)
-    setNotice(null)
-    startTransition(async () => {
-      const result = await setHabitIntentAction(habit.id, intent)
-      setPendingKey('')
-      if (!result.ok) {
-        setNotice({ tone: 'error', text: result.error })
-        return
-      }
-      setNotice({
-        tone: 'success',
-        text: intent === 'avoid'
-          ? `${habit.title} is now an Avoid habit. Success means keeping the boundary.`
-          : `${habit.title} is now a Build habit. Success comes from doing the practice.`,
       })
       router.refresh()
     })
@@ -119,10 +97,10 @@ export default function HabitOutcomePanel({ habits, logs, today }: Props) {
             <p>Today&apos;s status</p>
             <h2 id="habit-outcomes-title">Resolve the day honestly</h2>
           </div>
-          <span>Build or Avoid</span>
+          <span>Open ≠ missed</span>
         </div>
         <p className={styles.explainer}>
-          Build habits are won by doing the practice. Avoid habits are won by keeping a boundary. Open still means undecided, not failed.
+          Direction is chosen when you create or edit a habit. This tray only records what happened today.
         </p>
 
         {notice && (
@@ -137,47 +115,28 @@ export default function HabitOutcomePanel({ habits, logs, today }: Props) {
             const habit = baseHabit as IntentAwareHabit
             const intent = resolveIntent(habit)
             const outcome = resolveOutcome(logsByHabit.get(habit.id) || null)
-            const outcomePending = isPending && pendingKey === `outcome-${habit.id}`
-            const intentPending = isPending && pendingKey === `intent-${habit.id}`
+            const pending = isPending && pendingHabitId === habit.id
             return (
               <article key={habit.id} className={`${styles.row} ${outcome === 'missed' ? styles.missed : outcome === 'completed' ? styles.completed : ''}`}>
                 <span className={styles.icon} aria-hidden><MythicIcon name={intent === 'avoid' ? 'streak' : 'training'} size={17} /></span>
                 <div className={styles.copy}>
                   <strong>{habit.title}</strong>
                   <span>{outcome === 'completed' ? (intent === 'avoid' ? 'Kept' : 'Accomplished') : outcome === 'missed' ? 'Missed' : 'Open'}</span>
-                  <div className={styles.intentSwitch} role="group" aria-label={`${habit.title} habit direction`}>
-                    <button
-                      type="button"
-                      className={intent === 'build' ? styles.intentActive : ''}
-                      disabled={isPending}
-                      onClick={() => changeIntent(habit, 'build')}
-                    >
-                      {intentPending && intent !== 'build' ? 'Saving…' : 'Build'}
-                    </button>
-                    <button
-                      type="button"
-                      className={intent === 'avoid' ? styles.intentActive : ''}
-                      disabled={isPending}
-                      onClick={() => changeIntent(habit, 'avoid')}
-                    >
-                      {intentPending && intent !== 'avoid' ? 'Saving…' : 'Avoid'}
-                    </button>
-                  </div>
                 </div>
 
                 <div className={styles.outcomeActions}>
                   {intent === 'avoid' && outcome === null && (
                     <button type="button" className={styles.keepButton} disabled={isPending} onClick={() => changeOutcome(habit, 'completed')}>
-                      {outcomePending ? 'Saving…' : 'Kept it'}
+                      {pending ? 'Saving…' : 'Kept it'}
                     </button>
                   )}
                   {outcome === 'missed' ? (
                     <button type="button" disabled={isPending} onClick={() => changeOutcome(habit, 'unlogged')}>
-                      {outcomePending ? 'Saving…' : 'Clear miss'}
+                      {pending ? 'Saving…' : 'Clear miss'}
                     </button>
                   ) : outcome !== 'completed' ? (
                     <button type="button" className={styles.missButton} disabled={isPending} onClick={() => changeOutcome(habit, 'missed')}>
-                      {outcomePending ? 'Saving…' : 'Mark missed'}
+                      {pending ? 'Saving…' : 'Mark missed'}
                     </button>
                   ) : null}
                 </div>
