@@ -1,15 +1,18 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { checkAndUnlockCompanions } from '@/app/actions'
 import { chicagoDateKey } from '@/lib/habits'
 import { createClient } from '@/utils/supabase/server'
 
-type HabitOutcome = 'missed' | 'unlogged'
+type HabitOutcome = 'completed' | 'missed' | 'unlogged'
 
 type OutcomeResult = {
   log_id: string
   current_outcome: 'completed' | 'missed' | null
   is_completed: boolean
+  reward_awarded: boolean
+  xp_awarded: number
 }
 
 type HabitOutcomeActionResult =
@@ -30,7 +33,7 @@ export async function setHabitOutcomeAction(
   if (!UUID_PATTERN.test(habitId)) {
     return { ok: false, error: 'That habit could not be found.' }
   }
-  if (outcome !== 'missed' && outcome !== 'unlogged') {
+  if (!['completed', 'missed', 'unlogged'].includes(outcome)) {
     return { ok: false, error: 'Choose a valid habit state.' }
   }
 
@@ -49,14 +52,28 @@ export async function setHabitOutcomeAction(
   if (error) {
     console.error('setHabitOutcomeAction failed', error)
     if (error.message?.includes('active timer')) {
-      return { ok: false, error: 'Finish the active timer before marking this habit missed.' }
+      return { ok: false, error: 'Finish the active timer before changing this habit outcome.' }
+    }
+    if (error.message?.includes('Build habits')) {
+      return { ok: false, error: 'Build habits are completed through their normal tracking action.' }
     }
     return { ok: false, error: 'That habit state could not be changed.' }
   }
 
-  revalidatePath('/habits')
-  return {
-    ok: true,
-    data: firstRow(data as OutcomeResult[] | OutcomeResult | null),
+  const result = firstRow(data as OutcomeResult[] | OutcomeResult | null)
+  if (result?.reward_awarded && result.xp_awarded > 0) {
+    await checkAndUnlockCompanions().catch((unlockError) => {
+      console.error('habit companion unlock check failed', unlockError)
+    })
   }
+
+  revalidatePath('/habits')
+  if (result?.reward_awarded) {
+    revalidatePath('/')
+    revalidatePath('/standing')
+    revalidatePath('/skills')
+    revalidatePath('/companions')
+  }
+
+  return { ok: true, data: result }
 }
