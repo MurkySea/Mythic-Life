@@ -8,12 +8,14 @@ import {
 import {
   addDateKey,
   chicagoDateKey,
+  isHabitScheduledOn,
   type HabitEventRow,
   type HabitLogRow,
   type HabitRow,
   type HabitSessionRow,
 } from '@/lib/habits'
 import { createClient, hasSupabaseEnv } from '@/utils/supabase/server'
+import HabitOutcomePanel from './HabitOutcomePanel'
 import HabitsTrainingGrounds from './HabitsTrainingGrounds'
 
 export const dynamic = 'force-dynamic'
@@ -131,14 +133,23 @@ export default async function HabitsPage() {
   const skillXp: Record<string, number> = {}
   for (const row of skillsResult.data || []) skillXp[row.skill] = Number(row.xp || 0)
 
+  const habits = (habitsResult.data || []).map((row) => normalizeHabit(row as HabitRow))
+  const logs = (logsResult.data || []).map((row) => normalizeLog(row as HabitLogRow))
+  const sessions = (sessionsResult.data || []).map((row) => normalizeSession(row as HabitSessionRow))
+  const events = (eventsResult.data || []).map((row) => normalizeEvent(row as HabitEventRow))
+  const todayHabits = habits.filter((habit) => habit.is_active && isHabitScheduledOn(habit, today))
+
   return (
-    <HabitsTrainingGrounds
-      today={today}
-      habits={(habitsResult.data || []).map((row) => normalizeHabit(row as HabitRow))}
-      logs={(logsResult.data || []).map((row) => normalizeLog(row as HabitLogRow))}
-      sessions={(sessionsResult.data || []).map((row) => normalizeSession(row as HabitSessionRow))}
-      events={(eventsResult.data || []).map((row) => normalizeEvent(row as HabitEventRow))}
-      skillXp={skillXp}
-    />
+    <>
+      <HabitOutcomePanel habits={todayHabits} logs={logs} today={today} />
+      <HabitsTrainingGrounds
+        today={today}
+        habits={habits}
+        logs={logs}
+        sessions={sessions}
+        events={events}
+        skillXp={skillXp}
+      />
+    </>
   )
 }
