@@ -46,9 +46,12 @@ import {
   setHabitActiveAction,
   startHabitTimerAction,
 } from './actions'
+import { setHabitIntentAction } from './intent-actions'
 import styles from './habits.module.css'
 
 type TrainingView = 'today' | 'progress' | 'manage'
+type HabitIntent = 'build' | 'avoid'
+type IntentAwareHabit = HabitRow & { intent?: HabitIntent }
 
 type Props = {
   today: string
@@ -78,6 +81,10 @@ function trackingLabel(type: HabitTrackingType): string {
     timer: 'Timer',
     stopwatch: 'Stopwatch',
   }[type]
+}
+
+function resolveIntent(habit: IntentAwareHabit | null): HabitIntent {
+  return habit?.intent === 'avoid' ? 'avoid' : 'build'
 }
 
 function dateLabel(dateKey: string): string {
@@ -458,6 +465,8 @@ function ProgressRecord({ habit, analytics }: { habit: HabitRow; analytics: Habi
 
 function HabitForm({ habit, onClose }: { habit: HabitRow | null; onClose: () => void }) {
   const router = useRouter()
+  const intentHabit = habit as IntentAwareHabit | null
+  const [intent, setIntent] = useState<HabitIntent>(() => resolveIntent(intentHabit))
   const [trackingType, setTrackingType] = useState<HabitTrackingType>(habit?.tracking_type || 'check')
   const [frequency, setFrequency] = useState(habit?.frequency || 'daily')
   const [active, setActive] = useState(habit?.is_active ?? true)
@@ -494,6 +503,8 @@ function HabitForm({ habit, onClose }: { habit: HabitRow | null; onClose: () => 
     startTransition(async () => {
       const result = await saveHabitAction(formData)
       if (!result.ok) return setError(result.error)
+      const intentResult = await setHabitIntentAction(result.data.id, intent)
+      if (!intentResult.ok) return setError(intentResult.error)
       router.refresh()
       onClose()
     })
@@ -517,6 +528,22 @@ function HabitForm({ habit, onClose }: { habit: HabitRow | null; onClose: () => 
             <span>Description <em>optional</em></span>
             <textarea name="description" defaultValue={habit?.description || ''} maxLength={500} rows={3} placeholder="What are you training yourself to become?" />
           </label>
+
+          <fieldset>
+            <legend>Direction</legend>
+            <div className={styles.trackingChoices}>
+              <label className={intent === 'build' ? styles.choiceActive : ''}>
+                <input type="radio" name="intent_choice" value="build" checked={intent === 'build'} onChange={() => setIntent('build')} />
+                <strong>Build</strong>
+                <small>Success means doing the practice.</small>
+              </label>
+              <label className={intent === 'avoid' ? styles.choiceActive : ''}>
+                <input type="radio" name="intent_choice" value="avoid" checked={intent === 'avoid'} onChange={() => setIntent('avoid')} />
+                <strong>Avoid</strong>
+                <small>Success means keeping the boundary.</small>
+              </label>
+            </div>
+          </fieldset>
 
           <fieldset>
             <legend>Tracking</legend>
