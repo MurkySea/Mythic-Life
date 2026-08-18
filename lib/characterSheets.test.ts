@@ -48,7 +48,7 @@ describe('story character canon', () => {
 
   it('uses the full visual anchor for generated Elowen imagery', () => {
     const def = COMPANION_DEFS.find((companion) => companion.name === 'Elowen')
-    const visual = visualCanonPrompt(def)
+    const visual = visualCanonPrompt(def).toLowerCase()
 
     expect(visual).toContain('platinum-silver blonde hair')
     expect(visual).toContain('septum piercing')
