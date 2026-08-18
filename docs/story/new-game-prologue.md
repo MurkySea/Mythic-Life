@@ -8,9 +8,9 @@ They met as young teenagers. Mark was an independent adventurer-in-training with
 
 Mark decided to take care of her even though he was barely capable of taking care of himself. They grew up together on small contracts, cheap meals, patched equipment, bad weather, and the kind of familiarity that eventually stops needing explanation.
 
-Seraphine's mixed magic eventually became too dangerous and too strange for either of them to manage alone. Mark quietly saved his adventuring money and sent her to the Arcanum, sacrificing equipment and comfort so she could learn what she was. She initially experienced the separation as another abandonment, but over time understood what the choice had cost him.
+Seraphine's mixed magic eventually became too dangerous and too strange for either of them to manage alone. Mark quietly saved his adventuring money and sent her to Lumenvale Academy, sacrificing equipment and comfort so she could learn what she was. She initially experienced the separation as another abandonment, but over time understood what the choice had cost him.
 
-At the academy, every tradition tried to teach Seraphine to become only half of herself. Celestial masters wanted discipline and order. Fae scholars wanted instinct and wildness. Her breakthrough came when she stopped choosing between them and created **living radiance** — celestial light that behaves like living fae magic, healing, blooming, growing, and taking form.
+At Lumenvale Academy, every tradition tried to teach Seraphine to become only half of herself. Celestial masters wanted discipline and order. Fae scholars wanted instinct and wildness. Her breakthrough came when she stopped choosing between them and created **living radiance** — celestial light that behaves like living fae magic, healing, blooming, growing, and taking form.
 
 Meanwhile Mark kept adventuring. The two of them became adults separately.
 
