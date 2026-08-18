@@ -16,7 +16,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     chapter: 'I',
     title: 'The Girl the Worlds Would Not Keep',
     time: 'Years ago',
-    image: '/story/01-found-in-the-wilds.png',
+    image: '/story/01-found-in-the-wilds.jpg',
     alt: 'Two young adventurers meeting in a rain-dark forest, with faint living light around the silver-haired girl.',
     paragraphs: [
       'You were barely an adventurer yourself — a teenager with a secondhand blade, a borrowed pack, and more courage than coin.',
@@ -32,7 +32,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     chapter: 'II',
     title: 'Two Young Fools Against the Road',
     time: 'The years between',
-    image: '/story/02-growing-together.png',
+    image: '/story/02-growing-together.jpg',
     alt: 'Two teenage adventurers sharing a campfire, laughing over a simple meal after a difficult day on the road.',
     paragraphs: [
       'Until became a season. Then another.',
@@ -48,7 +48,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     chapter: 'III',
     title: 'The Price of Becoming',
     time: 'The first goodbye',
-    image: '/story/03-academy-farewell.png',
+    image: '/story/03-academy-farewell.jpg',
     alt: 'A young adventurer and silver-haired fae-celestial girl saying goodbye at the gates of a grand magic academy.',
     paragraphs: [
       'Her power grew faster than either of you knew how to manage. Fae glamour tangled with celestial radiance. Flowers opened in winter. Healing light became vines of gold. Once, frightened awake from a nightmare, she filled the room with wings neither of you knew she possessed.',
@@ -65,7 +65,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     chapter: 'IV',
     title: 'Separate Roads',
     time: 'Years apart',
-    image: '/story/04-separate-roads.png',
+    image: '/story/04-separate-roads.jpg',
     alt: 'A split scene showing a lone adventurer on a mountain road and a silver-haired mage studying living celestial-fae magic at an academy.',
     paragraphs: [
       'You kept your promise. Contract by contract, you became the adventurer you used to pretend you already were.',
@@ -80,7 +80,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     chapter: 'V',
     title: 'You Are Late',
     time: 'Today',
-    image: '/story/05-the-return.png',
+    image: '/story/05-the-return.jpg',
     alt: 'An adult silver-haired celestial-fae mage waiting outside a small adventurer home at golden hour with her travel bags.',
     paragraphs: [
       'You return from a routine contract expecting an empty house and a quiet meal.',
@@ -96,7 +96,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     chapter: 'VI',
     title: 'Beside You',
     time: 'The promise renewed',
-    image: '/story/06-beside-you.png',
+    image: '/story/06-beside-you.jpg',
     alt: 'Two adult adventurers standing together at a table covered in maps, preparing for a shared journey.',
     paragraphs: [
       'You assume she is visiting. She lets you believe that for almost an hour.',
@@ -113,7 +113,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     chapter: 'VII',
     title: 'Mythic Life',
     time: 'The journey begins',
-    image: '/story/07-first-quest.png',
+    image: '/story/07-first-quest.jpg',
     alt: 'Two adult adventurers leaving home together at sunrise, a road stretching toward distant mountains and an enchanted horizon.',
     paragraphs: [
       'Your history is already written: two young people who became home for each other, then became themselves apart.',
