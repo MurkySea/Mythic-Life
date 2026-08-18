@@ -18,6 +18,7 @@ import { persistGeneratedImage } from '@/lib/persistImage'
 import { insertGalleryImage, isAffinitySceneRow } from '@/lib/galleryKind'
 import { loadVisualMemoryHints } from '@/lib/memory-visual'
 import { recordSceneMemory } from '@/lib/memory'
+import { generateXaiImage } from '@/lib/xai-image'
 import {
   MythicEmptyState,
   MythicPage,
@@ -84,34 +85,25 @@ async function generateCompanionImage(formData: FormData) {
     /* non-fatal */
   }
 
-  try {
-    const response = await fetch('https://api.x.ai/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'grok-imagine-image',
-        prompt,
-        n: 1,
-      }),
+  const generated = await generateXaiImage(prompt)
+  if (!generated.ok) {
+    const status = generated.kind === 'blocked' ? 'blocked' : 'error'
+    console.error('companion scene generation failed', {
+      slug,
+      characterName,
+      status,
+      providerKind: generated.kind,
+      providerStatus: generated.status,
+      providerModel: generated.model,
+      providerMessage: generated.message.slice(0, 300),
     })
+    redirect(`/companion-profile?c=${slug}&scene=${status}`)
+  }
 
-    const data = await response.json()
-    let imageUrl = (data.data?.[0]?.url as string | undefined) ?? null
+  let imageUrl = generated.url
+  let saveFailed = false
 
-    if (!response.ok || !imageUrl) {
-      const msg = (data?.error?.message || data?.message || '').toString().toLowerCase()
-      const blocked =
-        msg.includes('safety') ||
-        msg.includes('policy') ||
-        msg.includes('blocked') ||
-        msg.includes('refus') ||
-        response.status === 400
-      redirect(`/companion-profile?c=${slug}&scene=${blocked ? 'blocked' : 'error'}`)
-    }
-
+  try {
     imageUrl = await persistGeneratedImage(imageUrl, {
       characterName,
       kind: `scene_${sceneIndex + 1}`,
@@ -130,15 +122,26 @@ async function generateCompanionImage(formData: FormData) {
     } catch {
       /* non-fatal */
     }
-
-    revalidatePath('/companion-profile')
-    revalidatePath('/companions')
-    revalidatePath('/gallery')
-    redirect(`/companion-profile?c=${slug}&scene=ok`)
   } catch (error) {
-    console.error('Image generation error:', error)
+    saveFailed = true
+    console.error('companion scene persistence failed', { slug, characterName, error })
+  }
+
+  if (saveFailed) {
     redirect(`/companion-profile?c=${slug}&scene=error`)
   }
+
+  console.info('companion scene preserved', {
+    slug,
+    characterName,
+    sceneIndex: sceneIndex + 1,
+    model: generated.model,
+  })
+
+  revalidatePath('/companion-profile')
+  revalidatePath('/companions')
+  revalidatePath('/gallery')
+  redirect(`/companion-profile?c=${slug}&scene=ok`)
 }
 
 function SceneBanner({ status }: { status?: string }) {
