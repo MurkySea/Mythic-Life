@@ -14,6 +14,8 @@ import {
   loadVisualMemoryHints,
   dateLineForMemory,
 } from '@/lib/memory-visual'
+import { visualCanonPrompt } from '@/lib/characterSheets'
+import { generateXaiImage } from '@/lib/xai-image'
 
 /**
  * Spend a date coin (preferred) or gold to take a companion on a date.
@@ -44,6 +46,7 @@ export async function takeCompanionOnDate(formData: FormData) {
   }
 
   const appearance =
+    visualCanonPrompt(def) ||
     def?.appearance ||
     'elegant adult woman, distinctive feminine features, graceful figure'
   const characterName = companion.name || def?.name || 'Companion'
@@ -61,44 +64,25 @@ export async function takeCompanionOnDate(formData: FormData) {
 
   const spoken = dateLineForMemory(idea.id, idea.line, visual.tags)
 
-  let imageUrl: string | null = null
-
-  try {
-    const response = await fetch('https://api.x.ai/v1/images/generations', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'grok-imagine-image',
-        prompt,
-        n: 1,
-      }),
-    })
-
-    const data = await response.json()
-    imageUrl = (data.data?.[0]?.url as string | undefined) ?? null
-
-    if (!response.ok || !imageUrl) {
-      const msg = (data?.error?.message || data?.message || '').toString().toLowerCase()
-      const blocked =
-        msg.includes('safety') ||
-        msg.includes('policy') ||
-        msg.includes('blocked') ||
-        msg.includes('refus') ||
-        response.status === 400
-      redirect(`/companion-profile?c=${slug}&date=${blocked ? 'blocked' : 'error'}`)
-    }
-
-    imageUrl = await persistGeneratedImage(imageUrl, {
+  const generated = await generateXaiImage(prompt)
+  if (!generated.ok) {
+    const status = generated.kind === 'blocked' ? 'blocked' : 'error'
+    console.error('date image generation failed', {
+      slug,
       characterName,
-      kind: `date_${idea.id}`,
+      status,
+      providerKind: generated.kind,
+      providerStatus: generated.status,
+      providerModel: generated.model,
+      providerMessage: generated.message.slice(0, 300),
     })
-  } catch (e) {
-    console.error('date image failed', e)
-    redirect(`/companion-profile?c=${slug}&date=error`)
+    redirect(`/companion-profile?c=${slug}&date=${status}`)
   }
+
+  const imageUrl = await persistGeneratedImage(generated.url, {
+    characterName,
+    kind: `date_${idea.id}`,
+  })
 
   if (useCoin) {
     await saveStanding({ date_coins: standing.date_coins - 1 })
@@ -132,7 +116,6 @@ export async function takeCompanionOnDate(formData: FormData) {
     console.error('date memory failed', e)
   }
 
-  // Real newlines — message body she speaks + title + image
   const content = [
     spoken.line,
     '',
@@ -145,6 +128,13 @@ export async function takeCompanionOnDate(formData: FormData) {
     role: 'companion',
     content,
     companion_slug: slug,
+  })
+
+  console.info('date image preserved', {
+    slug,
+    characterName,
+    model: generated.model,
+    idea: idea.id,
   })
 
   revalidatePath('/companion-profile')
