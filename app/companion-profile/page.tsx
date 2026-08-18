@@ -47,14 +47,48 @@ async function generateCompanionImage(formData: FormData) {
   const slug = (formData.get('slug') as string) || 'seraphine'
   const supabase = await createClient()
   const def = getCompanionDef(slug)
+  const rowSelect = 'id, affinity_score, name, slug, image_url'
 
-  const { data: companion } = await supabase
+  // Resolve by canonical display name first. Old saves can contain both the
+  // legacy starter row and the new Seraphine row, so OR + maybeSingle can
+  // legitimately match more than one record and return null.
+  const byName = await supabase
     .from('companion')
-    .select('id, affinity_score, name, slug, image_url')
-    .or(`slug.eq.${slug},name.eq.${def?.name || 'Seraphine'}`)
+    .select(rowSelect)
+    .eq('name', def?.name || '')
+    .limit(1)
     .maybeSingle()
 
+  if (byName.error) {
+    console.error('companion scene name lookup failed', {
+      slug,
+      defName: def?.name,
+      message: byName.error.message,
+    })
+  }
+
+  let companion = byName.data
+
   if (!companion) {
+    const bySlug = await supabase
+      .from('companion')
+      .select(rowSelect)
+      .eq('slug', slug)
+      .limit(1)
+      .maybeSingle()
+
+    if (bySlug.error) {
+      console.error('companion scene slug lookup failed', {
+        slug,
+        defName: def?.name,
+        message: bySlug.error.message,
+      })
+    }
+    companion = bySlug.data
+  }
+
+  if (!companion) {
+    console.error('companion scene row resolution failed', { slug, defName: def?.name })
     redirect(`/companion-profile?c=${slug}&scene=error`)
   }
 
@@ -230,7 +264,12 @@ export default async function CompanionProfilePage({
           <div className={styles.profileGrid}>
             {party.map((companion) => {
               const companionSlug =
-                companion.slug || (companion.name === 'Seraphine' ? 'seraphine' : '')
+                companion.slug ||
+                (companion.name === 'Elowen'
+                  ? 'seraphine'
+                  : companion.name === 'Seraphine'
+                    ? 'seraphine_quietflame'
+                    : '')
               const def = getCompanionDef(companionSlug)
               const state = companionRelationshipState(companion, companionSlug)
               const name = companion.name || def?.name || 'Companion'
@@ -268,8 +307,7 @@ export default async function CompanionProfilePage({
 
   const def = getCompanionDef(slug)
   const companion =
-    party.find((row) => row.slug === slug || row.name === def?.name) ||
-    party.find((row) => row.name === 'Seraphine')
+    party.find((row) => row.name === def?.name) || party.find((row) => row.slug === slug)
 
   const characterName = companion?.name || def?.name || 'Seraphine'
   const affinity = companion?.affinity_score || 1
