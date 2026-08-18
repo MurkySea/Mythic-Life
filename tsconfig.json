@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@/lib/companions": ["./lib/companions-v2.ts"],
       "@/*": ["./*"]
     }
   },

@@ -41,7 +41,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
       'Neither of you had much. Somehow, neither of you felt poor.',
     ],
     quote: 'You know I am supposed to be the mysterious magical one, yes? Stop making me rescue you.',
-    speaker: 'Seraphine',
+    speaker: 'Elowen',
   },
   {
     id: 'academy',
@@ -69,7 +69,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
     alt: 'A split scene showing a lone adventurer on a mountain road and a silver-haired mage studying living celestial-fae magic at Lumenvale Academy.',
     paragraphs: [
       'You kept your promise. Contract by contract, you became the adventurer you used to pretend you already were.',
-      'At Lumenvale Academy, Seraphine discovered that every teacher wanted to solve her by removing half of her. Celestial masters told her to discipline the wild magic. Fae scholars told her to stop letting Heaven cage it.',
+      'At Lumenvale Academy, Elowen discovered that every teacher wanted to solve her by removing half of her. Celestial masters told her to discipline the wild magic. Fae scholars told her to stop letting Heaven cage it.',
       'Eventually she stopped asking either side for permission.',
       'Her breakthrough was neither celestial nor fae. Living radiance: golden light that grew, healed, bloomed, and chose its own shape. For the first time, she was not an imperfect version of two peoples. She was whole.',
       'And being whole forced her to ask a harder question: when she thought of home, why did she always think of you?',
@@ -89,7 +89,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
       'She notices the staring. Of course she notices.',
     ],
     quote: 'You are late.',
-    speaker: 'Seraphine',
+    speaker: 'Elowen',
   },
   {
     id: 'choice',
@@ -106,7 +106,7 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
       'Now she wants something neither of you has ever tried before: not to follow behind you, and not to be protected from the road, but to choose it with you.',
     ],
     quote: 'I know how to stand on my own now. I would rather stand beside you. I am coming with you.',
-    speaker: 'Seraphine',
+    speaker: 'Elowen',
   },
   {
     id: 'begin',
@@ -122,6 +122,6 @@ export const NEW_GAME_PROLOGUE: IntroScene[] = [
       'Real quests will become the road. Habits will become training. Goals will become destinations. The life you build outside this world will decide who the two of you become inside it.',
     ],
     quote: 'So... where are we going first?',
-    speaker: 'Seraphine',
+    speaker: 'Elowen',
   },
 ]

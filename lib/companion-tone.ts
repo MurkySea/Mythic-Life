@@ -11,7 +11,9 @@ export type CompanionTone =
   | 'violet'
 
 const TONES: Record<string, CompanionTone> = {
+  // Legacy starter key now represents Elowen.
   seraphine: 'silver',
+  seraphine_quietflame: 'silver',
   kira_foxveil: 'crimson',
   ember_crimsonfall: 'ember',
   nyx_voidbane: 'void',
