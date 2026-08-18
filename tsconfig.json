@@ -23,6 +23,7 @@
       "@/lib/characterStudio": ["./lib/characterStudio-v2.ts"],
       "@/lib/companionVoice": ["./lib/companionVoice-v2.ts"],
       "@/lib/companion-image-gifts": ["./lib/companion-image-gifts-v2.ts"],
+      "@/lib/scenes": ["./lib/scenes-v2.ts"],
       "@/*": ["./*"]
     }
   },
