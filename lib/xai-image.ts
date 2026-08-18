@@ -19,6 +19,12 @@ type XaiImageResponse = {
   message?: string
 }
 
+/**
+ * xAI currently reports max_prompt_length=1024 for the Imagine image model.
+ * Leave a little headroom instead of sending prompts right at the boundary.
+ */
+export const XAI_IMAGE_PROMPT_LIMIT = 1000
+
 function uniqueStrings(values: Array<string | undefined>): string[] {
   return [...new Set(values.map((value) => value?.trim()).filter(Boolean) as string[])]
 }
@@ -43,6 +49,94 @@ export function classifyXaiImageFailure(message: string, status?: number): XaiIm
   return 'provider'
 }
 
+function visualPriority(segment: string): number {
+  const s = segment.toLowerCase()
+  if (/no animal|ears?|tail|wings?|horns?|scales?/.test(s)) return 6
+  if (/hair|eyes?|piercing|beauty mark|freckle/.test(s)) return 5
+  if (/dress|outfit|clothing|robe|armor|figure|curves?|waist/.test(s)) return 4
+  if (/skin|markings?|adult|age|race|fae|angel|celestial|foxkin/.test(s)) return 3
+  return 1
+}
+
+/**
+ * Scene prompts contain a detailed character block plus composition fields.
+ * If the combined prompt grows beyond xAI's limit, keep the strongest visual
+ * identity details and the actual scene directions rather than blindly slicing
+ * off the end (which used to discard pose/setting/lighting).
+ */
+export function compactXaiImagePrompt(prompt: string): string {
+  const normalized = String(prompt || '').replace(/\s+/g, ' ').trim()
+  if (normalized.length <= XAI_IMAGE_PROMPT_LIMIT) return normalized
+
+  const segments = normalized
+    .split(/\.\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+
+  const characterIndex = segments.findIndex((segment) => segment.startsWith('Character:'))
+  const nameIndex = segments.findIndex((segment) => segment.startsWith('Name context:'))
+
+  const opening = segments.slice(0, Math.max(0, characterIndex))
+  const character =
+    characterIndex >= 0
+      ? segments.slice(characterIndex, nameIndex > characterIndex ? nameIndex : undefined)
+      : []
+
+  const sceneFields = segments.filter((segment) =>
+    /^(Name context|Expression|Outfit|Pose|Setting|Camera|Lighting|Species \/ world detail|Secondary atmosphere):/i.test(
+      segment
+    )
+  )
+  const closing = segments.filter(
+    (segment) =>
+      /single character focus|no text|no watermark|romantic intimacy|emotional closeness|not romantic|sensual tension/i.test(
+        segment
+      ) && !sceneFields.includes(segment)
+  )
+
+  const characterLead = character.slice(0, 1)
+  const characterDetails = character
+    .slice(1)
+    .map((segment, index) => ({ segment, index, priority: visualPriority(segment) }))
+    .sort((a, b) => b.priority - a.priority || a.index - b.index)
+
+  const chosen: string[] = []
+  const seen = new Set<string>()
+  const add = (segment: string) => {
+    const clean = segment.replace(/[.\s]+$/g, '').trim()
+    if (!clean || seen.has(clean)) return
+    const candidate = [...chosen, clean].join('. ') + '.'
+    if (candidate.length <= XAI_IMAGE_PROMPT_LIMIT) {
+      chosen.push(clean)
+      seen.add(clean)
+    }
+  }
+
+  // Keep quality/style, then the character's identity anchor.
+  for (const segment of opening.slice(0, 2)) add(segment)
+  for (const segment of characterLead) add(segment)
+
+  // Reserve scene semantics early so a detailed character never crowds them out.
+  for (const segment of sceneFields) add(segment)
+  for (const segment of closing) add(segment)
+
+  // Spend the remaining budget on the most identity-critical appearance details.
+  for (const { segment } of characterDetails) add(segment)
+
+  let compacted = chosen.join('. ')
+  if (compacted && !compacted.endsWith('.')) compacted += '.'
+
+  // Absolute guardrail for unusual unstructured prompts.
+  if (compacted.length > XAI_IMAGE_PROMPT_LIMIT) {
+    compacted = compacted.slice(0, XAI_IMAGE_PROMPT_LIMIT).trimEnd()
+  }
+  if (!compacted) {
+    compacted = normalized.slice(0, XAI_IMAGE_PROMPT_LIMIT).trimEnd()
+  }
+
+  return compacted
+}
+
 export async function generateXaiImage(prompt: string): Promise<XaiImageGenerationResult> {
   const apiKey = process.env.GROK_API_KEY
   if (!apiKey) {
@@ -59,6 +153,14 @@ export async function generateXaiImage(prompt: string): Promise<XaiImageGenerati
     'grok-imagine-image-quality',
     'grok-imagine-image',
   ])
+  const safePrompt = compactXaiImagePrompt(prompt)
+
+  if (safePrompt.length < String(prompt || '').replace(/\s+/g, ' ').trim().length) {
+    console.info('xai image prompt compacted', {
+      originalLength: String(prompt || '').replace(/\s+/g, ' ').trim().length,
+      sentLength: safePrompt.length,
+    })
+  }
 
   let lastFailure: XaiImageGenerationResult = {
     ok: false,
@@ -76,7 +178,7 @@ export async function generateXaiImage(prompt: string): Promise<XaiImageGenerati
         },
         body: JSON.stringify({
           model,
-          prompt,
+          prompt: safePrompt,
           n: 1,
           response_format: 'url',
         }),
