@@ -58,6 +58,14 @@ function visualPriority(segment: string): number {
   return 1
 }
 
+function shortenSegment(segment: string, maxChars: number): string {
+  const clean = segment.replace(/[.\s]+$/g, '').trim()
+  if (clean.length <= maxChars) return clean
+  const clipped = clean.slice(0, maxChars)
+  const wordBoundary = clipped.replace(/\s+\S*$/g, '').trim()
+  return wordBoundary || clipped.trim()
+}
+
 /**
  * Scene prompts contain a detailed character block plus composition fields.
  * If the combined prompt grows beyond xAI's limit, keep the strongest visual
@@ -112,21 +120,27 @@ export function compactXaiImagePrompt(prompt: string): string {
     }
   }
 
-  // Keep quality/style, then the character's identity anchor.
-  for (const segment of opening.slice(0, 2)) add(segment)
-  for (const segment of characterLead) add(segment)
+  // Quality/style plus the broad identity anchor.
+  for (const segment of opening.slice(0, 2)) add(shortenSegment(segment, 150))
+  for (const segment of characterLead) add(shortenSegment(segment, 150))
 
-  // Reserve scene semantics early so a detailed character never crowds them out.
-  for (const segment of sceneFields) add(segment)
-  for (const segment of closing) add(segment)
+  // Reserve critical identity markers before scene composition consumes budget.
+  for (const { segment, priority } of characterDetails) {
+    if (priority >= 5) add(shortenSegment(segment, 125))
+  }
 
-  // Spend the remaining budget on the most identity-critical appearance details.
-  for (const { segment } of characterDetails) add(segment)
+  // Then preserve the actual scene semantics.
+  for (const segment of sceneFields) add(shortenSegment(segment, 100))
+  for (const segment of closing) add(shortenSegment(segment, 100))
+
+  // Spend remaining room on outfit/body/skin and other lower-priority details.
+  for (const { segment, priority } of characterDetails) {
+    if (priority < 5) add(shortenSegment(segment, 120))
+  }
 
   let compacted = chosen.join('. ')
   if (compacted && !compacted.endsWith('.')) compacted += '.'
 
-  // Absolute guardrail for unusual unstructured prompts.
   if (compacted.length > XAI_IMAGE_PROMPT_LIMIT) {
     compacted = compacted.slice(0, XAI_IMAGE_PROMPT_LIMIT).trimEnd()
   }
@@ -153,11 +167,12 @@ export async function generateXaiImage(prompt: string): Promise<XaiImageGenerati
     'grok-imagine-image-quality',
     'grok-imagine-image',
   ])
-  const safePrompt = compactXaiImagePrompt(prompt)
+  const normalizedPrompt = String(prompt || '').replace(/\s+/g, ' ').trim()
+  const safePrompt = compactXaiImagePrompt(normalizedPrompt)
 
-  if (safePrompt.length < String(prompt || '').replace(/\s+/g, ' ').trim().length) {
+  if (safePrompt.length < normalizedPrompt.length) {
     console.info('xai image prompt compacted', {
-      originalLength: String(prompt || '').replace(/\s+/g, ' ').trim().length,
+      originalLength: normalizedPrompt.length,
       sentLength: safePrompt.length,
     })
   }
