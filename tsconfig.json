@@ -20,6 +20,8 @@
     ],
     "paths": {
       "@/lib/companions": ["./lib/companions-v2.ts"],
+      "@/lib/characterStudio": ["./lib/characterStudio-v2.ts"],
+      "@/lib/companionVoice": ["./lib/companionVoice-v2.ts"],
       "@/*": ["./*"]
     }
   },
