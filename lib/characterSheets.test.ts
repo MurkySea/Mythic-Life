@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { COMPANION_DEFS } from '@/lib/companions'
-import { characterSheetPrompt, getCharacterSheet, visualCanonPrompt } from '@/lib/characterSheets'
-import { buildCompanionSystemPrompt } from '@/lib/companionVoice'
-import { getCharacterProfile } from '@/lib/characterStudio'
+import { COMPANION_DEFS } from './companions-v2'
+import { characterSheetPrompt, getCharacterSheet, visualCanonPrompt } from './characterSheets'
+import { buildCompanionSystemPrompt } from './companionVoice-v2'
+import { getCharacterProfile } from './characterStudio-v2'
 
 describe('story character canon', () => {
   it('keeps Elowen and Seraphine as distinct characters', () => {
