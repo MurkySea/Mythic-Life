@@ -138,7 +138,7 @@ export async function backfillDualAxisCompanions(
 /** Developer: send a test web-push to all stored subscriptions. */
 export async function sendTestPush(_formData: FormData): Promise<void> {
   await sendPushToAll({
-    title: 'Seraphine',
+    title: 'Elowen',
     body: 'Just checking you are still with me… did the notification work?',
     url: '/messages',
     tag: 'mythic-test-push',
@@ -208,16 +208,21 @@ export async function hardResetGame(_formData: FormData): Promise<void> {
     console.error('reset companions', e)
   }
 
-  const sera = COMPANION_DEFS.find((c) => c.slug === 'seraphine') || COMPANION_DEFS[0]
+  // `seraphine` is the legacy internal key for the founding slot. The story
+  // roster overlay maps that key to Elowen so older chat/memory code stays stable.
+  const starter =
+    COMPANION_DEFS.find((c) => c.starter) ||
+    COMPANION_DEFS.find((c) => c.slug === 'seraphine') ||
+    COMPANION_DEFS[0]
   const startingAffinity = 12
   const startingBondXp = 420
 
   await supabase.from('companion').insert({
-    name: sera.name,
-    slug: sera.slug,
-    title: sera.title,
-    personality: sera.personality,
-    affinities: sera.affinities,
+    name: starter.name,
+    slug: starter.slug,
+    title: starter.title,
+    personality: starter.personality,
+    affinities: starter.affinities,
     is_unlocked: true,
     affinity_score: startingAffinity,
     bond_xp: startingBondXp,
