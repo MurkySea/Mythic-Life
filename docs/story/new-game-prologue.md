@@ -2,25 +2,25 @@
 
 ## Premise
 
-Mythic Life begins **after** Mark and Seraphine already have a history.
+Mythic Life begins **after** Mark and Elowen already have a history.
 
-They met as young teenagers. Mark was an independent adventurer-in-training with almost nothing to his name when he found Seraphine alone in the mortal wilds. She was the forbidden child of a celestial and a high fae, cast out because neither realm would accept what their union had created.
+They met as young teenagers. Mark was an independent adventurer-in-training with almost nothing to his name when he found Elowen alone in the mortal wilds. She was the forbidden child of a celestial and a high fae, cast out because neither realm would accept what their union had created.
 
 Mark decided to take care of her even though he was barely capable of taking care of himself. They grew up together on small contracts, cheap meals, patched equipment, bad weather, and the kind of familiarity that eventually stops needing explanation.
 
-Seraphine's mixed magic eventually became too dangerous and too strange for either of them to manage alone. Mark quietly saved his adventuring money and sent her to Lumenvale Academy, sacrificing equipment and comfort so she could learn what she was. She initially experienced the separation as another abandonment, but over time understood what the choice had cost him.
+Elowen's mixed magic eventually became too dangerous and too strange for either of them to manage alone. Mark quietly saved his adventuring money and sent her to Lumenvale Academy, sacrificing equipment and comfort so she could learn what she was. She initially experienced the separation as another abandonment, but over time understood what the choice had cost him.
 
-At Lumenvale Academy, every tradition tried to teach Seraphine to become only half of herself. Celestial masters wanted discipline and order. Fae scholars wanted instinct and wildness. Her breakthrough came when she stopped choosing between them and created **living radiance** — celestial light that behaves like living fae magic, healing, blooming, growing, and taking form.
+At Lumenvale Academy, every tradition tried to teach Elowen to become only half of herself. Celestial masters wanted discipline and order. Fae scholars wanted instinct and wildness. Her breakthrough came when she stopped choosing between them and created **living radiance** — celestial light that behaves like living fae magic, healing, blooming, growing, and taking form.
 
 Meanwhile Mark kept adventuring. The two of them became adults separately.
 
-The game opens on the day Seraphine comes home.
+The game opens on the day Elowen comes home.
 
 ## Opening scene
 
 Mark returns from an ordinary contract and finds a silver-haired woman sitting beside his door with an academy cloak and several travel bags.
 
-He recognizes Seraphine immediately, but the girl he remembers and the woman in front of him do not quite fit together in his mind.
+He recognizes Elowen immediately, but the girl he remembers and the woman in front of him do not quite fit together in his mind.
 
 Her first words are simple:
 
@@ -30,7 +30,7 @@ Mark assumes she is visiting. She lets him believe that for a while.
 
 Then he realizes she brought everything she owns.
 
-Seraphine did not return because she failed at the academy or because she needs him to protect her. She had friends, rivals, mentors, and a life that belonged entirely to her. She learned who she was without Mark.
+Elowen did not return because she failed at the academy or because she needs him to protect her. She had friends, rivals, mentors, and a life that belonged entirely to her. She learned who she was without Mark.
 
 And then she chose to come home.
 
@@ -45,11 +45,11 @@ The relationship does **not** begin at zero affinity.
 - **Trust:** extremely high. They grew up depending on each other.
 - **Emotional closeness:** already real and familiar.
 - **Romance:** unresolved.
-- **Core tension:** Seraphine knows she loves Mark, but does not yet know how to categorize that love.
+- **Core tension:** Elowen knows she loves Mark, but does not yet know how to categorize that love.
 
 Mark has been her protector, oldest friend, first home, and closest family. Now that they are adults, attraction complicates a bond that previously felt easy to name.
 
-Seraphine's question is not “Do I love him?”
+Elowen's question is not “Do I love him?”
 
 It is:
 
@@ -59,7 +59,7 @@ She also wants Mark to stop seeing only the frightened girl he once rescued. Her
 
 Mechanically the New Game seed therefore begins with **high Trust** and **moderate-to-high Intimacy**, below the romantic `Intimate` / `Devoted` stages. The player is not earning her basic trust; the player is discovering what an already-deep bond becomes through the life they build together.
 
-## Seraphine — founding companion
+## Elowen — founding companion
 
 **Title:** The Unbound  
 **Race:** Celestial-Fae  
@@ -68,7 +68,7 @@ Mechanically the New Game seed therefore begins with **high Trust** and **modera
 
 ### Visual identity
 
-Seraphine is a young adult woman with long wavy platinum-silver blonde hair and soft blunt bangs, striking bright blue eyes, fair porcelain skin, a very light scattering of freckles across her nose and cheeks, a septum piercing, a small left nostril piercing, and a tiny beauty mark near the corner of her lips. She has subtle elegant pointed ears.
+Elowen is a young adult woman with long wavy platinum-silver blonde hair and soft blunt bangs, striking bright blue eyes, fair porcelain skin, a very light scattering of freckles across her nose and cheeks, a septum piercing, a small left nostril piercing, and a tiny beauty mark near the corner of her lips. She has subtle elegant pointed ears.
 
 Her everyday look is intentionally approachable rather than armored or regal: a pale cream floral sundress patterned with tiny pink, yellow, and white wildflowers, often barefoot.
 
@@ -80,14 +80,31 @@ Warm, observant, quietly stubborn, playful once comfortable, and intensely famil
 
 She dislikes being treated as fragile or childish. Being protected once meant survival; being trusted now means love.
 
+## Seraphine — the first find
+
+Seraphine is **not** part of the childhood prologue. She is the first new companion Mark and Elowen meet once their shared adventure begins.
+
+**Title:** Quiet Flame  
+**Race:** Silver Foxkin  
+**Class:** Companion  
+**Role:** First adventure-era find
+
+She tends a crossing at the edge of the silverwood and has spent years learning that grand promises matter less than who actually returns. She is calm, warm, understated, observant, and slower to trust than Elowen. Elowen's complete trust in Mark interests her, but Seraphine refuses to borrow someone else's certainty — she intends to learn him for herself.
+
+Mechanically she is not seeded during New Game. Her empty non-starter unlock requirement is intentional: the first normal progression check discovers her and uses the standard companion unlock ceremony. This makes the first completed progression beat after the prologue feel like the party has actually found someone on the road.
+
+Her introduction line is:
+
+> “You two have the look of people who mean to keep going. I'm Seraphine. If you're crossing the silverwood, I'll walk with you.”
+
 ## Thematic purpose
 
 The prologue establishes the central Mythic Life idea:
 
 **The player is not beginning from nothing. The player is beginning a new chapter.**
 
-The real-world tasks, habits, goals, choices, setbacks, and returns become the road Mark and Seraphine travel after she comes home.
+The real-world tasks, habits, goals, choices, setbacks, and returns become the road Mark and Elowen travel after she comes home. Seraphine's arrival then proves that the road can genuinely expand the cast instead of beginning with everyone already known.
 
-Her final line hands control to the player:
+Elowen's final line hands control to the player:
 
 > “So... where are we going first?”
