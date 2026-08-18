@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { IntroScene } from '@/lib/intro-story'
+import { startNewGame } from './actions'
 import styles from './new-game.module.css'
 
 type IntroStoryProps = {
@@ -30,7 +31,8 @@ export default function IntroStory({ scenes }: IntroStoryProps) {
 
   function continueStory() {
     if (isLast) {
-      router.push('/new-game/begin')
+      const form = document.getElementById('start-new-game-form') as HTMLFormElement | null
+      form?.requestSubmit()
       return
     }
     go(index + 1)
@@ -116,14 +118,22 @@ export default function IntroStory({ scenes }: IntroStoryProps) {
             ))}
           </div>
 
-          <button
-            type="button"
-            className={styles.primaryButton}
-            onClick={continueStory}
-            disabled={leaving}
-          >
-            {isLast ? 'Begin the Journey' : 'Continue'}
-          </button>
+          {isLast ? (
+            <form id="start-new-game-form" action={startNewGame} className={styles.actionForm}>
+              <button type="submit" className={styles.primaryButton} disabled={leaving}>
+                Begin the Journey
+              </button>
+            </form>
+          ) : (
+            <button
+              type="button"
+              className={styles.primaryButton}
+              onClick={continueStory}
+              disabled={leaving}
+            >
+              Continue
+            </button>
+          )}
         </footer>
 
         <button type="button" className={styles.skip} onClick={() => router.push('/')}>
