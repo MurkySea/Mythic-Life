@@ -31,6 +31,8 @@ export default function HomeDashboardTabs({ tasks, habits, goals }: HomeDashboar
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY)
+    // Existing one-time hydration from localStorage; intentionally synchronized after mount.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (isHomeView(saved)) setActive(saved)
   }, [])
 
