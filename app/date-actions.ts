@@ -35,13 +35,43 @@ export async function takeCompanionOnDate(formData: FormData) {
     redirect(`/companion-profile?c=${slug}&date=broke`)
   }
 
-  const { data: companion } = await supabase
+  const rowSelect = 'id, name, slug, affinity_score, bond_xp, image_url'
+  const byName = await supabase
     .from('companion')
-    .select('id, name, slug, affinity_score, bond_xp, image_url')
-    .or(`slug.eq.${slug},name.eq.${def?.name || 'Seraphine'}`)
+    .select(rowSelect)
+    .eq('name', def?.name || '')
+    .limit(1)
     .maybeSingle()
 
+  if (byName.error) {
+    console.error('date companion name lookup failed', {
+      slug,
+      defName: def?.name,
+      message: byName.error.message,
+    })
+  }
+
+  let companion = byName.data
   if (!companion) {
+    const bySlug = await supabase
+      .from('companion')
+      .select(rowSelect)
+      .eq('slug', slug)
+      .limit(1)
+      .maybeSingle()
+
+    if (bySlug.error) {
+      console.error('date companion slug lookup failed', {
+        slug,
+        defName: def?.name,
+        message: bySlug.error.message,
+      })
+    }
+    companion = bySlug.data
+  }
+
+  if (!companion) {
+    console.error('date companion row resolution failed', { slug, defName: def?.name })
     redirect(`/companion-profile?c=${slug}&date=error`)
   }
 
