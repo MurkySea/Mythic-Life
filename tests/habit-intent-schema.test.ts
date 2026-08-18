@@ -9,7 +9,7 @@ const migration = readFileSync(
 
 describe('habit build and avoid intent schema', () => {
   it('adds a constrained build or avoid intent with build as the safe default', () => {
-    expect(migration).toMatch(/add column intent text not null default 'build'/i)
+    expect(migration).toMatch(/add column(?: if not exists)? intent text not null default 'build'/i)
     expect(migration).toMatch(/intent in \('build', 'avoid'\)/i)
   })
 
