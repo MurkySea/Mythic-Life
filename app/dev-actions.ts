@@ -145,7 +145,7 @@ export async function sendTestPush(_formData: FormData): Promise<void> {
   })
 }
 
-/** Hard reset: wipe progression, keep task list, re-seed Seraphine only. */
+/** Hard reset: wipe progression, keep task list, re-seed the founding companion. */
 export async function hardResetGame(_formData: FormData): Promise<void> {
   const supabase = await createClient()
 
@@ -209,11 +209,8 @@ export async function hardResetGame(_formData: FormData): Promise<void> {
   }
 
   const sera = COMPANION_DEFS.find((c) => c.slug === 'seraphine') || COMPANION_DEFS[0]
-  const seed = backfillScoresFromAffinity({
-    slug: sera.slug,
-    affinity_score: 1,
-    bond_xp: 0,
-  })
+  const startingAffinity = 12
+  const startingBondXp = 420
 
   await supabase.from('companion').insert({
     name: sera.name,
@@ -222,10 +219,10 @@ export async function hardResetGame(_formData: FormData): Promise<void> {
     personality: sera.personality,
     affinities: sera.affinities,
     is_unlocked: true,
-    affinity_score: 1,
-    bond_xp: 0,
-    trust_score: seed.trust,
-    intimacy_score: seed.intimacy,
+    affinity_score: startingAffinity,
+    bond_xp: startingBondXp,
+    trust_score: 88,
+    intimacy_score: 58,
     consecutive_bad_days: 0,
     consecutive_good_days: 0,
   })
