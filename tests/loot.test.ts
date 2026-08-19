@@ -16,7 +16,6 @@ describe('rollQuestLoot', () => {
   })
 
   it('returns nothing with zero amount', () => {
-    // Statistical sample — just ensure the shape is always valid
     const drop = rollQuestLoot()
     if (drop.kind === 'nothing') {
       expect(drop.amount).toBe(0)
@@ -25,8 +24,10 @@ describe('rollQuestLoot', () => {
 })
 
 describe('dateRewards', () => {
-  it('gives a positive affinity and bond boost', () => {
+  it('moves both the primary relationship axes and legacy mirrors', () => {
     const r = dateRewards()
+    expect(r.trustDelta).toBeGreaterThan(0)
+    expect(r.intimacyDelta).toBeGreaterThan(0)
     expect(r.affinityDelta).toBeGreaterThan(0)
     expect(r.bondXpDelta).toBeGreaterThan(0)
   })
