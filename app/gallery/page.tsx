@@ -181,17 +181,6 @@ export default async function GalleryPage({
                 Enter correspondence
               </Link>
             </section>
-          ) : (
-            <section className={styles.empty}>
-              <div className={styles.emptyIcon} aria-hidden><MythicIcon name="gallery" size={25} /></div>
-              <h2 className={styles.emptyTitle}>This chamber has no memories yet</h2>
-              <p className={styles.emptyText}>
-                Ask {activeCharacter} to show you a moment from your current scene. When she creates it, the image will be preserved here.
-              </p>
-              <Link href={`/messages?c=${encodeURIComponent(activeSlug)}`} className={styles.emptyLink}>
-                Enter correspondence
-              </Link>
-            </section>
           )}
         </>
       ) : (
