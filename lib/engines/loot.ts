@@ -70,9 +70,15 @@ export function rollQuestLoot(opts?: { streak?: number }): LootDrop {
 /** Cost to take a companion on a date (experience, not transaction). */
 export const DATE_GOLD_COST = 35
 
-/** Bond / affinity reward for a successful date. */
+/**
+ * Relationship reward for a successful date.
+ * Trust / Intimacy are the primary relationship axes; Affinity / Bond XP remain
+ * mirrored for legacy scene gates and older UI.
+ */
 export function dateRewards() {
   return {
+    trustDelta: 1.5,
+    intimacyDelta: 4,
     affinityDelta: 2,
     bondXpDelta: 55,
     note: 'A shared night out. The memory sticks.',

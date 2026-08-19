@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { getIntimacyLabel } from '@/lib/scenes'
 import { getCompanionDef } from '@/lib/companions'
 import { companionTone } from '@/lib/companion-tone'
+import { pickCanonicalCompanionRow } from '@/lib/companion-row-selection'
 import { MythicIcon } from '@/components/MythicIcons'
 import GalleryGrid, { type GalleryImage } from '@/components/GalleryGrid'
 import { setAsAvatar, clearAvatar } from '@/app/avatar-actions'
@@ -33,9 +34,15 @@ export default async function GalleryPage({
     .order('created_at', { ascending: false })
 
   const characters = Array.from(new Set((allImages || []).map((image) => image.character_name)))
-  const activeCharacter = params.character || characters[0] || 'Seraphine'
+  const activeCharacter = params.character || characters[0] || 'Elowen'
+  const fallbackSlug =
+    activeCharacter === 'Elowen'
+      ? 'seraphine'
+      : activeCharacter === 'Seraphine'
+        ? 'seraphine_quietflame'
+        : activeCharacter.toLowerCase().replace(/\s+/g, '_')
 
-  const [{ data: images }, { data: companion }] = await Promise.all([
+  const [{ data: images }, byName] = await Promise.all([
     supabase
       .from('gallery_images')
       .select('*')
@@ -43,17 +50,29 @@ export default async function GalleryPage({
       .order('created_at', { ascending: false }),
     supabase
       .from('companion')
-      .select('image_url, name, slug')
+      .select('image_url, name, slug, affinity_score, bond_xp, trust_score, intimacy_score')
       .eq('name', activeCharacter)
-      .maybeSingle(),
+      .limit(20),
   ])
 
+  let companionRows = byName.data || []
+  if (companionRows.length === 0) {
+    const bySlug = await supabase
+      .from('companion')
+      .select('image_url, name, slug, affinity_score, bond_xp, trust_score, intimacy_score')
+      .eq('slug', fallbackSlug)
+      .limit(20)
+    companionRows = bySlug.data || []
+  }
+
+  const companion = pickCanonicalCompanionRow(companionRows, {
+    canonicalName: activeCharacter,
+    slug: fallbackSlug,
+    preferImage: true,
+  })
+
   const currentAvatarUrl = companion?.image_url || null
-  const activeSlug =
-    companion?.slug ||
-    (activeCharacter === 'Seraphine'
-      ? 'seraphine'
-      : activeCharacter.toLowerCase().replace(/\s+/g, '_'))
+  const activeSlug = companion?.slug || fallbackSlug
   const activeDef = getCompanionDef(activeSlug)
   const tone = companionTone(activeSlug)
 
