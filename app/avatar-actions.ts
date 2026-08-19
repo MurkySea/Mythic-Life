@@ -4,10 +4,58 @@ import { createClient } from '@/utils/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { COMPANION_DEFS } from '@/lib/companions'
 
-/**
- * Set companion.image_url from a gallery image.
- * Maps gallery character_name → companion row (by name or def slug).
- */
+function revalidatePortraitSurfaces() {
+  revalidatePath('/gallery')
+  revalidatePath('/companion-profile')
+  revalidatePath('/companions')
+  revalidatePath('/messages')
+  revalidatePath('/')
+}
+
+async function companionIdsForCharacter(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  characterName: string
+): Promise<string[]> {
+  const def = COMPANION_DEFS.find(
+    (c) => c.name === characterName || c.slug === characterName.toLowerCase()
+  )
+
+  const byName = await supabase
+    .from('companion')
+    .select('id')
+    .eq('name', def?.name || characterName)
+    .limit(20)
+
+  if (byName.error) {
+    console.error('portrait companion name lookup failed', {
+      characterName,
+      message: byName.error.message,
+    })
+  }
+
+  const nameIds = (byName.data || []).map((row) => row.id).filter(Boolean)
+  if (nameIds.length > 0) return nameIds
+
+  if (!def) return []
+
+  const bySlug = await supabase
+    .from('companion')
+    .select('id')
+    .eq('slug', def.slug)
+    .limit(20)
+
+  if (bySlug.error) {
+    console.error('portrait companion slug lookup failed', {
+      characterName,
+      slug: def.slug,
+      message: bySlug.error.message,
+    })
+  }
+
+  return (bySlug.data || []).map((row) => row.id).filter(Boolean)
+}
+
+/** Set companion.image_url from a gallery image. */
 export async function setAsAvatar(formData: FormData): Promise<{
   ok: boolean
   error?: string
@@ -22,68 +70,54 @@ export async function setAsAvatar(formData: FormData): Promise<{
 
   const supabase = await createClient()
 
-  // Prefer the exact gallery row when id is provided (guards against stale URLs)
   let finalUrl = imageUrl
   if (galleryId) {
-    const { data: row } = await supabase
+    const { data: row, error: galleryError } = await supabase
       .from('gallery_images')
       .select('id, image_url, character_name')
       .eq('id', galleryId)
+      .limit(1)
       .maybeSingle()
 
-    if (!row?.image_url) {
-      return { ok: false, error: 'Gallery image not found' }
+    if (galleryError) {
+      console.error('portrait gallery lookup failed', {
+        galleryId,
+        characterName,
+        message: galleryError.message,
+      })
     }
+    if (!row?.image_url) return { ok: false, error: 'Gallery image not found' }
     if (row.character_name !== characterName) {
       return { ok: false, error: 'Image does not belong to this companion' }
     }
     finalUrl = row.image_url
   }
 
-  const def = COMPANION_DEFS.find(
-    (c) => c.name === characterName || c.slug === characterName.toLowerCase()
-  )
-
-  // Resolve companion row by name, then by slug from def
-  let companionId: string | null = null
-
-  const { data: byName } = await supabase
-    .from('companion')
-    .select('id, name, slug')
-    .eq('name', characterName)
-    .maybeSingle()
-
-  if (byName?.id) {
-    companionId = byName.id
-  } else if (def) {
-    const { data: bySlug } = await supabase
-      .from('companion')
-      .select('id')
-      .eq('slug', def.slug)
-      .maybeSingle()
-    companionId = bySlug?.id ?? null
-  }
-
-  if (!companionId) {
+  const companionIds = await companionIdsForCharacter(supabase, characterName)
+  if (companionIds.length === 0) {
+    console.error('portrait companion row resolution failed', { characterName })
     return { ok: false, error: `No companion row for ${characterName}` }
   }
 
   const { error } = await supabase
     .from('companion')
     .update({ image_url: finalUrl })
-    .eq('id', companionId)
+    .in('id', companionIds)
 
   if (error) {
-    console.error('setAsAvatar failed', error)
-    return { ok: false, error: 'Could not update avatar' }
+    console.error('setAsAvatar failed', {
+      characterName,
+      companionIds,
+      message: error.message,
+    })
+    return { ok: false, error: 'Could not update portrait' }
   }
 
-  revalidatePath('/gallery')
-  revalidatePath('/companion-profile')
-  revalidatePath('/companions')
-  revalidatePath('/messages')
-  revalidatePath('/')
-
+  console.info('companion portrait updated', {
+    characterName,
+    rowsSynchronized: companionIds.length,
+  })
+  revalidatePortraitSurfaces()
   return { ok: true }
 }
 
@@ -96,35 +130,30 @@ export async function clearAvatar(formData: FormData): Promise<{
   if (!characterName) return { ok: false, error: 'Missing character' }
 
   const supabase = await createClient()
-  const def = COMPANION_DEFS.find(
-    (c) => c.name === characterName || c.slug === characterName.toLowerCase()
-  )
-
-  const { data: byName } = await supabase
-    .from('companion')
-    .select('id')
-    .eq('name', characterName)
-    .maybeSingle()
-
-  let companionId = byName?.id ?? null
-  if (!companionId && def) {
-    const { data: bySlug } = await supabase
-      .from('companion')
-      .select('id')
-      .eq('slug', def.slug)
-      .maybeSingle()
-    companionId = bySlug?.id ?? null
+  const companionIds = await companionIdsForCharacter(supabase, characterName)
+  if (companionIds.length === 0) {
+    console.error('clear portrait companion row resolution failed', { characterName })
+    return { ok: false, error: 'Companion not found' }
   }
 
-  if (!companionId) return { ok: false, error: 'Companion not found' }
+  const { error } = await supabase
+    .from('companion')
+    .update({ image_url: null })
+    .in('id', companionIds)
 
-  await supabase.from('companion').update({ image_url: null }).eq('id', companionId)
+  if (error) {
+    console.error('clearAvatar failed', {
+      characterName,
+      companionIds,
+      message: error.message,
+    })
+    return { ok: false, error: 'Could not restore default portrait' }
+  }
 
-  revalidatePath('/gallery')
-  revalidatePath('/companion-profile')
-  revalidatePath('/companions')
-  revalidatePath('/messages')
-  revalidatePath('/')
-
+  console.info('companion portrait cleared', {
+    characterName,
+    rowsSynchronized: companionIds.length,
+  })
+  revalidatePortraitSurfaces()
   return { ok: true }
 }
