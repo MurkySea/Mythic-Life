@@ -13,30 +13,107 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray
 }
 
+function subscriptionUsesKey(subscription: PushSubscription, publicKey: string) {
+  const current = subscription.options.applicationServerKey
+  if (!current) return false
+
+  const expected = urlBase64ToUint8Array(publicKey)
+  const actual = new Uint8Array(current)
+  if (actual.length !== expected.length) return false
+
+  for (let i = 0; i < actual.length; i++) {
+    if (actual[i] !== expected[i]) return false
+  }
+
+  return true
+}
+
+async function saveSubscription(subscription: PushSubscription) {
+  const res = await fetch('/api/push/subscribe', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(subscription.toJSON()),
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.hint || data.error || 'Could not save subscription')
+  }
+}
+
 type Status = 'loading' | 'unsupported' | 'need-keys' | 'off' | 'on' | 'denied' | 'error'
 
 export default function PushEnable() {
   const publicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || ''
   const [status, setStatus] = useState<Status>(() => {
     if (typeof window === 'undefined') return 'loading'
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'unsupported'
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
+      return 'unsupported'
+    }
     if (!publicKey) return 'need-keys'
     if (Notification.permission === 'denied') return 'denied'
     return 'loading'
   })
   const [message, setMessage] = useState('')
+  const [testing, setTesting] = useState(false)
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    if (!('serviceWorker' in navigator) || !('PushManager' in window) || !publicKey || Notification.permission === 'denied') return
+    if (
+      !('serviceWorker' in navigator) ||
+      !('PushManager' in window) ||
+      !('Notification' in window) ||
+      !publicKey ||
+      Notification.permission === 'denied'
+    ) {
+      return
+    }
 
-    navigator.serviceWorker
-      .register('/sw.js')
-      .then(async (reg) => {
+    let cancelled = false
+
+    async function inspectAndRepair() {
+      try {
+        const reg = await navigator.serviceWorker.register('/sw.js')
+        await navigator.serviceWorker.ready
         const sub = await reg.pushManager.getSubscription()
-        setStatus(sub ? 'on' : 'off')
-      })
-      .catch(() => setStatus('error'))
+
+        if (cancelled) return
+
+        if (!sub) {
+          setStatus('off')
+          return
+        }
+
+        // A subscription is bound to the VAPID public key that created it.
+        // If keys were rotated, the old subscription cannot receive new pushes.
+        if (!subscriptionUsesKey(sub, publicKey)) {
+          setStatus('off')
+          setMessage('Notification key changed. Tap enable to reconnect this device.')
+          return
+        }
+
+        // Re-post the local subscription every time Settings opens. This repairs the
+        // common case where the browser still has a subscription but the server row
+        // was pruned, reset, or lost.
+        await saveSubscription(sub)
+        if (!cancelled) {
+          setStatus('on')
+          setMessage('')
+        }
+      } catch (e) {
+        console.error('push inspection failed', e)
+        if (!cancelled) {
+          setStatus('error')
+          setMessage(e instanceof Error ? e.message : 'Could not verify notification setup.')
+        }
+      }
+    }
+
+    inspectAndRepair()
+
+    return () => {
+      cancelled = true
+    }
   }, [publicKey])
 
   async function enable() {
@@ -52,6 +129,14 @@ export default function PushEnable() {
       await navigator.serviceWorker.ready
 
       let sub = await reg.pushManager.getSubscription()
+
+      // If VAPID keys changed since this device originally subscribed, the existing
+      // endpoint is unusable. Replace it with a subscription tied to the current key.
+      if (sub && !subscriptionUsesKey(sub, publicKey)) {
+        await sub.unsubscribe()
+        sub = null
+      }
+
       if (!sub) {
         sub = await reg.pushManager.subscribe({
           userVisibleOnly: true,
@@ -59,23 +144,17 @@ export default function PushEnable() {
         })
       }
 
-      const res = await fetch('/api/push/subscribe', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(sub.toJSON()),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setStatus('error')
-        setMessage(data.hint || data.error || 'Could not save subscription')
-        return
-      }
+      await saveSubscription(sub)
       setStatus('on')
-      setMessage('Enabled. Companions can notify this device.')
+      setMessage('Enabled and synced with the server.')
     } catch (e) {
       console.error(e)
       setStatus('error')
-      setMessage('Enable failed. On iPhone: Add to Home Screen first, then try again.')
+      setMessage(
+        e instanceof Error
+          ? e.message
+          : 'Enable failed. On iPhone: Add to Home Screen first, then try again.'
+      )
     }
   }
 
@@ -95,6 +174,40 @@ export default function PushEnable() {
       setMessage('Notifications off for this device.')
     } catch {
       setStatus('error')
+      setMessage('Could not disable notifications cleanly.')
+    }
+  }
+
+  async function testPush() {
+    setTesting(true)
+    setMessage('')
+    try {
+      const res = await fetch('/api/push/test', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Test push failed.')
+      }
+
+      if (data.sent > 0) {
+        setMessage(`Test sent to ${data.sent} subscription${data.sent === 1 ? '' : 's'}.`)
+      } else if (data.reason === 'no-subscriptions') {
+        setMessage('Server has no saved device subscription. Tap enable to reconnect.')
+        setStatus('off')
+      } else if (data.reason === 'missing-vapid') {
+        setMessage('VAPID keys are missing in the production environment.')
+      } else if (data.reason === 'subscription-query-failed') {
+        setMessage('The server could not read saved push subscriptions.')
+      } else if (data.reason === 'delivery-failed') {
+        setMessage('The push service rejected the saved subscription. Re-enable notifications.')
+        setStatus('off')
+      } else {
+        setMessage('No notification was delivered. Re-enable notifications and test again.')
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : 'Test push failed.')
+    } finally {
+      setTesting(false)
     }
   }
 
@@ -134,13 +247,23 @@ export default function PushEnable() {
       )}
 
       {status === 'on' && (
-        <button
-          type="button"
-          onClick={disable}
-          className="w-full py-3 rounded-xl bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 transition"
-        >
-          Notifications on — tap to disable
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={testPush}
+            disabled={testing}
+            className="py-3 rounded-xl bg-violet-700 hover:bg-violet-600 disabled:opacity-60 text-sm font-medium transition"
+          >
+            {testing ? 'Sending…' : 'Send test'}
+          </button>
+          <button
+            type="button"
+            onClick={disable}
+            className="py-3 rounded-xl bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 transition"
+          >
+            Turn off
+          </button>
+        </div>
       )}
 
       {message && <p className="text-xs text-zinc-500 leading-relaxed">{message}</p>}
