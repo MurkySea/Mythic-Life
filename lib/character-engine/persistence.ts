@@ -15,8 +15,25 @@ function isCharacterState(value: unknown): value is CharacterState {
   if (!isRecord(value)) return false
   if (value.version !== 1 || typeof value.companionSlug !== 'string') return false
   if (typeof value.energy !== 'number' || typeof value.stress !== 'number') return false
-  if (!isRecord(value.relationship) || !Array.isArray(value.currentGoals)) return false
-  return true
+  if (typeof value.curiosity !== 'number' || typeof value.confidence !== 'number') return false
+  if (!Array.isArray(value.currentGoals)) return false
+  if (!Array.isArray(value.unresolvedThoughts) || !Array.isArray(value.recentEvents)) return false
+  if (!isRecord(value.relationship)) return false
+
+  for (const key of [
+    'trust',
+    'comfort',
+    'respect',
+    'playfulness',
+    'admiration',
+    'romance',
+    'conflict',
+    'sharedHistory',
+  ]) {
+    if (typeof value.relationship[key] !== 'number') return false
+  }
+
+  return typeof value.updatedAt === 'string'
 }
 
 export function hydrateCharacterState(opts: {
