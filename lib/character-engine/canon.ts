@@ -113,6 +113,17 @@ export function formatCompanionCanon(state?: CharacterState): string {
     .join('\n')}\nThese are things she previously established about herself. Keep them consistent. They do not imply Mark was present for them or already knew them.`
 }
 
+function recognitionToken(token: string): string {
+  let value = token.toLowerCase()
+  if (value.length > 6 && value.endsWith('ingly')) value = value.slice(0, -5)
+  else if (value.length > 5 && value.endsWith('edly')) value = value.slice(0, -4)
+  else if (value.length > 5 && value.endsWith('ing')) value = value.slice(0, -3)
+  else if (value.length > 4 && value.endsWith('ed')) value = value.slice(0, -2)
+  else if (value.length > 4 && value.endsWith('ly')) value = value.slice(0, -2)
+  if (value.length > 4 && value.endsWith('s')) value = value.slice(0, -1)
+  return value
+}
+
 export function recognitionAppearsInReply(summary: string, reply?: string | null): boolean {
   if (!summary || !reply) return false
   const stopwords = new Set([
@@ -123,6 +134,7 @@ export function recognitionAppearsInReply(summary: string, reply?: string | null
     .toLowerCase()
     .replace(/[^a-z0-9\s]/g, ' ')
     .split(/\s+/)
+    .map(recognitionToken)
     .filter((token) => token.length >= 4 && !stopwords.has(token))
   if (!important.length) return false
 
@@ -131,6 +143,7 @@ export function recognitionAppearsInReply(summary: string, reply?: string | null
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, ' ')
       .split(/\s+/)
+      .map(recognitionToken)
       .filter((token) => token.length >= 4)
   )
   const overlap = important.filter((token) => haystack.has(token)).length
