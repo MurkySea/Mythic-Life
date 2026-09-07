@@ -139,6 +139,51 @@ export type CharacterThought = {
   resolvedAt?: string
 }
 
+export type UserBeliefCategory =
+  | 'value'
+  | 'preference'
+  | 'drive'
+  | 'fear'
+  | 'identity'
+  | 'relationship'
+  | 'pattern'
+  | 'current_focus'
+
+export type UserBeliefEvidence = {
+  quote: string
+  observedAt: string
+  stance: 'support' | 'contradict'
+}
+
+export type UserBelief = {
+  id: string
+  category: UserBeliefCategory
+  statement: string
+  confidence: number
+  status: 'tentative' | 'supported' | 'revised'
+  evidence: UserBeliefEvidence[]
+  firstObservedAt: string
+  lastObservedAt: string
+}
+
+export type UserTheory = {
+  version: 1
+  beliefs: UserBelief[]
+}
+
+export type CompanionCanonFact = {
+  id: string
+  statement: string
+  source: 'companion_statement'
+  createdAt: string
+  lastConfirmedAt: string
+}
+
+export type CompanionCanon = {
+  version: 1
+  selfFacts: CompanionCanonFact[]
+}
+
 export type CharacterState = {
   version: 1
   companionSlug: string
@@ -151,6 +196,10 @@ export type CharacterState = {
   unresolvedThoughts: CharacterThought[]
   recentEvents: string[]
   relationship: CharacterRelationship
+  /** Working hypotheses about Mark. Optional for backward compatibility with stored v1 state. */
+  theoryOfUser?: UserTheory
+  /** Self-lore this companion has actually established in conversation. */
+  companionCanon?: CompanionCanon
   updatedAt: string
 }
 
