@@ -41,7 +41,7 @@ describe('companion context compiler', () => {
       knowledgeLines: [],
     })
 
-    expect(compiled.historyBlock).not.toContain('turn-1')
+    expect(compiled.historyBlock.split('\n')).not.toContain('Mark: turn-1')
     expect(compiled.historyBlock).toContain('turn-7')
     expect(compiled.historyBlock).toContain('turn-22')
   })
