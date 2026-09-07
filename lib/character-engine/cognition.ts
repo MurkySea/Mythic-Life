@@ -18,6 +18,11 @@ import {
   selectOrganicRecognitionThought,
   type HabitRecognitionLog,
 } from '@/lib/character-engine/organic-recognition'
+import { updateTheoryOfUser } from '@/lib/character-engine/theory-of-user'
+import {
+  recognitionAppearsInReply,
+  updateCompanionCanonFromReply,
+} from '@/lib/character-engine/canon'
 import type {
   CharacterAnalysis,
   CharacterState,
@@ -183,6 +188,27 @@ async function saveState(
   loaded.rowId = data?.id
 }
 
+async function latestCompanionReply(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  companionSlug: string
+): Promise<string | undefined> {
+  const { data, error } = await supabase
+    .from('messages')
+    .select('role, content, companion_slug, created_at')
+    .eq('role', 'companion')
+    .order('created_at', { ascending: false })
+    .limit(12)
+
+  if (error) throw error
+  const match = (data || []).find((message) => {
+    if (companionSlug === 'seraphine') {
+      return !message.companion_slug || message.companion_slug === 'seraphine'
+    }
+    return message.companion_slug === companionSlug
+  })
+  return match?.content ? String(match.content) : undefined
+}
+
 async function refreshOrganicRecognition(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -332,6 +358,20 @@ export async function persistConversationCognition(opts: {
     event: notableEvent,
   })
 
+  // Build a fallible model of Mark from evidence rather than flattening every
+  // observation into permanent truth. Corrections weaken/revise old beliefs.
+  next = updateTheoryOfUser({
+    state: next,
+    userText: opts.userText,
+    analysis: opts.analysis,
+    disclosure: opts.disclosure,
+  })
+
+  // after() runs after the server action has produced and stored the companion
+  // message. Read that reply back so self-disclosures become durable canon.
+  const latestReply = await latestCompanionReply(supabase, opts.companionSlug)
+  next = updateCompanionCanonFromReply(next, latestReply)
+
   if (
     canOfferOrganicRecognition({
       analysis: opts.analysis,
@@ -339,7 +379,9 @@ export async function persistConversationCognition(opts: {
     })
   ) {
     const offered = selectOrganicRecognitionThought(next)
-    if (offered) {
+    // Do not consume an observation merely because the turn was eligible. It
+    // remains pending until the actual generated reply visibly used it.
+    if (offered && recognitionAppearsInReply(offered.summary, latestReply)) {
       const resolvedAt = new Date().toISOString()
       next = {
         ...next,
