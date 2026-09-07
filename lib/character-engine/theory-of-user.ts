@@ -1,4 +1,3 @@
-import { extractKnowledgeCandidate, type CompanionKnowledgeKind } from '@/lib/character-engine/knowledge'
 import type {
   CharacterAnalysis,
   CharacterState,
@@ -57,22 +56,13 @@ function stableId(category: string, statement: string): string {
   return `belief:${category}:${(hash >>> 0).toString(36)}`
 }
 
-function categoryFromKnowledge(kind: CompanionKnowledgeKind): UserBeliefCategory {
-  switch (kind) {
-    case 'value': return 'value'
-    case 'preference': return 'preference'
-    case 'fear': return 'fear'
-    case 'drive': return 'drive'
-    case 'relationship_observation': return 'relationship'
-    default: return 'pattern'
-  }
-}
-
-function explicitCandidate(text: string): {
+type BeliefCandidate = {
   category: UserBeliefCategory
   statement: string
   confidence: number
-} | null {
+}
+
+function explicitCandidate(text: string): BeliefCandidate | null {
   const source = clean(text)
   if (source.length < 10 || source.length > 420) return null
 
@@ -92,6 +82,69 @@ function explicitCandidate(text: string): {
     return { category: 'pattern', statement: `A pattern Mark described: ${source}`, confidence: 0.78 }
   }
   return null
+}
+
+function inferredCandidate(opts: {
+  userText: string
+  analysis: CharacterAnalysis
+  disclosure: DisclosureAssessment
+}): BeliefCandidate | null {
+  const source = clean(opts.userText)
+  const lower = source.toLowerCase()
+  const depth = opts.disclosure.depth
+  if (source.length < 24 || (depth < 3 && !opts.analysis.isVulnerable)) return null
+
+  if (/\b(?:faith|god|church|bible|prayer|worship|kingdom)\b/i.test(lower)) {
+    return {
+      category: 'value',
+      statement: 'Faith appears to be a meaningful anchor in how Mark understands his life and choices.',
+      confidence: 0.7,
+    }
+  }
+  if (/\b(?:build|building|legacy|homestead|land|something that lasts|outlive me|systems)\b/i.test(lower)) {
+    return {
+      category: 'drive',
+      statement: 'Mark appears energized by building things intended to last beyond the immediate moment.',
+      confidence: 0.68,
+    }
+  }
+  if (/\b(?:go quiet|go silent|withdraw|shut down|handle it alone|carry it alone)\b/i.test(lower)) {
+    return {
+      category: 'pattern',
+      statement: 'Under enough pressure, Mark may become quieter and carry more internally.',
+      confidence: 0.6,
+    }
+  }
+  if (/\b(?:not chosen|not really known|nobody sees|only tolerated|intentionally chosen)\b/i.test(lower)) {
+    return {
+      category: 'fear',
+      statement: 'Being deliberately known and chosen may matter to Mark more deeply than generic praise.',
+      confidence: 0.7,
+    }
+  }
+  if (/\b(?:take care of everyone|support everyone|carry everyone|put others first|clients first)\b/i.test(lower)) {
+    return {
+      category: 'pattern',
+      statement: 'Mark may default toward carrying responsibility for other people before himself.',
+      confidence: 0.64,
+    }
+  }
+
+  const category: UserBeliefCategory = opts.disclosure.categories.includes('fear')
+    ? 'fear'
+    : opts.disclosure.categories.includes('identity')
+      ? 'identity'
+      : opts.disclosure.categories.includes('relationship')
+        ? 'relationship'
+        : opts.disclosure.categories.includes('hope')
+          ? 'drive'
+          : 'pattern'
+
+  return {
+    category,
+    statement: `A tentative interpretation from something Mark disclosed: ${source.slice(0, 190)}`,
+    confidence: depth >= 4 ? 0.62 : 0.55,
+  }
 }
 
 function initialTheory(state: CharacterState): UserTheory {
@@ -153,20 +206,7 @@ export function updateTheoryOfUser(opts: {
     observedAt
   )
 
-  const knowledge = extractKnowledgeCandidate({
-    userText: opts.userText,
-    analysis: opts.analysis,
-    disclosure: opts.disclosure,
-  })
-  const explicit = explicitCandidate(opts.userText)
-  const candidate = knowledge
-    ? {
-        category: categoryFromKnowledge(knowledge.kind),
-        statement: knowledge.content,
-        confidence: knowledge.confidence,
-      }
-    : explicit
-
+  const candidate = explicitCandidate(opts.userText) ?? inferredCandidate(opts)
   if (!candidate) {
     return theory === opts.state.theoryOfUser ? opts.state : { ...opts.state, theoryOfUser: theory }
   }
@@ -236,7 +276,10 @@ export function selectRelevantUserBeliefs(
   return beliefs
     .map((belief) => {
       const overlap = [...tokens(belief.statement)].filter((token) => topicTokens.has(token)).length
-      const recencyDays = Math.max(0, (Date.now() - new Date(belief.lastObservedAt).getTime()) / 86_400_000)
+      const observed = new Date(belief.lastObservedAt).getTime()
+      const recencyDays = Number.isFinite(observed)
+        ? Math.max(0, (Date.now() - observed) / 86_400_000)
+        : 999
       const recency = Math.max(0, 0.18 - recencyDays / 180)
       const score = belief.confidence + Math.min(0.45, overlap * 0.15) + recency
       return { belief, score }
