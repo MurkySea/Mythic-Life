@@ -5,6 +5,10 @@ import {
   type CharacterStateRow,
 } from '@/lib/character-engine/persistence'
 import {
+  isMissingRelationshipColumn,
+  withRelationshipFallback,
+} from '@/lib/character-engine/relationship-compat'
+import {
   applyConversationOutcome,
   createDefaultCharacterState,
 } from '@/lib/character-engine/state'
@@ -87,18 +91,36 @@ async function resolveCompanion(
 ): Promise<CompanionIdentity | null> {
   const def = getCompanionDef(companionSlug)
   const safeName = def?.name || (companionSlug === 'seraphine' ? 'Seraphine' : companionSlug)
-  const { data, error } = await supabase
+
+  const modern = await supabase
     .from('companion')
     .select('id, slug, name, affinity_score, bond_xp, trust_score, intimacy_score')
     .or(`slug.eq.${companionSlug},name.eq.${safeName}`)
     .limit(8)
 
-  if (error) throw error
-  const canonical = pickCanonicalCompanionRow<CompanionIdentity>((data || []) as CompanionIdentity[], {
+  let rows: CompanionIdentity[]
+  if (!modern.error) {
+    rows = (modern.data || []) as CompanionIdentity[]
+  } else if (isMissingRelationshipColumn(modern.error)) {
+    // Production can temporarily lag the relationship-engine schema. Fall back
+    // to legacy columns instead of disabling all Character Engine persistence.
+    const legacy = await supabase
+      .from('companion')
+      .select('id, slug, name, affinity_score, bond_xp')
+      .or(`slug.eq.${companionSlug},name.eq.${safeName}`)
+      .limit(8)
+
+    if (legacy.error) throw legacy.error
+    rows = (legacy.data || []) as CompanionIdentity[]
+  } else {
+    throw modern.error
+  }
+
+  const canonical = pickCanonicalCompanionRow<CompanionIdentity>(rows, {
     canonicalName: def?.name,
     slug: companionSlug,
   })
-  return canonical?.id ? canonical : null
+  return canonical?.id ? withRelationshipFallback(canonical, companionSlug) : null
 }
 
 async function loadState(
