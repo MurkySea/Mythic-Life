@@ -8,6 +8,10 @@ import type { CuriosityIntent } from '@/lib/character-engine/curiosity'
 import { formatCuriosityBlock } from '@/lib/character-engine/curiosity'
 import type { AttentionIntent } from '@/lib/character-engine/attention'
 import { formatAttentionBlock } from '@/lib/character-engine/attention'
+import {
+  canOfferOrganicRecognition,
+  selectOrganicRecognitionThought,
+} from '@/lib/character-engine/organic-recognition'
 
 export function characterEnginePromptBlock(opts: {
   analysis: CharacterAnalysis
@@ -25,7 +29,7 @@ export function characterEnginePromptBlock(opts: {
         `Stress: ${Math.round(state.stress)}/100`,
         `Curiosity: ${Math.round(state.curiosity)}/100`,
         `Confidence: ${Math.round(state.confidence)}/100`,
-        `Relationship: trust ${Math.round(state.relationship.trust)}, comfort ${Math.round(state.relationship.comfort)}, respect ${Math.round(state.relationship.respect)}, playfulness ${Math.round(state.relationship.playfulness)}, romance ${Math.round(state.relationship.romance)}, conflict ${Math.round(state.relationship.conflict)}`,
+        `Relationship context: trust ${Math.round(state.relationship.trust)}, intimacy ${Math.round(state.relationship.comfort)}, respect ${Math.round(state.relationship.respect)}, playfulness ${Math.round(state.relationship.playfulness)}, romance ${Math.round(state.relationship.romance)}, conflict ${Math.round(state.relationship.conflict)}`,
       ]
     : ['No persistent state supplied. Do not invent internal events or feelings.']
 
@@ -46,6 +50,19 @@ export function characterEnginePromptBlock(opts: {
     : ''
   const attentionSection = attention?.active
     ? `\nEVIDENCE OF ATTENTION\n${formatAttentionBlock(attention)}\n`
+    : ''
+
+  const recognitionThought =
+    state &&
+    canOfferOrganicRecognition({
+      analysis,
+      disclosureDepth: direction.disclosure.depth,
+    })
+      ? selectOrganicRecognitionThought(state)
+      : undefined
+
+  const recognitionSection = recognitionThought
+    ? `\nPRIVATE OBSERVATION WAITING FOR A NATURAL MOMENT\n${recognitionThought.summary}\nThis is optional and subordinate to Mark's actual reason for speaking. If the conversation has room after the primary need is met, she may acknowledge what she noticed once, naturally, in her own voice. Do not sound like a dashboard or achievement popup. Never mention logs, scores, databases, hidden state, or that she was instructed to notice. Do not force this observation into an emotionally heavy turn.\n`
     : ''
 
   return `CHARACTER ENGINE V2
@@ -83,6 +100,7 @@ RESPONSE OBLIGATIONS
 ${direction.obligations.length ? direction.obligations.map((item) => `- ${item}`).join('\n') : '- No special obligation beyond the reply objectives.'}
 ${curiositySection}
 ${attentionSection}
+${recognitionSection}
 CONVERSATION MOMENTUM
 Active topic: ${direction.momentum.activeTopic}
 Active for approximately ${direction.momentum.activeTurns} user turns

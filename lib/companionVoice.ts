@@ -1,7 +1,10 @@
 import type { CompanionDef } from '@/lib/companions'
 import { relationshipStage } from '@/lib/companions'
 import { characterProfilePrompt, getCharacterProfile } from '@/lib/characterStudio'
-import { qualityGatePrompt } from '@/lib/character-engine'
+import {
+  qualityGatePrompt,
+  selectRelevantContextLines,
+} from '@/lib/character-engine'
 import type { ConversationDirection } from '@/lib/character-engine'
 
 const USER_NAME = 'Mark'
@@ -19,6 +22,9 @@ export type Mood =
 const INTERNAL_CONTEXT_PATTERN =
   /CAMPFIRE_(?:DIGEST|FOLLOW_UP|ACTIONS|ACTION_RESOLUTION|TASK_SCHEDULE|TASK_ACTIVATED)|CHARACTER_PROFILE|CHARACTER ENGINE V2|CONVERSATION DIRECTOR|CONVERSATION INTENT ENGINE|RESPONSE QUALITY GATE|\bSYSTEM(?:\s+MESSAGE)?\b/i
 
+const LEGACY_PERFORMANCE_OBSERVATION_PATTERN =
+  /\b(?:consistently showing up|reasonably consistent|kept at least one promise|pushing hard on structure|feeding his mind|putting energy into people|less activity)\b/i
+
 const CORRECTION_PATTERN =
   /\b(?:no[,—-]?\s*)?(?:actually|honestly|really)?\s*(?:i(?:'m| am| was| have been)|you(?:'re| are)|that(?:'s| is))\b[^.!?]{0,80}\b(?:not|wrong|misread|mistaken|good mood|fine|okay|alright|pretty good|doing well)\b|\b(?:you read|you've read|you are reading|you're reading)\b[^.!?]{0,45}\b(?:me|that)\b[^.!?]{0,30}\bwrong\b|\bwhat(?:'s| is) with the (?:dark|heavy|sad) mood\b/i
 
@@ -29,13 +35,41 @@ export function isInterpretationCorrection(text: string): boolean {
   return CORRECTION_PATTERN.test(text || '')
 }
 
-function cleanContextBlock(block: string, maxLines: number): string {
-  const lines = String(block || '')
+function contextLines(block: string): string[] {
+  return String(block || '')
     .split('\n')
     .map((line) => line.replace(/[\u2063\u200B\u200C\u200D\uFEFF]/g, '').trim())
     .filter((line) => line && !INTERNAL_CONTEXT_PATTERN.test(line))
+}
 
-  return lines.slice(-maxLines).join('\n') || '(Nothing useful here yet.)'
+function inferLatestMarkText(historyBlock: string): string {
+  const lines = String(historyBlock || '').split('\n')
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const match = lines[index].match(/^Mark:\s*(.+)$/i)
+    if (match?.[1]) return match[1].trim()
+  }
+  return ''
+}
+
+function compileContextBlock(block: string, maxLines: number, currentUserText: string): string {
+  const lines = contextLines(block)
+  const selected = selectRelevantContextLines({
+    currentUserText,
+    lines,
+    limit: maxLines,
+  })
+  return selected.join('\n') || '(Nothing useful here yet.)'
+}
+
+function cleanObservationBlock(block: string): string {
+  const lines = contextLines(block)
+    .filter((line) => !LEGACY_PERFORMANCE_OBSERVATION_PATTERN.test(line))
+    .slice(-3)
+
+  return (
+    lines.join('\n') ||
+    '(No separate performance observation. Meaningful real-life recognition comes from persistent Character State.)'
+  )
 }
 
 function cleanHistoryBlock(block: string): string {
@@ -132,9 +166,10 @@ export function buildCompanionSystemPrompt(opts: {
   const profile = getCharacterProfile(def)
   const stage = relationshipStage(affinity)
   const recentHistory = cleanHistoryBlock(historyBlock)
-  const memories = cleanContextBlock(memoryBlock, 8)
-  const observations = cleanContextBlock(observationBlock, 3)
-  const knowledge = cleanContextBlock(knowledgeBlock, 8)
+  const currentUserText = inferLatestMarkText(recentHistory)
+  const memories = compileContextBlock(memoryBlock, 8, currentUserText)
+  const observations = cleanObservationBlock(observationBlock)
+  const knowledge = compileContextBlock(knowledgeBlock, 8, currentUserText)
 
   const character = def
     ? `Name: ${def.name} — ${def.title}
