@@ -99,6 +99,7 @@ export function runCharacterEngine(opts: CharacterEngineContext & {
 
 export * from '@/lib/character-engine/analysis'
 export * from '@/lib/character-engine/attention'
+export * from '@/lib/character-engine/canon'
 export * from '@/lib/character-engine/cognition'
 export * from '@/lib/character-engine/compiler'
 export * from '@/lib/character-engine/context-compiler'
@@ -112,4 +113,5 @@ export * from '@/lib/character-engine/organic-recognition'
 export * from '@/lib/character-engine/persistence'
 export * from '@/lib/character-engine/quality'
 export * from '@/lib/character-engine/state'
+export * from '@/lib/character-engine/theory-of-user'
 export * from '@/lib/character-engine/types'
