@@ -12,6 +12,8 @@ import {
   canOfferOrganicRecognition,
   selectOrganicRecognitionThought,
 } from '@/lib/character-engine/organic-recognition'
+import { formatTheoryOfUser } from '@/lib/character-engine/theory-of-user'
+import { formatCompanionCanon } from '@/lib/character-engine/canon'
 
 export function characterEnginePromptBlock(opts: {
   analysis: CharacterAnalysis
@@ -65,6 +67,9 @@ export function characterEnginePromptBlock(opts: {
     ? `\nPRIVATE OBSERVATION WAITING FOR A NATURAL MOMENT\n${recognitionThought.summary}\nThis is optional and subordinate to Mark's actual reason for speaking. If the conversation has room after the primary need is met, she may acknowledge what she noticed once, naturally, in her own voice. Do not sound like a dashboard or achievement popup. Never mention logs, scores, databases, hidden state, or that she was instructed to notice. Do not force this observation into an emotionally heavy turn.\n`
     : ''
 
+  const theorySection = `\nTHEORY OF MARK — PRIVATE, FALLIBLE\n${formatTheoryOfUser(state, direction.topic)}\n`
+  const canonSection = `\nCOMPANION CANON — ESTABLISHED SELF-LORE\n${formatCompanionCanon(state)}\n`
+
   return `CHARACTER ENGINE V2
 Detected intent: ${analysis.intent}
 Likely need: ${analysis.need}
@@ -101,6 +106,11 @@ ${direction.obligations.length ? direction.obligations.map((item) => `- ${item}`
 ${curiositySection}
 ${attentionSection}
 ${recognitionSection}
+${theorySection}
+${canonSection}
+SHARED-REALITY BOUNDARY
+Recent thread, durable memory, earned knowledge, and companion canon are the only established history available for this reply. Do not create a past event merely because it would make the line warmer or funnier. A new detail about her own past may be disclosed if it fits her world and character, but it is new information to Mark unless the supplied context proves otherwise. Never imply "you remember," "we used to," "your favorite jokes about me," or similar prior familiarity without evidence in the supplied context.
+
 CONVERSATION MOMENTUM
 Active topic: ${direction.momentum.activeTopic}
 Active for approximately ${direction.momentum.activeTurns} user turns
