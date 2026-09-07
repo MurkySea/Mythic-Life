@@ -20,6 +20,7 @@ import {
   replyTokenBudget,
   USER_NAME,
 } from '@/lib/companionVoice'
+import { generateCompanionDraft } from '@/lib/companion-model'
 import {
   loadPersistedMood,
   savePersistedMood,
@@ -572,32 +573,23 @@ export async function generateCompanionResponse(
 
   const requestDraft = async (context?: CompanionDraftContext): Promise<string> => {
     const rewritePrompt = context ? buildCompanionRewritePrompt(context) : ''
-    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${process.env.GROK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'grok-4',
-        messages: [
-          { role: 'system', content: systemRules },
-          {
-            role: 'user',
-            content: rewritePrompt ? `${userPrompt}\n\n${rewritePrompt}` : userPrompt,
-          },
-        ],
-        temperature: context && context.attempt > 1 ? 0.72 : temperature,
-        max_tokens: maxTokens,
-      }),
+    const result = await generateCompanionDraft({
+      system: systemRules,
+      user: rewritePrompt ? `${userPrompt}\n\n${rewritePrompt}` : userPrompt,
+      maxVisibleTokens: maxTokens,
+      attempt: context?.attempt,
+      temperature: context && context.attempt > 1 ? 0.72 : temperature,
     })
 
-    if (!response.ok) {
-      throw new Error(`Grok API returned ${response.status}`)
+    if (context?.attempt === 1 || !context) {
+      console.info('Companion model provider', {
+        companionSlug,
+        provider: result.provider,
+        model: result.model,
+      })
     }
 
-    const data = await response.json()
-    return sanitizeReply(data.choices?.[0]?.message?.content || '')
+    return sanitizeReply(result.text)
   }
 
   let conversationDirection: ConversationDirection | undefined
