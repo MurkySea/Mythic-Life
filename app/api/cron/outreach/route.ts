@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { verifyGithubOutreachToken } from '@/lib/github-actions-oidc'
 import {
   flushDueOutreach,
   maybeScheduleDayMoments,
@@ -13,10 +14,20 @@ import {
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET
+async function isAuthorized(request: Request): Promise<boolean> {
   const auth = request.headers.get('authorization')
-  if (!secret || auth !== `Bearer ${secret}`) {
+  const bearer = auth?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim()
+  if (!bearer) return false
+
+  // Preserve the existing manual/Vercel-secret path for diagnostics and rollback.
+  const secret = process.env.CRON_SECRET
+  if (secret && bearer === secret) return true
+
+  return verifyGithubOutreachToken(bearer)
+}
+
+export async function GET(request: Request) {
+  if (!(await isAuthorized(request))) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
