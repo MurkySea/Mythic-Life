@@ -5,6 +5,10 @@ on:
     # Offset from the top of the hour to reduce GitHub scheduler congestion.
     - cron: '7,27,47 * * * *'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/outreach-cron.yml'
 
 permissions:
   contents: read
