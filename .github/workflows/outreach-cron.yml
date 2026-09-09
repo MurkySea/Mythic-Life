@@ -39,10 +39,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          curl --fail-with-body --silent --show-error \
+          response="$(curl --fail-with-body --silent --show-error \
+            --location \
+            --max-redirs 0 \
             --retry 2 \
             --retry-delay 3 \
             --max-time 75 \
             -H "Authorization: Bearer ${OIDC_TOKEN}" \
             -H "User-Agent: mythic-life-github-outreach" \
-            "https://mythic-life-murky.vercel.app/api/cron/outreach"
+            "https://mythic-life-bice.vercel.app/api/cron/outreach")"
+
+          echo "$response" | jq -e '.ok == true and .privileged == true' >/dev/null
+          echo "$response"
