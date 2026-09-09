@@ -49,8 +49,11 @@ export default function HuntArena({ hunt, telegraph, companionSlug }: Props) {
     if (!parryArmed) return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reduced) {
-      setMarker(50)
-      return
+      frameRef.current = requestAnimationFrame(() => setMarker(50))
+      return () => {
+        if (frameRef.current != null) cancelAnimationFrame(frameRef.current)
+        frameRef.current = null
+      }
     }
 
     const started = performance.now()
