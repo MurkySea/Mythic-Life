@@ -63,6 +63,13 @@ describe('GitHub Actions outreach OIDC verification', () => {
     ).resolves.toBe(true)
   })
 
+  it('allows the path-limited main-branch push self-test from the same outreach workflow', async () => {
+    mockJwks()
+    await expect(
+      verifyGithubOutreachToken(tokenFor({ event_name: 'push' }))
+    ).resolves.toBe(true)
+  })
+
   it('rejects a validly signed token from another repository', async () => {
     mockJwks()
     await expect(
@@ -70,11 +77,12 @@ describe('GitHub Actions outreach OIDC verification', () => {
     ).resolves.toBe(false)
   })
 
-  it('rejects an unexpected workflow or branch', async () => {
+  it('rejects a validly signed push token from another workflow or branch', async () => {
     mockJwks()
     await expect(
       verifyGithubOutreachToken(
         tokenFor({
+          event_name: 'push',
           ref: 'refs/heads/feature',
           workflow_ref:
             'MurkySea/Mythic-Life/.github/workflows/other.yml@refs/heads/feature',
