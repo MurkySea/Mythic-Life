@@ -1,6 +1,9 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { createServerClient } from '@supabase/ssr'
 import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 import { cookies } from 'next/headers'
+
+const serviceRoleContext = new AsyncLocalStorage<boolean>()
 
 export function hasSupabaseEnv(): boolean {
   return Boolean(
@@ -9,8 +12,21 @@ export function hasSupabaseEnv(): boolean {
   )
 }
 
+/**
+ * Run trusted server-only work with the service-role Supabase client.
+ * The privilege is scoped to this async call tree, so concurrent user requests
+ * keep the normal cookie/RLS-aware client.
+ */
+export async function withServiceRoleContext<T>(work: () => Promise<T>): Promise<T> {
+  return serviceRoleContext.run(true, work)
+}
+
 /** Standard RLS-aware client (anon key). Use for normal reads/writes. */
 export async function createClient() {
+  if (serviceRoleContext.getStore() === true) {
+    return createServiceClient()
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
