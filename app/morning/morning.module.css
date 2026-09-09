@@ -1,0 +1,214 @@
+.page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  padding: 18px 16px 48px;
+  background:
+    radial-gradient(circle at 50% -10%, rgba(237, 176, 78, 0.16), transparent 36%),
+    linear-gradient(180deg, #0d0c0b 0%, #11100f 45%, #090909 100%);
+  color: var(--ink);
+}
+
+.sunriseGlow {
+  position: absolute;
+  inset: -160px 0 auto;
+  height: 300px;
+  pointer-events: none;
+  background: radial-gradient(circle, rgba(225, 166, 74, 0.13), transparent 62%);
+  filter: blur(18px);
+}
+
+.topbar,
+.scene,
+.partyRail,
+.ritualCard,
+.footerNote {
+  position: relative;
+  z-index: 1;
+  width: min(720px, 100%);
+  margin-inline: auto;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 42px 1fr 42px;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.topbar h1 {
+  margin: 2px 0 0;
+  font-family: var(--font-display, Georgia, serif);
+  font-size: clamp(1.45rem, 5vw, 2rem);
+}
+
+.eyebrow,
+.ritualHeader p,
+.emberCard p,
+.answerBlock p,
+.answerGrid p {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: .13em;
+  font-size: .68rem;
+  font-weight: 800;
+  color: #c99a50;
+}
+
+.backButton,
+.todayButton {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(224, 183, 104, .22);
+  border-radius: 14px;
+  background: rgba(20, 18, 15, .76);
+  color: #ead7b3;
+  text-decoration: none;
+}
+
+.backButton { font-size: 1.8rem; line-height: 1; }
+
+.scene {
+  padding: 20px;
+  border: 1px solid rgba(224, 183, 104, .2);
+  border-radius: 24px;
+  background: linear-gradient(145deg, rgba(49, 37, 20, .68), rgba(18, 17, 15, .9));
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .28);
+}
+
+.companionRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.companionRow p { margin: 0; color: #aa9673; font-size: .76rem; }
+.companionRow h2 { margin: 2px 0 0; font-family: var(--font-display, Georgia, serif); font-size: 1.35rem; }
+
+.scene blockquote {
+  margin: 18px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid rgba(224, 183, 104, .45);
+  color: #e7dfd0;
+  font-family: var(--font-display, Georgia, serif);
+  font-size: 1.02rem;
+  line-height: 1.55;
+}
+
+.partyRail {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  overflow-x: auto;
+  padding: 2px 2px 8px;
+  scrollbar-width: none;
+}
+.partyRail::-webkit-scrollbar { display: none; }
+
+.partyMember {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 7px 10px 7px 7px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 999px;
+  color: #b9ae9d;
+  text-decoration: none;
+  background: rgba(15, 15, 15, .64);
+  font-size: .78rem;
+}
+.activeMember { border-color: rgba(224, 183, 104, .48); color: #f1dfbd; background: rgba(67, 48, 21, .48); }
+
+.ritualCard {
+  margin-top: 14px;
+  padding: 20px;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 24px;
+  background: rgba(15, 15, 15, .82);
+  backdrop-filter: blur(18px);
+}
+
+.ritualHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+}
+.ritualHeader h2 { margin: 5px 0 0; font-size: 1.1rem; }
+.noScore { flex: 0 0 auto; color: #8e877d; font-size: .72rem; }
+
+.emberCard {
+  display: flex;
+  gap: 11px;
+  margin: 16px 0;
+  padding: 13px;
+  border: 1px solid rgba(219, 145, 55, .2);
+  border-radius: 16px;
+  background: rgba(74, 42, 13, .18);
+}
+.emberIcon { color: #e6ad55; }
+.emberCard strong { display: block; margin-top: 2px; color: #eadac0; }
+.emberCard span:not(.emberIcon) { display: block; margin-top: 4px; color: #a99d8b; font-size: .82rem; line-height: 1.45; }
+
+.form { display: grid; gap: 15px; margin-top: 16px; }
+.field { display: grid; gap: 8px; }
+.field > span { display: grid; gap: 2px; }
+.field strong { font-size: .92rem; color: #ebe3d6; }
+.field small { color: #8f887e; font-size: .75rem; }
+.field textarea,
+.field select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, .1);
+  border-radius: 14px;
+  background: rgba(5, 5, 5, .72);
+  color: #eee7dc;
+  padding: 12px 13px;
+  font: inherit;
+  outline: none;
+}
+.field textarea { resize: vertical; min-height: 68px; }
+.field textarea:focus,
+.field select:focus { border-color: rgba(224, 183, 104, .52); box-shadow: 0 0 0 3px rgba(224, 183, 104, .06); }
+
+.submitButton,
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  border-radius: 14px;
+  padding: 0 18px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.submitButton,
+.primaryAction { border: 1px solid #c79444; background: linear-gradient(180deg, #c79548, #8b5f25); color: #140f08; }
+.submitButton:disabled { opacity: .62; cursor: wait; }
+.secondaryAction { border: 1px solid rgba(255, 255, 255, .1); color: #d9d1c4; background: rgba(255, 255, 255, .035); }
+
+.completedState { display: grid; gap: 15px; margin-top: 16px; }
+.answerBlock,
+.answerGrid > div { padding: 13px 14px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 15px; background: rgba(255, 255, 255, .025); }
+.answerBlock strong { display: block; margin-top: 4px; color: #eee2cb; }
+.answerGrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+.answerGrid span { display: block; margin-top: 5px; color: #c7beb1; font-size: .84rem; line-height: 1.45; }
+.response { margin: 2px 0; padding: 16px 17px; border-left: 2px solid #b88035; background: rgba(105, 66, 20, .12); color: #e8dfd0; line-height: 1.55; }
+.response cite { display: block; margin-top: 8px; color: #a99880; font-size: .78rem; font-style: normal; }
+.nextActions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
+
+.footerNote { margin-top: 14px; text-align: center; color: #777167; font-size: .75rem; }
+
+@media (max-width: 560px) {
+  .page { padding-inline: 12px; }
+  .ritualCard, .scene { padding: 17px; border-radius: 20px; }
+  .ritualHeader { display: grid; }
+  .answerGrid { grid-template-columns: 1fr; }
+  .nextActions { grid-template-columns: 1fr; }
+}
