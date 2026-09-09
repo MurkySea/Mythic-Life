@@ -4,6 +4,7 @@ const OUTREACH_AUDIENCE = 'mythic-life-outreach'
 const EXPECTED_REPOSITORY = 'MurkySea/Mythic-Life'
 const EXPECTED_REF = 'refs/heads/main'
 const EXPECTED_WORKFLOW = '.github/workflows/outreach-cron.yml'
+const ALLOWED_EVENTS = ['schedule', 'workflow_dispatch', 'push']
 
 type GithubOidcHeader = {
   alg?: string
@@ -94,9 +95,10 @@ async function verifyRs256(
 }
 
 /**
- * Accept only short-lived GitHub Actions OIDC tokens issued to the scheduler in
- * this repository's main branch. This replaces a paid Vercel cron heartbeat
- * without introducing a second shared secret to synchronize.
+ * Accept only short-lived GitHub Actions OIDC tokens issued to the outreach
+ * workflow in this repository's main branch. The workflow itself constrains
+ * push-triggered runs to changes to the heartbeat definition, so normal app
+ * pushes do not gain an extra background execution path.
  */
 export async function verifyGithubOutreachToken(token: string): Promise<boolean> {
   const parts = String(token || '').split('.')
@@ -115,7 +117,7 @@ export async function verifyGithubOutreachToken(token: string): Promise<boolean>
   if (typeof claims.nbf === 'number' && claims.nbf > now + 30) return false
   if (claims.repository !== EXPECTED_REPOSITORY) return false
   if (claims.ref !== EXPECTED_REF) return false
-  if (!['schedule', 'workflow_dispatch'].includes(String(claims.event_name || ''))) return false
+  if (!ALLOWED_EVENTS.includes(String(claims.event_name || ''))) return false
   if (!workflowMatches(claims.workflow_ref)) return false
 
   try {
