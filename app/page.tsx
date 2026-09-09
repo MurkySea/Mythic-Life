@@ -4,6 +4,7 @@ import { ensureRecurringTasks } from './actions'
 import { activateApprovedCampfireTasks } from '@/lib/campfire-actions'
 import { MythicIcon, type MythicIconName } from '@/components/MythicIcons'
 import TaskActions from '@/components/TaskActions'
+import DailyRitualHome from '@/components/DailyRitualHome'
 import { listGoals, PILLAR_LABELS } from '@/lib/engines/goals-store'
 import type { GoalPillar } from '@/lib/engines/goals'
 import { splitTaskLanes, type TaskRow } from '@/lib/task-lanes'
@@ -49,9 +50,10 @@ export default async function HubPage() {
   const practiceSeconds = logs.reduce((sum, log) => sum + Number(log.duration_seconds || 0), 0)
 
   const menuItems: Array<{ href: string; label: string; sub: string; icon: MythicIconName; developer?: boolean }> = [
+    { href: '/morning', label: 'Morning Check-In', sub: 'Choose the day before it chooses you', icon: 'spark' },
     { href: '/companions', label: 'Companions', sub: 'Party and relationships', icon: 'party' },
     { href: '/messages', label: 'Messages', sub: 'Conversations', icon: 'messages' },
-    { href: '/camp', label: 'Campfire', sub: 'Reflect on the day', icon: 'spark' },
+    { href: '/camp', label: 'Evening Campfire', sub: 'Reflect on the day', icon: 'spark' },
     { href: '/skills', label: 'Skills', sub: 'Practice and progression', icon: 'skills' },
     { href: '/standing', label: 'Standing', sub: 'Rhythm and soul ledger', icon: 'standing' },
     { href: '/standing/health', label: 'Health', sub: 'Condition and vital signs', icon: 'streak' },
@@ -74,6 +76,8 @@ export default async function HubPage() {
           <div className={styles.resource}><span className={styles.resourceOrb}><MythicIcon name="goals" size={14} /></span><span><strong>{activeGoals.length}</strong><small>Goals</small></span></div>
         </div>
       </section>
+
+      <DailyRitualHome />
 
       <HomeActionShell
         menuItems={menuItems}
